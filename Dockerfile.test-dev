@@ -1,0 +1,62 @@
+# Dockerfile pour tester les builds de développement Android
+FROM node:18-slim
+
+# Installer les dépendances système nécessaires
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk \
+    curl \
+    unzip \
+    git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Variables d'environnement Java
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+# Variables d'environnement Android SDK
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV PATH=${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/build-tools/34.0.0
+
+# Installer Android SDK
+RUN mkdir -p ${ANDROID_HOME} && \
+    curl -o sdk-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip && \
+    unzip sdk-tools.zip -d ${ANDROID_HOME} && \
+    mv ${ANDROID_HOME}/cmdline-tools ${ANDROID_HOME}/cmdline-tools-temp && \
+    mkdir -p ${ANDROID_HOME}/cmdline-tools/latest && \
+    mv ${ANDROID_HOME}/cmdline-tools-temp/* ${ANDROID_HOME}/cmdline-tools/latest/ && \
+    rm -rf sdk-tools.zip ${ANDROID_HOME}/cmdline-tools-temp
+
+# Accepter les licences et installer les outils Android essentiels
+RUN yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses && \
+    ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
+    "platform-tools" \
+    "platforms;android-34" \
+    "build-tools;34.0.0"
+
+WORKDIR /app
+
+# Copier les fichiers de configuration
+COPY package*.json ./
+COPY app.json ./
+COPY eas.json ./
+
+# Installer les dépendances
+RUN npm ci
+
+# Copier le code source
+COPY . .
+
+# Test de prebuild Android (nettoyage d'abord)
+RUN rm -rf android || true  
+RUN npx expo prebuild --platform android --clean
+
+# Test de création du bundle JavaScript
+RUN npx expo export --platform android --output-dir dist-test
+
+# Vérifier que les fichiers essentiels sont présents
+RUN ls -la android/app/src/main/ && \
+    echo "✅ Structure Android générée avec succès" && \
+    ls -la dist-test/ && \
+    echo "✅ Bundle JavaScript créé avec succès"
+
+CMD ["echo", "Test de développement Android terminé avec succès !"] 
