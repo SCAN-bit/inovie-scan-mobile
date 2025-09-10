@@ -15,9 +15,11 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import FirebaseService from '../services/firebaseService';
+import SupabaseService from '../services/supabaseService';
 import CustomView from '../components/CustomView';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CustomHeader from '../components/CustomHeader';
+import { wp, hp, fp, sp } from '../utils/responsiveUtils';
 
 // Renommer CustomView en View pour maintenir la compatibilité avec le code existant
 const View = CustomView;
@@ -25,11 +27,13 @@ const View = CustomView;
 const { width } = Dimensions.get('window');
 
 export default function CheckVehiculeScreen({ navigation, route }) {
-  const { sessionData } = route.params || {};
+  const { sessionData, isFromScanScreen, isFromPersonnelAdmin } = route.params || {};
   const vehicule = sessionData?.vehicule || {};
   const tournee = sessionData?.tournee || {};
   const pole = sessionData?.pole || {};
-  
+  const isFinalCheck = sessionData?.isFinalCheck || false; // Nouveau: détecter si c'est un check final
+  const isPersonnelAdmin = sessionData?.isPersonnelAdmin || false; // Flag pour le personnel administratif
+
   // États pour gérer les fonctionnalités de l'écran
   const [photos, setPhotos] = useState([]);
   const [notes, setNotes] = useState('');
@@ -38,13 +42,21 @@ export default function CheckVehiculeScreen({ navigation, route }) {
   const [isLoading, setIsLoading] = useState(false);
   const [imageLayout, setImageLayout] = useState({ width: 0, height: 0 }); // État pour stocker les dimensions de l'image
   const [managerAlert, setManagerAlert] = useState(false); // Nouvel état pour l'alerte responsable
+  const [kilometrage, setKilometrage] = useState(''); // Nouvel état pour le kilométrage
 
   // Nouveaux états pour le suivi des lavages
-  const [lastWashDate, setLastWashDate] = useState(''); // Format YYYY-MM-DD
-  const [washMileage, setWashMileage] = useState('');
-  const [washType, setWashType] = useState(''); // ex: 'Interieur', 'Exterieur', 'Complet'
-  const [washNotes, setWashNotes] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false); // Nouvel état pour le date picker
+  const [washCompleted, setWashCompleted] = useState(false); // État pour la coche de lavage effectué
+  const [washTypes, setWashTypes] = useState([]); // Types de lavage sélectionnés (choix multiple)
+  
+  // État pour les toasts
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    // Auto-hide après 3 secondes
+    setTimeout(() => setToast(null), 3000);
+  };
+
   
   // Vérifier l'authentification au chargement de l'écran
   useEffect(() => {
@@ -114,47 +126,35 @@ export default function CheckVehiculeScreen({ navigation, route }) {
     setDefects(defects.filter(defect => defect.id !== id));
   };
 
-  // Fonctions pour le DatePicker
-  const showDatepicker = () => {
-    // Si aucune date n'est définie, la définir à la date du jour
-    if (!lastWashDate) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = (today.getMonth() + 1).toString().padStart(2, '0');
-      const day = today.getDate().toString().padStart(2, '0');
-      setLastWashDate(`${year}-${month}-${day}`);
-    }
-    setShowDatePicker(true);
-  };
-
-  const onDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios'); // Sur iOS, garder visible pour permettre de "confirmer" ou "annuler"
-    if (selectedDate) {
-      const year = selectedDate.getFullYear();
-      const month = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
-      const day = selectedDate.getDate().toString().padStart(2, '0');
-      setLastWashDate(`${year}-${month}-${day}`);
-      if (Platform.OS !== 'ios') { // Sur Android, le picker se ferme après sélection
-        setShowDatePicker(false);
-      }
+  // Fonction pour gérer la sélection multiple des types de lavage
+  const toggleWashType = (type) => {
+    if (washTypes.includes(type)) {
+      setWashTypes(washTypes.filter(t => t !== type));
     } else {
-      // Si l'utilisateur annule (surtout sur iOS où le picker reste visible)
-       if (Platform.OS !== 'ios') {
-          setShowDatePicker(false);
-       }
+      setWashTypes([...washTypes, type]);
     }
   };
 
-  // Pour le TextInput sur le web, remplir la date du jour au focus si vide
-  const handleWebDateFocus = () => {
-    if (!lastWashDate) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = (today.getMonth() + 1).toString().padStart(2, '0');
-      const day = today.getDate().toString().padStart(2, '0');
-      setLastWashDate(`${year}-${month}-${day}`);
+  // Fonction de déconnexion
+  const handleLogout = async () => {
+    try {
+      // Fermer la session actuelle si elle existe
+      await FirebaseService.closeCurrentSession();
+      
+      // Déconnexion Firebase
+      await FirebaseService.logout();
+      
+      // Rediriger vers l'écran de connexion
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
     }
   };
+
 
   // Valider et passer à l'écran suivant
   const handleValidate = async () => {
@@ -172,58 +172,94 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       // Récupérer le selasId depuis AsyncStorage
       const selasId = await AsyncStorage.getItem('user_selas_id');
       if (!selasId) {
-        console.warn('[CheckVehiculeScreen] selasId non trouvé dans AsyncStorage. Le check sera sauvegardé sans.');
-        // Alert.alert('Erreur critique', 'Impossible de récupérer l\\'identifiant SELAS. Veuillez vous reconnecter.');
-        // setIsLoading(false);
-        // return; 
-        // Décider si c'est bloquant ou non. Pour l'instant, on logue un avertissement et on continue.
-      } else {
-        console.log('[CheckVehiculeScreen] selasId récupéré:', selasId);
+        console.warn('[CheckVehiculeScreen] selasId non trouvé dans AsyncStorage');
       }
 
-      // 1. Uploader les photos vers Firebase Storage et récupérer les URLs
+      // OPTIMISATION 1: Upload parallèle des photos
+      console.log('🚀 [CheckVehiculeScreen] Upload optimisé de', photos.length, 'photos');
+      const startUpload = Date.now();
+      
       const uploadedPhotoUrls = [];
+      
       if (photos && photos.length > 0) {
-        console.log('Début de l\'upload des photos...');
-        for (let i = 0; i < photos.length; i++) {
-          const localUri = photos[i];
+        // Upload toutes les photos en parallèle
+        const uploadPromises = photos.map(async (localUri, i) => {
           try {
-            const fileName = `${Date.now()}_${i}.jpg`; // Nom de fichier unique
-            const pathSuffix = `vehiculeChecks/${vehicule.id || 'unknown_vehicule'}/${fileName}`;
-            const downloadURL = await FirebaseService.uploadImageAsync(localUri, pathSuffix);
-            uploadedPhotoUrls.push(downloadURL);
-            console.log(`Photo ${i + 1} uploadée: ${downloadURL}`);
+            // Utiliser l'immatriculation du véhicule comme identifiant unique
+            const vehiculeImmat = vehicule.immatriculation || vehicule.registrationNumber || 'unknown_vehicule';
+            console.log(`🚀 [CheckVehiculeScreen] Upload photo ${i + 1} pour véhicule: ${vehiculeImmat}`);
+            console.log(`🚀 [CheckVehiculeScreen] Véhicule complet:`, vehicule);
+            const downloadURL = await FirebaseService.uploadImageAsync(localUri, vehiculeImmat);
+            return { success: true, url: downloadURL, index: i };
           } catch (uploadError) {
-            console.error(`Erreur lors de l'upload de la photo ${i + 1}:`, uploadError);
-            Alert.alert("Erreur d'upload", `L'image ${i + 1} n'a pas pu être sauvegardée. Veuillez réessayer.`);
-            // Optionnel: décider si on continue sans cette photo ou si on arrête tout
-            // Pour l'instant, on continue, mais l'URL ne sera pas ajoutée.
+            console.error(`❌ [CheckVehiculeScreen] Erreur upload photo ${i + 1}:`, uploadError);
+            return { success: false, error: uploadError, index: i };
           }
+        });
+
+        const uploadResults = await Promise.all(uploadPromises);
+        
+        // Traiter les résultats
+        const failedUploads = [];
+        uploadResults.forEach(result => {
+          if (result.success) {
+            uploadedPhotoUrls.push(result.url);
+          } else {
+            failedUploads.push(result.index + 1);
+          }
+        });
+
+        const uploadTime = Date.now() - startUpload;
+        console.log(`⚡ [CheckVehiculeScreen] Upload terminé en ${uploadTime}ms`);
+
+        if (failedUploads.length > 0) {
+          Alert.alert("Erreur d'upload partielle", 
+            `Les images ${failedUploads.join(', ')} n'ont pas pu être sauvegardées.`);
         }
-        console.log('Toutes les photos ont été traitées.');
       }
       
       // 2. Créer l'objet de données de vérification avec les URLs des photos
+      console.log('🔍 [CheckVehiculeScreen] Données véhicule pour checkData:', {
+        vehiculeId: vehicule.id,
+        vehiculeIdType: typeof vehicule.id,
+        immatriculation: vehicule.immatriculation || vehicule.registrationNumber,
+        immatriculationType: typeof (vehicule.immatriculation || vehicule.registrationNumber),
+        vehiculeComplet: vehicule
+      });
+
       const checkData = {
         date: new Date().toISOString(),
         vehiculeId: vehicule.id,
-        immatriculation: vehicule.immatriculation,
+        immatriculation: vehicule.immatriculation || vehicule.registrationNumber,
         selasId: selasId,
-        vehicleSchemaName: 'car-diagram.png',
+        checkType: isFinalCheck ? 'fin_tournee' : 'debut_tournee',
+        photos: uploadedPhotoUrls.map((url, index) => ({
+          id: `photo_${Date.now()}_${index}`,
+          url: url,
+          description: `Photo du véhicule ${index + 1}`,
+          createdAt: new Date().toISOString()
+        })),
         defects: defects,
-        photos: uploadedPhotoUrls, // Utiliser les URLs uploadées ici
         notes: notes,
-        // Ajout des données de lavage
+        kilometrage: kilometrage,
         washInfo: {
-          lastWashDate: lastWashDate,
-          washMileage: washMileage,
-          washType: washType,
-          washNotes: washNotes,
+          washCompleted: washCompleted,
+          washTypes: washTypes,
+          washNotes: '',
+          washMileage: kilometrage
         },
-        managerAlertRequested: managerAlert, // Sauvegarder l'état de l'alerte
+        managerAlertRequested: managerAlert,
+        vehicleSchemaName: 'car-diagram.png'
       };
-      
-      console.log('Données de vérification:', checkData);
+
+      console.log('🔍 [CheckVehiculeScreen] checkData final:', {
+        vehiculeId: checkData.vehiculeId,
+        immatriculation: checkData.immatriculation,
+        photosCount: checkData.photos.length,
+        defectsCount: checkData.defects.length,
+        notes: checkData.notes,
+        selasId: checkData.selasId
+      });
       
       // Mettre à jour les données de session avec les infos de vérification
       const updatedSessionData = {
@@ -231,17 +267,76 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         vehiculeCheck: checkData,
       };
       
-      // Log avant l'appel
-      console.log(`[CheckVehiculeScreen] Appel de FirebaseService.saveSessionData avec:`, JSON.stringify(updatedSessionData, null, 2));
-      
       const savedSession = await FirebaseService.saveSessionData(updatedSessionData);
-      
-      // Log après l'appel (si succès)
-      console.log(`[CheckVehiculeScreen] FirebaseService.saveSessionData terminé avec succès. Session ID: ${savedSession.id}`);
 
-      // Naviguer vers l'écran de scan avec SEULEMENT l'ID de la session.
-      // ScanScreen se chargera de récupérer les données lui-même.
-      navigation.navigate('Scan', { sessionId: savedSession.id });
+      // 3. Sauvegarder également dans la collection vehicleChecks pour le suivi
+      if (uploadedPhotoUrls.length > 0 || defects.length > 0 || notes.trim()) {
+        try {
+          console.log('🔍 [CheckVehiculeScreen] Données à sauvegarder dans vehicleChecks:');
+          console.log('🔍 [CheckVehiculeScreen] - vehiculeId:', checkData.vehiculeId);
+          console.log('🔍 [CheckVehiculeScreen] - immatriculation:', checkData.immatriculation);
+          console.log('🔍 [CheckVehiculeScreen] - photos count:', checkData.photos.length);
+          console.log('🔍 [CheckVehiculeScreen] - selasId:', selasId);
+          console.log('🔍 [CheckVehiculeScreen] - Platform:', Platform.OS);
+          
+          // Vérification spécifique pour mobile
+          if (Platform.OS !== 'web') {
+            console.log('📱 [CheckVehiculeScreen] Mode mobile détecté - vérifications supplémentaires');
+            
+            // Vérifier que vehiculeId n'est pas null/undefined
+            if (!checkData.vehiculeId) {
+              throw new Error('vehiculeId est null ou undefined sur mobile');
+            }
+            
+            // Vérifier que selasId existe
+            if (!selasId) {
+              console.warn('⚠️ [CheckVehiculeScreen] selasId manquant sur mobile');
+            }
+          }
+          
+          const vehicleCheckResult = await FirebaseService.saveVehicleCheck(checkData, null, selasId);
+          console.log('✅ [CheckVehiculeScreen] Données sauvegardées dans vehicleChecks:', vehicleCheckResult.id);
+          
+          // Afficher un toast de succès sur mobile
+          if (Platform.OS !== 'web') {
+            showToast('Photos sauvegardées avec succès !', 'success');
+          }
+        } catch (vehicleCheckError) {
+          console.error('❌ [CheckVehiculeScreen] Erreur sauvegarde vehicleChecks:', vehicleCheckError);
+          console.error('❌ [CheckVehiculeScreen] Détails erreur:', {
+            message: vehicleCheckError.message,
+            code: vehicleCheckError.code,
+            vehiculeId: checkData.vehiculeId,
+            immatriculation: checkData.immatriculation,
+            platform: Platform.OS,
+            stack: vehicleCheckError.stack
+          });
+          
+          // Afficher un toast d'erreur sur mobile
+          if (Platform.OS !== 'web') {
+            showToast(`Erreur sauvegarde photos: ${vehicleCheckError.message}`, 'error');
+          }
+          
+          // Ne pas bloquer le processus si cette sauvegarde échoue
+        }
+      } else {
+        console.log('ℹ️ [CheckVehiculeScreen] Aucune donnée à sauvegarder dans vehicleChecks (pas de photos, défauts ou notes)');
+      }
+
+      // Gérer la navigation selon le type de check
+      if (isPersonnelAdmin) {
+        // Pour le personnel administratif, retourner à l'écran principal avec le check terminé
+        navigation.navigate('PersonnelAdmin', { 
+          checkCompleted: true,
+          sessionData: updatedSessionData
+        });
+      } else if (isFinalCheck && isFromScanScreen) {
+        // Pour un check final depuis ScanScreen, marquer le retour avec paramètre
+        navigation.navigate('Scan', { fromFinalCheck: true });
+      } else {
+        // Navigation normale vers l'écran de scan
+        navigation.navigate('Scan', { sessionId: savedSession.id });
+      }
 
     } catch (error) {
       console.error('Erreur lors de la validation:', error);
@@ -260,6 +355,8 @@ export default function CheckVehiculeScreen({ navigation, route }) {
     console.warn("Erreur de chargement de l'image");
     setImageError(true);
   };
+
+
 
   // Rendu d'une photo dans la liste
   const renderPhotoItem = ({ item, index }) => (
@@ -285,12 +382,27 @@ export default function CheckVehiculeScreen({ navigation, route }) {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Vérification du véhicule</Text>
+    <View style={{ flex: 1 }}>
+      <CustomHeader 
+        title={isFinalCheck ? "Check Véhicule Final" : "Vérification du véhicule"}
+        navigation={navigation}
+        showBackButton={true}
+        showLogoutButton={true}
+        handleLogout={handleLogout}
+      />
+      
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+        {isFinalCheck && (
+          <View style={styles.finalCheckBanner}>
+            <Ionicons name="checkmark-circle" size={24} color="#e74c3c" />
+            <Text style={styles.finalCheckBannerText}>Check Final de Tournée</Text>
+          </View>
+        )}
         {pole && pole.nom && (
           <Text style={styles.headerPole}>Pôle: {pole.nom}</Text>
         )}
+
         <Text style={styles.headerTournee}>
           Tournée: {tournee.nom || 'Non spécifiée'}
         </Text>
@@ -302,35 +414,17 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         </Text>
       </View>
 
-      {/* Photos du véhicule */}
-      <View style={styles.photoSection}>
-        <Text style={styles.sectionTitle}>Photos du véhicule (optionnel)</Text>
-        
-        {photos.length > 0 ? (
-          <FlatList
-            data={photos}
-            renderItem={renderPhotoItem}
-            keyExtractor={(item, index) => index.toString()}
-            horizontal
-            style={styles.photoList}
-            contentContainerStyle={styles.photoListContent}
-          />
-        ) : (
-          <View style={styles.photoPlaceholder}>
-            <Ionicons name="camera-outline" size={50} color="#bdc3c7" />
-            <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
-          </View>
-        )}
-        
-        <TouchableOpacity 
-          style={styles.cameraButton} 
-          onPress={takePicture}
-        >
-          <Ionicons name="camera" size={20} color="#fff" />
-          <Text style={styles.cameraButtonText}>
-            Prendre une photo
-          </Text>
-        </TouchableOpacity>
+      {/* Section Kilométrage */}
+      <View style={styles.kilometrageSection}>
+        <Text style={styles.sectionTitle}>Kilométrage actuel</Text>
+        <Text style={styles.inputLabel}>Saisissez le kilométrage affiché au compteur</Text>
+        <TextInput
+          style={styles.inputField}
+          placeholder="Ex: 125000"
+          value={kilometrage}
+          onChangeText={setKilometrage}
+          keyboardType="numeric"
+        />
       </View>
 
       {/* Image interactive du véhicule pour marquer les défauts */}
@@ -358,7 +452,6 @@ export default function CheckVehiculeScreen({ navigation, route }) {
                 onLayout={(event) => {
                   const { width, height } = event.nativeEvent.layout;
                   setImageLayout({ width, height });
-                  console.log('Image layout:', { width, height });
                 }}
               />
             )}
@@ -394,63 +487,72 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       <View style={styles.washSection}>
         <Text style={styles.sectionTitle}>Suivi des Lavages</Text>
         
-        <Text style={styles.inputLabel}>Date du dernier lavage</Text>
-        {Platform.OS === 'web' ? (
-          <TextInput
-            style={styles.inputField} 
-            placeholder="YYYY-MM-DD"
-            value={lastWashDate}
-            onChangeText={setLastWashDate}
-            maxLength={10} 
-            onFocus={handleWebDateFocus} // Ajout du onFocus
+        {/* Case à cocher pour validation du lavage effectué */}
+        <TouchableOpacity 
+          style={styles.washCheckRow}
+          onPress={() => setWashCompleted(!washCompleted)}
+        >
+          <Ionicons 
+            name={washCompleted ? 'checkbox' : 'square-outline'} 
+            size={24} 
+            color={washCompleted ? '#2ecc71' : '#7f8c8d'} 
+          />
+          <Text style={styles.washCheckText}>J'ai effectué le lavage du véhicule</Text>
+        </TouchableOpacity>
+
+        {/* Sélection multiple des types de lavage */}
+        <Text style={styles.inputLabel}>Type de lavage</Text>
+        <View style={styles.washTypesContainer}>
+          {['Intérieur', 'Extérieur', 'Complet'].map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[
+                styles.washTypeOption,
+                washTypes.includes(type) && styles.washTypeOptionSelected
+              ]}
+              onPress={() => toggleWashType(type)}
+            >
+              <Text style={[
+                styles.washTypeText,
+                washTypes.includes(type) && styles.washTypeTextSelected
+              ]}>
+                {type}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Photos du véhicule */}
+      <View style={styles.photoSection}>
+        <Text style={styles.sectionTitle}>Photos du véhicule (optionnel)</Text>
+        
+        {photos.length > 0 ? (
+          <FlatList
+            data={photos}
+            renderItem={renderPhotoItem}
+            keyExtractor={(item, index) => index.toString()}
+            horizontal
+            style={styles.photoList}
+            contentContainerStyle={styles.photoListContent}
           />
         ) : (
-          <TouchableOpacity onPress={showDatepicker} style={styles.datePickerButton}>
-            <Text style={styles.datePickerText}>
-              {lastWashDate || "Sélectionner une date"}
-            </Text>
-            <Ionicons name="calendar-outline" size={20} color="#3498db" />
-          </TouchableOpacity>
+          <View style={styles.photoPlaceholder}>
+            <Ionicons name="camera-outline" size={50} color="#bdc3c7" />
+            <Text style={styles.photoPlaceholderText}>Aucune photo</Text>
+          </View>
         )}
-
-        {showDatePicker && Platform.OS !== 'web' && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={lastWashDate ? new Date(lastWashDate.replace(/-/g, '/')) : new Date()} 
-            mode="date"
-            is24Hour={true}
-            display="default"
-            onChange={onDateChange}
-            maximumDate={new Date()} 
-          />
-        )}
-
-        <Text style={styles.inputLabel}>Kilométrage au dernier lavage</Text>
-        <TextInput
-          style={styles.inputField}
-          placeholder="Ex: 150000"
-          value={washMileage}
-          onChangeText={setWashMileage}
-          keyboardType="numeric"
-        />
-
-        <Text style={styles.inputLabel}>Type de lavage</Text>
-        <TextInput
-          style={styles.inputField}
-          placeholder="Ex: Intérieur, Extérieur, Complet"
-          value={washType}
-          onChangeText={setWashType}
-        />
-
-        <Text style={styles.inputLabel}>Notes sur le lavage</Text>
-        <TextInput
-          style={styles.notesInput} // Réutiliser le style des notes générales ou créer un spécifique
-          multiline
-          numberOfLines={3}
-          placeholder="Saisissez des notes spécifiques au lavage..."
-          value={washNotes}
-          onChangeText={setWashNotes}
-        />
+        
+        <TouchableOpacity 
+          style={styles.cameraButton} 
+          onPress={takePicture}
+        >
+          <Ionicons name="camera" size={20} color="#fff" />
+          <Text style={styles.cameraButtonText}>
+            Prendre une photo
+          </Text>
+        </TouchableOpacity>
+        
       </View>
 
       {/* Notes */}
@@ -479,6 +581,8 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         <Text style={styles.alertManagerText}>Signaler un problème majeur au responsable</Text>
       </TouchableOpacity>
 
+
+
       {/* Bouton de validation */}
       <TouchableOpacity 
         style={styles.validateButton}
@@ -488,6 +592,21 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         <Text style={styles.validateButtonText}>Valider et continuer</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {/* Toast pour les notifications */}
+    {toast && (
+      <View style={styles.toastContainer}>
+        <Text style={[
+          styles.toastText,
+          toast.type === 'success' && styles.toastSuccess,
+          toast.type === 'error' && styles.toastError,
+          toast.type === 'warning' && styles.toastWarning
+        ]}>
+          {toast.message}
+        </Text>
+      </View>
+    )}
+    </View>
   );
 }
 
@@ -536,6 +655,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7f8c8d',
   },
+  // Section Kilométrage  
+  kilometrageSection: {
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    paddingVertical: 15,
+    borderRadius: 8,
+    elevation: 1,
+    marginHorizontal: 16,
+  },
+  
   // Section Photos
   photoSection: {
     marginBottom: 20,
@@ -676,6 +806,43 @@ const styles = StyleSheet.create({
     elevation: 1, // Ombre légère
     marginHorizontal: 16, // Aligner avec les autres sections si elles ont des marges
   },
+  washCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 15,
+  },
+  washCheckText: {
+    marginLeft: 10,
+    fontSize: 16,
+    color: '#34495e',
+  },
+  washTypesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 5,
+  },
+  washTypeOption: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#ced4da',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  washTypeOptionSelected: {
+    backgroundColor: '#3498db',
+    borderColor: '#3498db',
+  },
+  washTypeText: {
+    fontSize: 14,
+    color: '#495057',
+  },
+  washTypeTextSelected: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
   inputLabel: {
     fontSize: 14,
     color: '#34495e',
@@ -692,32 +859,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 10,
   },
-  datePickerButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#ced4da',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 12, // Ajusté pour une meilleure apparence
-    marginBottom: 10,
-  },
-  datePickerText: {
-    fontSize: 16,
-    color: '#495057', // Couleur de texte standard pour les champs
-  },
-  // Ajustement pour les notes de lavage si nécessaire, sinon notesInput est utilisé
-  // washNotesInput: {
-  //   backgroundColor: '#fff',
-  //   borderWidth: 1,
-  //   borderColor: '#ddd',
-  //   borderRadius: 8,
-  //   padding: 10,
-  //   minHeight: 80, // Hauteur potentiellement différente pour les notes de lavage
-  //   textAlignVertical: 'top',
-  // },
 
   // Bouton Validation
   validateButton: {
@@ -748,5 +889,45 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 16,
     color: '#34495e',
+  },
+  finalCheckBanner: {
+    backgroundColor: '#f39c12',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  finalCheckBannerText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginLeft: 10,
+  },
+
+  // Styles pour le Toast
+  toastContainer: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: '#333',
+    padding: 12,
+    borderRadius: 8,
+    zIndex: 1000,
+  },
+  toastText: {
+    color: '#fff',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  toastSuccess: {
+    backgroundColor: '#2ecc71',
+  },
+  toastError: {
+    backgroundColor: '#e74c3c',
+  },
+  toastWarning: {
+    backgroundColor: '#f39c12',
   },
 });

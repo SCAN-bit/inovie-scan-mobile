@@ -6,6 +6,8 @@ import AppNavigator from './navigation/AppNavigator';
 import * as KeepAwake from 'expo-keep-awake';
 import { AppState } from 'react-native';
 import FirebaseService from './services/firebaseService';
+import AppUpdateService from './services/AppUpdateService';
+import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
 
 // Solution pour l'erreur activateKeepAwake
 if (KeepAwake.activateKeepAwake && !KeepAwake._overridden) {
@@ -29,45 +31,77 @@ if (Platform.OS === 'web') {
 }
 
 export default function App() {
+  // Initialisation des services de mise à jour
+  useEffect(() => {
+    console.log('🚀 [App] Initialisation des systèmes de mise à jour');
+    
+    // Vérifier les mises à jour App Distribution au démarrage
+    setTimeout(() => {
+      AppUpdateService.checkForUpdatesAutomatic();
+    }, 3000); // Attendre 3 secondes après le démarrage
+  }, []);
+
   // Gestion de l'état de l'application pour la déconnexion automatique
   useEffect(() => {
-    // Référence à l'état précédent pour savoir si l'app passe en background
-    let appStateTimeout;
-    
-    // Fonction pour traiter les changements d'état de l'application
-    const handleAppStateChange = (nextAppState) => {
-      console.log('App state changed to:', nextAppState);
+    // DÉSACTIVER la déconnexion automatique sur mobile car problématique sur Zebra
+    if (Platform.OS === 'web') {
+      // Référence à l'état précédent pour savoir si l'app passe en background
+      let appStateTimeout;
       
-      // Si l'application passe en arrière-plan ou est inactive
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Planifier la déconnexion après un délai (ex: 5 minutes = 300000 ms)
-        appStateTimeout = setTimeout(() => {
-          console.log('Session expirée - déconnexion automatique');
-          // Déconnexion et fermeture de session
-          FirebaseService.closeCurrentSession()
-            .then(() => FirebaseService.logout())
-            .catch(error => console.error('Erreur lors de la déconnexion auto:', error));
-        }, 300000); // 5 minutes
-      } 
-      // Si l'application revient au premier plan
-      else if (nextAppState === 'active') {
-        // Annuler la déconnexion programmée si l'utilisateur revient rapidement
+      // Fonction pour traiter les changements d'état de l'application
+      const handleAppStateChange = (nextAppState) => {
+        console.log('App state changed to:', nextAppState);
+        
+        // Si l'application passe en arrière-plan ou est inactive
+        if (nextAppState === 'background' || nextAppState === 'inactive') {
+          // Planifier la déconnexion après un délai (ex: 30 minutes sur web = 1800000 ms)
+          appStateTimeout = setTimeout(() => {
+            console.log('Session expirée - déconnexion automatique (WEB)');
+            // Déconnexion et fermeture de session
+            FirebaseService.closeCurrentSession()
+              .then(() => FirebaseService.logout())
+              .catch(error => console.error('Erreur lors de la déconnexion auto:', error));
+          }, 1800000); // 30 minutes sur web
+        } 
+        // Si l'application revient au premier plan
+        else if (nextAppState === 'active') {
+          // Annuler la déconnexion programmée si l'utilisateur revient rapidement
+          if (appStateTimeout) {
+            clearTimeout(appStateTimeout);
+          }
+          
+          // Vérifier les mises à jour quand l'app revient au premier plan
+          AppUpdateService.checkForUpdatesAutomatic();
+        }
+      };
+
+      // Configurer l'écouteur d'événements SEULEMENT sur web
+      const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+      // Nettoyage lors du démontage du composant
+      return () => {
+        subscription.remove();
         if (appStateTimeout) {
           clearTimeout(appStateTimeout);
         }
-      }
-    };
-
-    // Configurer l'écouteur d'événements
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Nettoyage lors du démontage du composant
-    return () => {
-      subscription.remove();
-      if (appStateTimeout) {
-        clearTimeout(appStateTimeout);
-      }
-    };
+      };
+    } else {
+      // Sur mobile : AUCUNE déconnexion automatique
+      console.log('Déconnexion automatique DÉSACTIVÉE sur mobile');
+      
+      // Mais on vérifie les mises à jour quand l'app devient active
+      const handleAppStateChange = (nextAppState) => {
+        if (nextAppState === 'active') {
+          AppUpdateService.checkForUpdatesAutomatic();
+        }
+      };
+      
+      const subscription = AppState.addEventListener('change', handleAppStateChange);
+      
+      return () => {
+        subscription.remove();
+      };
+    }
   }, []);
 
   // Effet pour s'assurer que le défilement est activé sur le web

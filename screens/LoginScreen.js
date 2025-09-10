@@ -12,19 +12,21 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomView from '../components/CustomView';
-import { Picker } from '@react-native-picker/picker';
+import CustomPicker from '../components/CustomPicker';
+import Toast from '../components/Toast';
 import firebaseService from '../services/firebaseService';
+import { wp, hp, fp, sp, getResponsiveContainerStyles, getResponsiveButtonStyles, getResponsiveInputStyles, isSmallScreen } from '../utils/responsiveUtils';
 
-// Renommer CustomView en View pour maintenir la compatibilité avec le code existant
-const View = CustomView;
+// CustomView importé mais nous utilisons View de React Native pour la responsivité
 
-// Logo Inovie importé depuis assets
-const logoInovie = require('../assets/logo-inovie.png');
+// Logo SCAN importé depuis assets
+const logoSCAN = require('../assets/logo-SCAN.png');
 
 export default function LoginScreen({ navigation, route }) { // Added route
   const [email, setEmail] = useState('');
@@ -34,6 +36,13 @@ export default function LoginScreen({ navigation, route }) { // Added route
   const [showPassword, setShowPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   
+  // État pour les toasts
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+  };
+  
   // États pour le sélecteur de SELAS
   const [selasList, setSelasList] = useState([]);
   const [selectedSelasId, setSelectedSelasId] = useState('');
@@ -41,98 +50,66 @@ export default function LoginScreen({ navigation, route }) { // Added route
   const [selasError, setSelasError] = useState(null);
 
   // Vérifier si l'utilisateur est déjà connecté au chargement de l'écran
-  useEffect(() => {
+    useEffect(() => {
     const loadDataAndCheckAuth = async () => {
+      // console.log('🚀 [LoginScreen] Chargement optimisé');
       const currentJustReset = route.params?.justReset;
 
       if (currentJustReset) {
-        console.log('LoginScreen: justReset param is true. Processing reset flow.');
-        // Clear the param immediately so it doesn't affect subsequent interactions
-        // if the user stays on the screen and causes re-renders.
+        // console.log('🔄 [LoginScreen] Traitement reset flow');
         navigation.setParams({ justReset: undefined });
-
-        setInitialChecking(false); // Allow UI to render fully, show SELAS picker etc.
-        setSelasLoading(true);
-        try {
-          const selas = await firebaseService.getAllSelas();
-          setSelasList(selas || []);
-          setSelasError(null);
-          // Do not set selectedSelasId, should be fresh
-        } catch (error) {
-          console.error('Erreur lors du chargement des SELAS après reset:', error);
-          setSelasError('Impossible de charger la liste des SELAS.');
-          setSelasList([]);
-        } finally {
-          setSelasLoading(false);
-        }
-        return; // IMPORTANT: Skip authentication check for this render cycle
+        setInitialChecking(false);
       }
 
-      // Normal flow (not immediately after a reset)
-      // This includes initial mount if not a reset, or subsequent renders if user stays on screen.
-      // initialChecking is true by default, this effect will set it to false.
-
-      let selasLoadedSuccessfully = false;
+      // Chargement SELAS optimisé
       setSelasLoading(true);
       try {
+        // console.log('📡 [LoginScreen] Chargement SELAS depuis Firebase');
         const selas = await firebaseService.getAllSelas();
         setSelasList(selas || []);
         setSelasError(null);
-        selasLoadedSuccessfully = true;
-        // Check if a selas_id was previously stored, but don't auto-select, let user confirm or pick
-        // const storedSelasId = await AsyncStorage.getItem('user_selas_id');
-        // if (storedSelasId && selas.some(s => s.id === storedSelasId)) {
-        //   setSelectedSelasId(storedSelasId);
-        // }
       } catch (error) {
-        console.error('Erreur lors du chargement des SELAS (normal flow):', error);
+        console.error('❌ [LoginScreen] Erreur chargement SELAS:', error);
         setSelasError('Impossible de charger la liste des SELAS.');
         setSelasList([]);
       } finally {
         setSelasLoading(false);
       }
 
-      // Proceed with authentication check if SELAS loading was attempted (even if failed, auth state is independent)
-      // The initialChecking state handles the global loading spinner.
+      // Vérification de l'authentification
       try {
         const isAuthenticated = await apiService.isAuthenticated();
         if (isAuthenticated) {
           const storedSelasId = await AsyncStorage.getItem('user_selas_id');
           if (storedSelasId) {
-            console.log('LoginScreen: User authenticated and selasId found, should stay on Login or ask confirmation.');
-            // navigation.replace('Tournee'); // Ligne commentée pour empêcher la redirection automatique
+            // console.log('✅ [LoginScreen] Utilisateur authentifié avec SELAS');
           } else {
-            console.warn("LoginScreen: User authenticated but no selasId stored. User should select SELAS on login screen.");
-            // Stay on LoginScreen, user needs to pick SELAS from the picker.
-            // Or, if there's a dedicated PoleSelection screen for after login without SELAS:
-            // navigation.replace('PoleSelection'); 
+            // console.log('⚠️ [LoginScreen] Utilisateur authentifié sans SELAS');
           }
-        } else {
-          console.log('LoginScreen: User not authenticated according to apiService.isAuthenticated.');
         }
       } catch (error) {
-        console.error('Erreur lors de la vérification de l\'authentification:', error);
+        console.error('❌ [LoginScreen] Erreur vérification auth:', error);
       } finally {
-        setInitialChecking(false); // Done with all initial loading/checking for this effect run
+        setInitialChecking(false);
       }
     };
 
     loadDataAndCheckAuth();
-  }, [navigation, route.params?.justReset]); // Dependencies
+  }, [navigation, route.params?.justReset]);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Erreur', 'Veuillez entrer un email et un mot de passe.');
+      showToast('Veuillez entrer un email et un mot de passe.', 'error');
       return;
     }
 
     if (selasList.length > 0 && !selectedSelasId) {
-      Alert.alert('Sélection requise', 'Veuillez sélectionner votre SELAS.');
+      showToast('Veuillez sélectionner votre SELAS.', 'warning');
       return;
     }
     
     if (selasList.length === 0 && !selasLoading && !selasError) {
-        Alert.alert('Aucune SELAS', 'Aucune SELAS n\'est configurée. Veuillez contacter l\'administrateur.');
+        showToast('Aucune SELAS configurée. Contactez l\'administrateur.', 'error');
         return;
     }
 
@@ -146,18 +123,33 @@ export default function LoginScreen({ navigation, route }) { // Added route
           await AsyncStorage.setItem('user_selas_id', selectedSelasId);
           console.log(`Selas ID ${selectedSelasId} sauvegardé dans AsyncStorage.`);
         } else if (selasList.length > 0) {
-          Alert.alert('Erreur interne', 'Aucune SELAS sélectionnée malgré une liste disponible.');
+          showToast('Erreur interne: aucune SELAS sélectionnée.', 'error');
           setLoading(false);
           return;
         }
         
-        navigation.replace('Tournee');
+        // Vérifier le rôle de l'utilisateur pour la redirection
+        const userRole = result.user?.role || result.userData?.role;
+        console.log('🔍 [LoginScreen] Rôle utilisateur détecté:', userRole);
+        console.log('🔍 [LoginScreen] result.user:', result.user);
+        console.log('🔍 [LoginScreen] result.userData:', result.userData);
+        
+        // Accepter les deux variantes du rôle
+        if (userRole === 'HORS COURSIER' || userRole === 'Hors Coursier') {
+          console.log('✅ [LoginScreen] Redirection HORS COURSIER vers PersonnelAdmin');
+          // Rediriger vers l'écran Personnel Administratif
+          navigation.replace('PersonnelAdmin');
+        } else {
+          console.log('✅ [LoginScreen] Redirection vers Tournee pour le rôle:', userRole);
+          // Rediriger vers l'écran normal des tournées
+          navigation.replace('Tournee');
+        }
       } else {
-        Alert.alert('Erreur de connexion', result.error || 'Identifiant ou mot de passe incorrect.');
+        showToast(result.error || 'Identifiant ou mot de passe incorrect.', 'error');
       }
     } catch (error) {
       console.error('Erreur lors de la connexion:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la connexion.');
+              showToast('Une erreur est survenue lors de la connexion.', 'error');
     } finally {
       setLoading(false);
     }
@@ -188,7 +180,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
         console.log('Utilisateur déconnecté de Firebase avec succès.');
       } catch (logoutError) {
         console.error('Erreur lors de la déconnexion Firebase pendant la réinitialisation:', logoutError);
-        Alert.alert('Avertissement', 'La déconnexion de Firebase a échoué, mais les données locales ont été effacées.');
+        showToast('Données locales effacées.', 'warning');
       }
 
       console.log('Stockage local réinitialisé avec succès');
@@ -214,21 +206,17 @@ export default function LoginScreen({ navigation, route }) { // Added route
         setSelasLoading(false);
       }
 
-      Alert.alert(
-        'Stockage réinitialisé',
-        'Les données d\'authentification et de SELAS ont été effacées. Vous pouvez maintenant vous reconnecter.',
-        [{ text: 'OK', onPress: () => {
-          if (navigation) {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login', params: { justReset: true } }], // Pass justReset param
-            });
-          }
-        }}]
-      );
-    } catch (error) {
-      console.error('Erreur lors de la réinitialisation du stockage:', error);
-      Alert.alert('Erreur', 'Impossible de réinitialiser le stockage');
+      showToast('Données d\'authentification effacées avec succès.', 'success');
+      
+      if (navigation) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login', params: { justReset: true } }],
+        });
+      }
+          } catch (error) {
+        console.error('Erreur lors de la réinitialisation du stockage:', error);
+        showToast('Impossible de réinitialiser le stockage.', 'error');
     } finally {
       setResetLoading(false);
     }
@@ -256,17 +244,14 @@ export default function LoginScreen({ navigation, route }) { // Added route
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoContainer}>
-            <Image 
-              source={logoInovie} 
-              style={styles.logoImage}
+            <Image
+              source={require('../assets/logo-SCAN.png')}
+              style={[
+                styles.logoImage,
+                isSmallScreen() && styles.logoImageSmall
+              ]}
               resizeMode="contain"
             />
-            <View style={styles.titleContainer}> 
-              <Text style={styles.appName}>TraceLink</Text>
-              <View style={styles.betaBadge}>
-                <Text style={styles.betaBadgeText}>BÊTA</Text>
-              </View>
-            </View>
           </View>
 
           <View style={styles.formContainer}>
@@ -278,21 +263,17 @@ export default function LoginScreen({ navigation, route }) { // Added route
               <Text style={styles.infoText}>Aucune SELAS n'est actuellement configurée.</Text>
             )}
             {/* Toujours afficher le conteneur du Picker même pendant le chargement pour éviter les sauts d'interface, mais le Picker sera désactivé ou vide */}
-            <View style={[styles.inputContainer, styles.pickerOuterContainer]}> 
-              <Ionicons name="business-outline" size={20} color="#7f8c8d" style={styles.inputIcon} />
-              <Picker
-                selectedValue={selectedSelasId}
-                style={styles.picker} // Le style du Picker lui-même
-                onValueChange={(itemValue, itemIndex) => setSelectedSelasId(itemValue)}
-                prompt="Sélectionnez votre SELAS"
-                enabled={!selasLoading && selasList.length > 0} // Désactiver si chargement ou vide
-              >
-                <Picker.Item label={selasLoading ? "Chargement des SELAS..." : "-- Sélectionnez votre SELAS --"} value={''} style={styles.pickerItemPlaceholder} />
-                {selasList.map((selas) => (
-                  <Picker.Item key={selas.id} label={selas.nom} value={selas.id} style={styles.pickerItem} />
-                ))}
-              </Picker>
-            </View>
+            <CustomPicker
+              selectedValue={selectedSelasId}
+              onValueChange={setSelectedSelasId}
+              items={[
+                { label: selasLoading ? "Chargement des SELAS..." : "-- Sélectionnez votre SELAS --", value: '' },
+                ...selasList.map(selas => ({ label: selas.nom, value: selas.id }))
+              ]}
+              placeholder="-- Sélectionnez votre SELAS --"
+              icon="business-outline"
+              enabled={!selasLoading && selasList.length > 0}
+            />
 
             {/* Champ Email */}
             <View style={styles.inputContainer}>
@@ -374,6 +355,15 @@ export default function LoginScreen({ navigation, route }) { // Added route
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -381,16 +371,22 @@ export default function LoginScreen({ navigation, route }) { // Added route
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f8f9fa',
   },
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f8f9fa',
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'space-between',
-    padding: 20,
+    paddingHorizontal: sp(20),
+    paddingTop: hp(20),
+    paddingBottom: hp(30),
+    justifyContent: 'flex-start',
+  },
+  scrollContentSmall: {
+    paddingTop: hp(15),
+    paddingHorizontal: sp(16),
   },
   centerContent: {
     justifyContent: 'center',
@@ -398,55 +394,43 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 80,
-    marginBottom: 60,
-    width: '100%',
+    marginBottom: hp(60),
+    paddingHorizontal: sp(20),
+    flex: 1,
+    justifyContent: 'center',
   },
   logoImage: {
-    width: 350,
-    height: 200,
-    marginBottom: 50,
-    alignSelf: 'center',
+    width: wp(800),
+    height: hp(400),
+    maxWidth: wp(850),
   },
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 30,
+  logoImageSmall: {
+    width: wp(750),
+    height: hp(375),
   },
-  appName: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#263471',
-    letterSpacing: 1.5,
-    textShadow: '0px 1px 1px rgba(0, 0, 0, 0.1)', // Correction pour le web
-  },
-  betaBadge: {
-    backgroundColor: '#f97316',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 10,
-  },
-  betaBadgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+
   formContainer: {
     width: '100%',
     alignItems: 'center',
+    marginTop: 'auto',
   },
-  inputContainer: { // Style de base pour les champs de saisie et le picker
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 16, // Espacement uniforme
-    paddingHorizontal: 12, // Padding interne horizontal
-    boxShadow: '0px 1px 1px rgba(0, 0, 0, 0.2)', // Correction pour le web
-    width: '90%', // Largeur standard
-    height: 50, // Hauteur standard
+    borderRadius: sp(12),
+    marginBottom: sp(16),
+    paddingHorizontal: sp(16),
+    width: '100%',
+    height: hp(56),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  pickerContainer: {
+    paddingHorizontal: sp(12),
   },
   pickerOuterContainer: { // Style spécifique si le conteneur externe du Picker a besoin de plus d'ajustements
     // Peut hériter de inputContainer et ajouter/modifier des propriétés si nécessaire
@@ -454,59 +438,89 @@ const styles = StyleSheet.create({
     // Pour l'instant, on utilise inputContainer directement.
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: sp(12),
   },
   eyeIcon: {
-    padding: 10,
+    padding: sp(8),
   },
   input: {
     flex: 1,
-    height: '100%', // Prend toute la hauteur du inputContainer
-    paddingHorizontal: 5,
+    height: '100%',
+    paddingHorizontal: sp(8),
     color: '#1f2937',
-    fontSize: 16, // Taille de police cohérente
+    fontSize: fp(16),
+  },
+  picker: {
+    flex: 1,
+    height: '100%',
+    color: '#1f2937',
+    backgroundColor: 'transparent',
+    fontSize: fp(16),
+  },
+  pickerItem: {
+    fontSize: fp(16),
+    color: '#1f2937',
+    fontWeight: '600',
+    textAlign: 'left',
+    paddingLeft: sp(8),
+  },
+  pickerItemPlaceholder: {
+    fontSize: fp(16),
+    color: '#6b7280',
+    fontStyle: 'italic',
+    textAlign: 'left',
+    paddingLeft: sp(8),
   },
   loginButton: {
     backgroundColor: '#2563eb',
-    borderRadius: 8,
-    height: 50,
+    borderRadius: sp(12),
+    height: hp(56),
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    width: '90%',
-    boxShadow: '0px 2px 2px rgba(0, 0, 0, 0.1)', // Correction pour le web
+    marginTop: sp(16),
+    width: '100%',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loginButtonSmall: {
+    height: hp(52),
   },
   loginButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: fp(16),
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   helpContainer: {
-    marginTop: 16,
+    marginTop: sp(16),
     alignItems: 'center',
   },
   helpText: {
-    color: '#7f8c8d',
-    fontSize: 14,
+    color: '#6b7280',
+    fontSize: fp(14),
     textAlign: 'center',
   },
   resetButton: {
-    marginTop: 24,
-    padding: 10,
+    marginTop: sp(20),
+    padding: sp(12),
   },
   resetButtonText: {
     color: '#e74c3c',
-    fontSize: 14,
+    fontSize: fp(14),
     textDecorationLine: 'underline',
+    textAlign: 'center',
   },
   footer: {
-    marginTop: 40,
     alignItems: 'center',
+    paddingTop: hp(15),
+    paddingBottom: hp(10),
   },
   version: {
     color: '#9ca3af',
-    fontSize: 12,
+    fontSize: fp(12),
   },
   loadingText: {
     marginTop: 10,

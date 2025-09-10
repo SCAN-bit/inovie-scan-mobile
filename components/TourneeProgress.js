@@ -4,6 +4,7 @@ import firebaseService from '../services/firebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import RoadbookModal from './RoadbookModal';
+import PhoneSearchService from '../services/phoneSearchService';
 
 /**
  * Composant affichant le suivi de progression d'une tournée
@@ -12,12 +13,13 @@ import RoadbookModal from './RoadbookModal';
  * @param {string} props.sessionId - L'ID de la session courante
  * @param {function} props.onSiteSelect - Callback pour la sélection d'un site
  */
-const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }, ref) => {
+const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, onFinalVehicleCheck }, ref) => {
   const [tourneeDetails, setTourneeDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [roadbookModalVisible, setRoadbookModalVisible] = useState(false);
   const [selectedSiteRoadbook, setSelectedSiteRoadbook] = useState(null);
+
 
   // Fonction pour ouvrir la carte
   const openMap = (address, city) => {
@@ -88,42 +90,103 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
     */
   };
 
-  // Fonction pour charger les détails de la tournée
+  // OPTIMISATION: Cache intelligent pour éviter les rechargements inutiles
+  const cacheRef = React.useRef({
+    data: null,
+    timestamp: 0,
+    tourneeId: null,
+    sessionId: null
+  });
+  
+  // Fonction OPTIMISÉE pour charger les détails de la tournée
   const loadTourneeDetails = async (forceReload = false) => {
-    if (forceReload) {
-      console.log('[TourneeProgress] forceReload: réinitialisation de tourneeDetails local');
-      setTourneeDetails(null);
-    }
-    if (!forceReload && tourneeDetails) {
-      console.log("[TourneeProgress] Détails déjà chargés et pas de forçage, skip reload.");
+    const startTime = Date.now();
+    console.log(`🚀 [TourneeProgress] loadTourneeDetails - Force: ${forceReload}`);
+    
+    // CACHE: Vérifier si on peut utiliser les données en cache
+    const cache = cacheRef.current;
+    const cacheAge = startTime - cache.timestamp;
+    const maxCacheAge = 30000; // 30 secondes
+    
+    const canUseCache = !forceReload 
+      && cache.data 
+      && cache.tourneeId === tourneeId 
+      && cache.sessionId === sessionId
+      && cacheAge < maxCacheAge;
+    
+    if (canUseCache) {
+      console.log(`⚡ [TourneeProgress] Cache utilisé (age: ${Math.round(cacheAge/1000)}s)`);
+      setTourneeDetails(cache.data);
+      setError(null);
+      setLoading(false);
       return;
     }
+    
+    if (forceReload) {
+      console.log('🔄 [TourneeProgress] forceReload: nettoyage cache et AsyncStorage');
+      
+      // Réinitialiser le cache
+      cacheRef.current = {
+        data: null,
+        timestamp: 0,
+        tourneeId: null,
+        sessionId: null
+      };
+      
+      setTourneeDetails(null);
+      
+      // Supprimer les données AsyncStorage pour un vrai refresh
+      if (sessionId) {
+        try {
+          await AsyncStorage.removeItem(`visitedSiteIds_${sessionId}`);
+        } catch (e) {
+          console.error('[TourneeProgress] forceReload: erreur suppression AsyncStorage session:', e);
+        }
+      }
+      
+      if (tourneeId) {
+        try {
+          await AsyncStorage.removeItem(`tourneeVisitedSites_${tourneeId}`);
+        } catch (e) {
+          console.error('[TourneeProgress] forceReload: erreur suppression AsyncStorage tournée:', e);
+        }
+      }
+    }
+    
     if (!tourneeId) {
       setError('ID de tournée manquant');
       setLoading(false);
       return;
     }
+    
     if (!sessionId) {
-      console.warn("[TourneeProgress] loadTourneeDetails: sessionId manquant via les props.");
+      console.warn("[TourneeProgress] loadTourneeDetails: sessionId manquant");
     }
+    
     try {
       setLoading(true);
-      console.log(`Chargement des détails de la tournée: ${tourneeId} pour session: ${sessionId}`);
+      
       const details = await firebaseService.getTourneeWithSites(tourneeId, sessionId);
       if (!details) {
         throw new Error('Impossible de récupérer les détails de la tournée');
       }
-      console.log(`Détails de la tournée récupérés: ${details.sitesWithStatus?.length || 0} sites`);
-      console.log('[TourneeProgress] Details complets reçus:', {
-        id: details.id,
-        nom: details.nom,
-        sitesWithStatusLength: details.sitesWithStatus?.length,
-        sitesWithStatus: details.sitesWithStatus?.slice(0, 2) // 2 premiers sites pour debug
-      });
+      
+      // CACHE: Sauvegarder les nouvelles données
+      cacheRef.current = {
+        data: details,
+        timestamp: Date.now(),
+        tourneeId: tourneeId,
+        sessionId: sessionId
+      };
+      
       setTourneeDetails(details);
       setError(null);
+      
+      const loadTime = Date.now() - startTime;
+      console.log(`⚡ [TourneeProgress] Chargement terminé en ${loadTime}ms - ${details.sitesCount} sites`);
+      
     } catch (err) {
-      console.error('Erreur lors du chargement des détails de la tournée:', err);
+      console.error('❌ [TourneeProgress] Erreur chargement:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -137,157 +200,154 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
     getSitesWithStatus: () => tourneeDetails?.sitesWithStatus || []
   }));
 
-  // Charger les détails initiaux au montage et quand tourneeId OU sessionId change
+  // OPTIMISATION: Chargement intelligent uniquement si nécessaire
   useEffect(() => {
-    console.log("[TourneeProgress] useEffect [tourneeId, sessionId] triggered. Calling loadTourneeDetails.");
-    loadTourneeDetails();
+    // Ne charger que si on a un tourneeId valide et qu'on n'a pas déjà les bonnes données
+    if (tourneeId && (!tourneeDetails || tourneeDetails.id !== tourneeId)) {
+      console.log(`🔄 [TourneeProgress] Rechargement nécessaire pour tournée ${tourneeId}`);
+      loadTourneeDetails(false);
+    }
   }, [tourneeId, sessionId]);
 
-  // Restaurer les visites locales ET SAUVEGARDER les changements de tourneeDetails dans AsyncStorage
+
+  // UNIQUE useEffect pour gérer la persistance et la restoration
   useEffect(() => {
-    const manageLocalPersistence = async () => {
-      if (!tourneeDetails || !tourneeDetails.sitesWithStatus || !sessionId) {
-        console.log('[TourneeProgress] manageLocalPersistence: Skipping due to missing tourneeDetails, sitesWithStatus, or sessionId.', { hasDetails: !!tourneeDetails, hasSessionId: !!sessionId });
-        return;
-      }
+    const managePersistence = async () => {
+      try {
+        if (!tourneeDetails || !tourneeDetails.sitesWithStatus || !sessionId) {
+          return; // Arrêt silencieux si les données ne sont pas prêtes
+        }
 
-      const sessionKey = `visitedSiteIds_${sessionId}`;
-      let idsFromTourneeKey = null;
-      if (tourneeId) {
-        idsFromTourneeKey = `tourneeVisitedSites_${tourneeId}`;
-      }
+        // Clés AsyncStorage
+        const sessionKey = `visitedSiteIds_${sessionId}`;
+        const tourneeKey = tourneeId ? `tourneeVisitedSites_${tourneeId}` : null;
 
-      // Étape 1: Déterminer les IDs actuellement marqués comme visités dans l'état tourneeDetails
-      // Ces visites peuvent provenir de loadTourneeDetails (Firestore) ou d'un markSiteAsVisitedLocally.
-      const visitedIdsInCurrentState = new Set(
-        tourneeDetails.sitesWithStatus
+        // Récupérer les IDs stockés
+        let idsFromSession = [];
+        let idsFromTournee = [];
+
+        try {
+          const storedSessionData = await AsyncStorage.getItem(sessionKey);
+          if (storedSessionData) {
+            idsFromSession = JSON.parse(storedSessionData);
+          }
+        } catch (e) {
+          idsFromSession = [];
+        }
+
+        if (tourneeKey) {
+          try {
+            const storedTourneeData = await AsyncStorage.getItem(tourneeKey);
+            if (storedTourneeData) {
+              idsFromTournee = JSON.parse(storedTourneeData);
+            }
+          } catch (e) {
+            idsFromTournee = [];
+          }
+        }
+
+        // S'assurer que c'est des arrays
+        if (!Array.isArray(idsFromSession)) idsFromSession = [];
+        if (!Array.isArray(idsFromTournee)) idsFromTournee = [];
+
+        // Fusionner tous les IDs stockés
+        const allStoredIds = [...new Set([...idsFromSession, ...idsFromTournee])];
+
+        // Mettre à jour les sites avec les données persistées
+        let hasChanges = false;
+        const updatedSites = tourneeDetails.sitesWithStatus.map(site => {
+          const shouldBeVisited = allStoredIds.includes(site.uniqueDisplayId) || site.visited;
+          if (site.visited !== shouldBeVisited) {
+            hasChanges = true;
+          }
+          return { ...site, visited: shouldBeVisited };
+        });
+
+        // Mettre à jour l'état seulement si nécessaire
+        if (hasChanges) {
+          setTourneeDetails(prev => ({
+            ...prev,
+            sitesWithStatus: updatedSites,
+            visitedSites: updatedSites.filter(s => s.visited).length
+          }));
+        }
+
+        // Sauvegarder l'état actuel
+        const currentVisitedIds = updatedSites
           .filter(site => site.visited)
           .map(site => site.uniqueDisplayId)
-      );
-      console.log('[TourneeProgress] manageLocalPersistence - Visited IDs in current tourneeDetails state:', Array.from(visitedIdsInCurrentState));
+          .filter(id => id !== undefined);
 
-      // Étape 2: Lire les IDs depuis AsyncStorage (pour la session et pour la tournée)
-      let idsFromSessionStorage = [];
-      const storedSessionData = await AsyncStorage.getItem(sessionKey);
-      if (storedSessionData) {
-        try { idsFromSessionStorage = JSON.parse(storedSessionData); } catch (e) { console.error('Error parsing session visited IDs for restore', e); idsFromSessionStorage = []; }
-      }
-      if (!Array.isArray(idsFromSessionStorage)) idsFromSessionStorage = [];
-      console.log(`[TourneeProgress] manageLocalPersistence - IDs from Session AsyncStorage (${sessionId}):`, JSON.stringify(idsFromSessionStorage));
-
-      let idsFromTourneeStorage = [];
-      if (idsFromTourneeKey) {
-        const storedTourneeData = await AsyncStorage.getItem(idsFromTourneeKey);
-        if (storedTourneeData) {
-          try { idsFromTourneeStorage = JSON.parse(storedTourneeData); } catch (e) { console.error('Error parsing tournee visited IDs for restore', e); idsFromTourneeStorage = []; }
+        if (currentVisitedIds.length > 0) {
+          await AsyncStorage.setItem(sessionKey, JSON.stringify(currentVisitedIds));
+          if (tourneeKey) {
+            await AsyncStorage.setItem(tourneeKey, JSON.stringify(currentVisitedIds));
+          }
         }
-      }
-      if (!Array.isArray(idsFromTourneeStorage)) idsFromTourneeStorage = [];
-      console.log(`[TourneeProgress] manageLocalPersistence - IDs from Tournee AsyncStorage (${tourneeId}):`, JSON.stringify(idsFromTourneeStorage));
 
-      // Étape 3: Fusionner les IDs de l'état actuel et d'AsyncStorage pour la sauvegarde
-      // Cela garantit que ce qui est dans l'état (potentiellement de Firestore) est préservé et sauvegardé.
-      const combinedIdsToPersist = new Set([...visitedIdsInCurrentState, ...idsFromSessionStorage, ...idsFromTourneeStorage]);
-      const idsToPersistArray = Array.from(combinedIdsToPersist);
-      console.log('[TourneeProgress] manageLocalPersistence - Combined unique IDs to persist to AsyncStorage:', JSON.stringify(idsToPersistArray));
-      
-      // Étape 4: Mettre à jour l'état visuel UNIQUEMENT si les IDs combinés diffèrent de l'état actuel.
-      // Cela évite les re-render inutiles si l'état actuel est déjà correct.
-      let visualChangeNeeded = false;
-      const sitesAfterPotentialMerge = tourneeDetails.sitesWithStatus.map(site => {
-        const expectedUniqueId = site.uniqueDisplayId;
-        const долженБытьПосещен = idsToPersistArray.includes(expectedUniqueId); // "devrait être visité"
-        if (site.visited !== долженБытьПосещен) {
-          visualChangeNeeded = true;
-        }
-        return { ...site, visited: долженБытьПосещен };
-      });
-
-      if (visualChangeNeeded) {
-        console.log('[TourneeProgress] manageLocalPersistence: Visual change detected after merging with AsyncStorage. Updating tourneeDetails.');
-        setTourneeDetails(prev => ({
-          ...prev,
-          sitesWithStatus: sitesAfterPotentialMerge,
-          visitedSites: sitesAfterPotentialMerge.filter(s => s.visited).length
-        }));
-        // Après cette mise à jour, useEffect se redéclenchera. 
-        // Lors du prochain passage, visitedIdsInCurrentState reflétera sitesAfterPotentialMerge,
-        // et si AsyncStorage n'a pas changé, visualChangeNeeded devrait être false, stabilisant l'état.
-      }
-
-      // Étape 5: Sauvegarder les IDs fusionnés dans AsyncStorage
-      // On sauvegarde TOUJOURS l'ensemble combiné pour s'assurer qu'AsyncStorage est à jour
-      // avec la vision la plus complète des visites.
-      try {
-        await AsyncStorage.setItem(sessionKey, JSON.stringify(idsToPersistArray));
-        console.log(`[TourneeProgress] manageLocalPersistence - Saved to Session AsyncStorage (${sessionKey}): ${idsToPersistArray.length} IDs`);
-
-        if (idsFromTourneeKey) {
-          // Pour la clé de tournée, on sauvegarde également l'ensemble complet.
-          // Ceci est important si on veut qu'une tournée partagée entre sessions garde ses visites.
-          await AsyncStorage.setItem(idsFromTourneeKey, JSON.stringify(idsToPersistArray));
-          console.log(`[TourneeProgress] manageLocalPersistence - Saved to Tournee AsyncStorage (${idsFromTourneeKey}): ${idsToPersistArray.length} IDs`);
-        }
-      } catch (e) {
-        console.error('[TourneeProgress] manageLocalPersistence - Error during AsyncStorage save:', e);
+      } catch (error) {
+        console.error('[TourneeProgress] Erreur de persistance:', error);
       }
     };
 
-    manageLocalPersistence();
+    managePersistence();
+  }, [tourneeDetails, sessionId, tourneeId]); // Toutes les dépendances nécessaires
 
-  }, [tourneeDetails, sessionId, tourneeId]); 
-
-  // --- AJOUT: Fonction pour marquer un site comme visité localement ---
+  // Fonction pour marquer un site comme visité localement ET persister immédiatement
   const markSiteAsVisitedLocally = async (siteIdentifier, specificIndex = null) => {
     console.log(`[TourneeProgress] markSiteAsVisitedLocally CALLED. Identifier: ${siteIdentifier}, Index: ${specificIndex}`);
 
-    console.log('[TourneeProgress] Reading tourneeDetails directly before attempting update.');
-    if (tourneeDetails === null) {
-      console.error('[TourneeProgress] Direct read: tourneeDetails is NULL. Cannot update.');
-      return; 
-    } else if (!tourneeDetails.sitesWithStatus) {
-      console.error('[TourneeProgress] Direct read: tourneeDetails.sitesWithStatus is FALSY. Cannot update. tourneeDetails:', tourneeDetails);
+    if (!tourneeDetails?.sitesWithStatus) {
+      console.error('[TourneeProgress] tourneeDetails.sitesWithStatus est manquant');
       return; 
     }
 
-    console.log(`[TourneeProgress] Direct read: tourneeDetails.sitesWithStatus.length: ${tourneeDetails.sitesWithStatus.length}`);
-    
     let siteSuccessfullyMarked = false;
-    let markedSiteName = "";
+    let markedSiteUniqueId = null;
 
     const updatedSites = tourneeDetails.sitesWithStatus.map((site, index) => {
-      let newSiteState = { ...site };
-      if (specificIndex !== null && specificIndex !== undefined) {
-        if (index === specificIndex) {
-          if (!newSiteState.visited) {
-            newSiteState.visited = true;
-            siteSuccessfullyMarked = true;
-            markedSiteName = newSiteState.name;
-          }
+      if (specificIndex !== null && specificIndex !== undefined && index === specificIndex) {
+        if (!site.visited) {
+          siteSuccessfullyMarked = true;
+          markedSiteUniqueId = site.uniqueDisplayId;
+          return { ...site, visited: true };
         }
       }
-      return newSiteState;
+      return site;
     });
 
     if (siteSuccessfullyMarked) {
-      console.log(`[TourneeProgress] MARKED site (direct read): ${markedSiteName} (index ${specificIndex}) as visited.`);
-      const newVisitedCount = updatedSites.filter(s => s.visited).length;
-      console.log(`[TourneeProgress] updatedSites count (direct read): ${updatedSites.length}. New visited count: ${newVisitedCount}`);
-
+      // Mettre à jour l'état React
       const newState = {
         ...tourneeDetails, 
         sitesWithStatus: updatedSites,
-        visitedSites: newVisitedCount
+        visitedSites: updatedSites.filter(s => s.visited).length
       };
-      
-      console.log('[TourneeProgress] Just BEFORE calling setTourneeDetails with new state object (direct read).');
       setTourneeDetails(newState);
-      console.log('[TourneeProgress] Just AFTER calling setTourneeDetails with new state object (direct read).');
-    } else {
-      console.warn('[TourneeProgress] WARNING (direct read): No site was marked as visited. Index provided: ', specificIndex);
+
+      // Persister immédiatement dans AsyncStorage
+      if (sessionId && markedSiteUniqueId) {
+        try {
+          const visitedIds = updatedSites
+            .filter(site => site.visited)
+            .map(site => site.uniqueDisplayId)
+            .filter(id => id !== undefined);
+
+          const sessionKey = `visitedSiteIds_${sessionId}`;
+          await AsyncStorage.setItem(sessionKey, JSON.stringify(visitedIds));
+
+          if (tourneeId) {
+            const tourneeKey = `tourneeVisitedSites_${tourneeId}`;
+            await AsyncStorage.setItem(tourneeKey, JSON.stringify(visitedIds));
+          }
+
+          console.log(`[TourneeProgress] Site marqué et persisté: ${markedSiteUniqueId}`);
+        } catch (error) {
+          console.error('[TourneeProgress] Erreur de persistance immédiate:', error);
+        }
+      }
     }
   };
-  // --- FIN DE markSiteAsVisitedLocally ---
 
   // Gérer la sélection d'un site
   const handleSitePress = (site) => {
@@ -348,75 +408,139 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
     );
   }
 
-  const { sitesWithStatus = [] } = tourneeDetails;
-  const totalSites = sitesWithStatus.length;
-  const visitedSites = sitesWithStatus.filter(site => site.visited).length;
+  // Vérifications de sécurité pour éviter les erreurs
+  const sitesWithStatus = tourneeDetails?.sitesWithStatus || [];
+  const totalSites = Array.isArray(sitesWithStatus) ? sitesWithStatus.length : 0;
+  const visitedSites = Array.isArray(sitesWithStatus) ? sitesWithStatus.filter(site => site?.visited).length : 0;
 
   const progressPercentage = totalSites > 0 ? (visitedSites / totalSites) * 100 : 0;
-  const nextSiteToVisit = sitesWithStatus.find(site => !site.visited);
+  const nextSiteToVisit = Array.isArray(sitesWithStatus) ? sitesWithStatus.find(site => !site?.visited) : null;
 
   const generateUniqueKey = (prefix, id, index) => {
     return `${prefix}-${id || ''}-${index}-${Math.random().toString(36).substring(2, 7)}`;
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Suivi de tournée</Text>
-      
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressText}>
-          {visitedSites} / {totalSites} sites visités ({Math.round(progressPercentage)}%)
-        </Text>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
-        </View>
-      </View>
+  const handleFinalVehicleCheck = () => {
+    if (onFinalVehicleCheck) {
+      onFinalVehicleCheck();
+    }
+  };
 
-      <View style={styles.nextSiteContainer}>
-        <Text style={styles.nextSiteLabel}>Prochain site à visiter :</Text>
-        {nextSiteToVisit ? (
-          <TouchableOpacity 
-            style={styles.siteCard}
-            onPress={() => handleSitePress(nextSiteToVisit)}
-            onLongPress={() => handleSiteLongPress(nextSiteToVisit)}
-            delayLongPress={500}
-          >
-            <View style={styles.nextSiteContentWrapper}>
-              <View style={styles.nextSiteTextContainer}>
-            <Text style={styles.siteName}>{nextSiteToVisit.nom || nextSiteToVisit.name}</Text>
-            {(nextSiteToVisit.adresse || nextSiteToVisit.address) && (
-              <Text style={styles.siteAddress}>{nextSiteToVisit.adresse || nextSiteToVisit.address}</Text>
-            )}
-            {(nextSiteToVisit.ville || nextSiteToVisit.city) && (
-              <Text style={styles.siteCity}>{nextSiteToVisit.ville || nextSiteToVisit.city}</Text>
-            )}
+  try {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Suivi de tournée</Text>
+        
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            {visitedSites} / {totalSites} sites visités ({Math.round(progressPercentage)}%)
+          </Text>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBar, { width: `${progressPercentage}%` }]} />
+          </View>
+        </View>
+
+        <View style={styles.nextSiteContainer}>
+          <Text style={styles.nextSiteLabel}>Prochain site à visiter :</Text>
+          {nextSiteToVisit ? (
+            <TouchableOpacity 
+              style={styles.siteCard}
+              onPress={() => handleSitePress(nextSiteToVisit)}
+              onLongPress={() => handleSiteLongPress(nextSiteToVisit)}
+              delayLongPress={500}
+            >
+              <View style={styles.nextSiteContentWrapper}>
+                <View style={styles.nextSiteTextContainer}>
+                  <Text style={styles.siteName}>{nextSiteToVisit.nom || nextSiteToVisit.name}</Text>
+                  {(nextSiteToVisit.adresse || nextSiteToVisit.address) && (
+                    <Text style={styles.siteAddress}>{nextSiteToVisit.adresse || nextSiteToVisit.address}</Text>
+                  )}
+                  {(nextSiteToVisit.ville || nextSiteToVisit.city) && (
+                    <Text style={styles.siteCity}>{nextSiteToVisit.ville || nextSiteToVisit.city}</Text>
+                  )}
+                  {nextSiteToVisit.heureArrivee && (
+                    <Text style={styles.siteScheduledTime}>
+                      🕐 Heure prévue : {(() => {
+                        try {
+                          const date = new Date(nextSiteToVisit.heureArrivee);
+                          if (isNaN(date.getTime())) {
+                            return 'Heure non définie';
+                          }
+                          return date.toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        } catch (error) {
+                          console.warn('[TourneeProgress] Erreur formatage heure nextSite:', nextSiteToVisit.heureArrivee, error);
+                          return 'Heure non définie';
+                        }
+                      })()}
+                    </Text>
+                  )}
+                  {/* Numéro de téléphone */}
+                  {(() => {
+                    const phoneNumber = nextSiteToVisit.telephone || nextSiteToVisit.phone || nextSiteToVisit.tel;
+                    
+                    if (phoneNumber) {
+                      return (
+                        <TouchableOpacity 
+                          style={styles.sitePhoneContainer}
+                          onPress={() => PhoneSearchService.openPhoneApp(phoneNumber)}
+                        >
+                          <Text style={styles.sitePhoneNumber}>
+                            📞 {PhoneSearchService.formatPhoneNumber(phoneNumber)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    } else {
+                      return (
+                        <Text style={styles.sitePhoneNotAvailable}>
+                          📞 Numéro non disponible
+                        </Text>
+                      );
+                    }
+                  })()}
+                </View>
+                {((nextSiteToVisit.adresse || nextSiteToVisit.address) && (nextSiteToVisit.ville || nextSiteToVisit.city)) && (
+                  <TouchableOpacity
+                    style={styles.navigationButtonNextSite}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      openMap(nextSiteToVisit.adresse || nextSiteToVisit.address, nextSiteToVisit.ville || nextSiteToVisit.city);
+                    }}
+                  >
+                    <Image source={require('../assets/logo-carte.png')} style={styles.mapIconCustom} resizeMode="contain" />
+                  </TouchableOpacity>
+                )}
               </View>
-              {((nextSiteToVisit.adresse || nextSiteToVisit.address) && (nextSiteToVisit.ville || nextSiteToVisit.city)) && (
-                <TouchableOpacity
-                  style={styles.navigationButtonNextSite}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    openMap(nextSiteToVisit.adresse || nextSiteToVisit.address, nextSiteToVisit.ville || nextSiteToVisit.city);
-                  }}
-                >
-                  <Image source={require('../assets/logo-carte.png')} style={styles.mapIconCustom} />
-                </TouchableOpacity>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.allVisitedContainer}>
+              {visitedSites > 0 ? (
+                <>
+                  <Ionicons name="checkmark-circle" size={24} color="#27ae60" />
+                  <Text style={styles.allVisitedText}>Tous les sites ont été visités!</Text>
+                </>
+              ) : (
+                <Text style={styles.noSitesText}>Aucun site défini pour cette tournée</Text>
               )}
             </View>
+          )}
+        </View>
+
+      {/* Bouton Check Véhicule Final - Affiché quand la tournée est terminée */}
+      {visitedSites > 0 && !nextSiteToVisit && (
+        <View style={styles.finalCheckContainer}>
+          <Text style={styles.finalCheckTitle}>Tournée terminée</Text>
+          <TouchableOpacity
+            style={styles.finalCheckButton}
+            onPress={handleFinalVehicleCheck}
+          >
+            <Ionicons name="car-outline" size={24} color="#fff" />
+            <Text style={styles.finalCheckButtonText}>Check Véhicule Final</Text>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.allVisitedContainer}>
-            {visitedSites > 0 ? (
-              <>
-                <Ionicons name="checkmark-circle" size={24} color="#27ae60" />
-                <Text style={styles.allVisitedText}>Tous les sites ont été visités!</Text>
-              </>
-            ) : (
-              <Text style={styles.noSitesText}>Aucun site défini pour cette tournée</Text>
-            )}
-          </View>
-        )}
-      </View>
+        </View>
+      )}
 
       {sitesWithStatus.length > 0 && (
         <View style={styles.allSitesContainer}>
@@ -437,6 +561,48 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
                 <View style={styles.siteItemContent}>
                   <Text style={styles.siteItemName}>{site.nom || site.name}</Text>
                   <Text style={styles.siteItemAddress}>{site.adresse || site.address}</Text>
+                  {site.heureArrivee && (
+                    <Text style={styles.siteItemTime}>
+                      🕐 Heure prévue : {(() => {
+                        try {
+                          const date = new Date(site.heureArrivee);
+                          if (isNaN(date.getTime())) {
+                            return 'Heure non définie';
+                          }
+                          return date.toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        } catch (error) {
+                          console.warn('[TourneeProgress] Erreur formatage heure:', site.heureArrivee, error);
+                          return 'Heure non définie';
+                        }
+                      })()}
+                    </Text>
+                  )}
+                  {/* Numéro de téléphone pour chaque site */}
+                  {(() => {
+                    const phoneNumber = site.telephone || site.phone || site.tel;
+                    
+                    if (phoneNumber) {
+                      return (
+                        <TouchableOpacity 
+                          style={styles.siteItemPhoneContainer}
+                          onPress={() => PhoneSearchService.openPhoneApp(phoneNumber)}
+                        >
+                          <Text style={styles.siteItemPhoneNumber}>
+                            📞 {PhoneSearchService.formatPhoneNumber(phoneNumber)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    } else {
+                      return (
+                        <Text style={styles.siteItemPhoneNotAvailable}>
+                          📞 Non disponible
+                        </Text>
+                      );
+                    }
+                  })()}
                 </View>
               </View>
 
@@ -455,7 +621,7 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
                     style={styles.navigationButton}
                     onPress={() => openMap(site.adresse || site.address, site.ville || site.city)}
                   >
-                    <Image source={require('../assets/logo-carte.png')} style={styles.mapIconCustom} />
+                    <Image source={require('../assets/logo-carte.png')} style={styles.mapIconCustom} resizeMode="contain" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -471,6 +637,18 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect }
       />
     </View>
   );
+  } catch (error) {
+    console.error('[TourneeProgress] Erreur de rendu:', error);
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Suivi de tournée</Text>
+        <Text style={styles.errorText}>Erreur de chargement du suivi de tournée</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => loadTourneeDetails(true)}>
+          <Text style={styles.retryButtonText}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 });
 
 const styles = StyleSheet.create({
@@ -630,6 +808,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7f8c8d',
   },
+  siteItemTime: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginTop: 5,
+    fontWeight: '600',
+    backgroundColor: '#ecf0f1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
   statusIconContainer: {
     paddingHorizontal: 5,
   },
@@ -673,7 +861,121 @@ const styles = StyleSheet.create({
   mapIconCustom: {
     width: 28,
     height: 28,
-    resizeMode: 'contain',
+  },
+  finalCheckContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    marginTop: 10,
+    borderWidth: 2,
+    borderColor: '#e74c3c',
+    borderStyle: 'dashed',
+  },
+  finalCheckTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  finalCheckButton: {
+    backgroundColor: '#e74c3c',
+    borderRadius: 8,
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+  },
+  finalCheckButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
+  siteScheduledTime: {
+    fontSize: 14,
+    color: '#2c3e50',
+    marginTop: 5,
+    fontWeight: '600',
+    backgroundColor: '#ecf0f1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  // Styles pour les numéros de téléphone
+  sitePhoneLoading: {
+    fontSize: 12,
+    color: '#7f8c8d',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  sitePhoneContainer: {
+    marginTop: 5,
+  },
+  sitePhoneNumber: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  sitePhoneSearchButton: {
+    marginTop: 5,
+    backgroundColor: '#f39c12',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  sitePhoneSearchText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  // Styles pour les numéros dans la liste des sites
+  siteItemPhoneLoading: {
+    fontSize: 11,
+    color: '#7f8c8d',
+    marginTop: 3,
+    fontStyle: 'italic',
+  },
+  siteItemPhoneContainer: {
+    marginTop: 3,
+    alignSelf: 'flex-start',
+  },
+  siteItemPhoneNumber: {
+    fontSize: 12,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  siteItemPhoneSearchButton: {
+    marginTop: 3,
+    backgroundColor: '#f39c12',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    alignSelf: 'flex-start',
+  },
+  siteItemPhoneSearchText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  // Styles pour les numéros non disponibles
+  sitePhoneNotAvailable: {
+    fontSize: 12,
+    color: '#95a5a6',
+    marginTop: 5,
+    fontStyle: 'italic',
+  },
+  siteItemPhoneNotAvailable: {
+    fontSize: 11,
+    color: '#95a5a6',
+    marginTop: 3,
+    fontStyle: 'italic',
   },
 });
 

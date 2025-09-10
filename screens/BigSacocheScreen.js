@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firebaseService from '../services/firebaseService';
 import CustomView from '../components/CustomView';
+import CustomHeader from '../components/CustomHeader';
+import { wp, hp, fp, sp } from '../utils/responsiveUtils';
 
 // Renommer CustomView en View pour maintenir la compatibilité avec le code existant
 const View = CustomView;
@@ -36,6 +38,26 @@ export default function BigSacocheScreen({ navigation, route }) {
   useEffect(() => {
     loadHistoricalScans();
   }, []);
+
+  // Fonction de déconnexion
+  const handleLogout = async () => {
+    try {
+      // Fermer la session actuelle si elle existe
+      await firebaseService.closeCurrentSession();
+      
+      // Déconnexion Firebase
+      await firebaseService.logout();
+      
+      // Rediriger vers l'écran de connexion
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+      Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
+    }
+  };
 
   const loadHistoricalScans = async () => {
     try {
@@ -235,6 +257,15 @@ export default function BigSacocheScreen({ navigation, route }) {
   };
 
   return (
+    <View style={{ flex: 1 }}>
+      <CustomHeader 
+        title="Créer une Big-Sacoche"
+        navigation={navigation}
+        showBackButton={true}
+        showLogoutButton={true}
+        handleLogout={handleLogout}
+      />
+      
     <SafeAreaView style={styles.container}>
       <View style={styles.infoHeader}>
         <Text style={styles.headerSubtitle}>Tournée: {tournee}</Text>
@@ -357,6 +388,7 @@ export default function BigSacocheScreen({ navigation, route }) {
         </Modal>
       )}
     </SafeAreaView>
+    </View>
   );
 }
 

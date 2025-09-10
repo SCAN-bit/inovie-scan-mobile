@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef, useLayoutEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -16,33 +16,26 @@ import {
   Platform,
   InteractionManager,
   DeviceEventEmitter,
+  BackHandler,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firebaseService from '../services/firebaseService';
 import dateUtils from '../utils/dateUtils';
 import CustomView from '../components/CustomView';
 import TourneeProgress from '../components/TourneeProgress';
 import ScanHistoryItem from '../components/ScanHistoryItem';
-import scannerService from '../services/scannerService'; // Import du nouveau service
+import dataWedgeService from '../services/dataWedgeService'; // Import du nouveau service DataWedge
+import zebraDataWedgeService from '../services/zebraDataWedgeService'; // Nouveau service alternatif
+import keystrokeDataWedgeService from '../services/keystrokeDataWedgeService'; // Service Keystroke pour Zebra
+import offlineQueueService from '../services/offlineQueueService'; // Service queue hors-ligne
+import NetInfo from '@react-native-community/netinfo'; // Détection connectivité
+import Toast from '../components/Toast';
+import { wp, hp, fp, sp, isSmallScreen, isLargeScreen } from '../utils/responsiveUtils';
 
-// --- NOUVELLES IMPORTATIONS ---
-// SUPPRIMÉ: L'import statique est remplacé par un require conditionnel
-// import DataWedgeIntents from 'react-native-datawedge-intents';
-
-// --- CHARGEMENT CONDITIONNEL DE DATAWEDGE ---
-let DataWedgeIntents = null;
-if (Platform.OS === 'android') {
-  try {
-    // On tente de charger la bibliothèque uniquement sur Android
-    DataWedgeIntents = require('react-native-datawedge-intents');
-  } catch (error) {
-    // Si ça échoue (pas un appareil Zebra), on log l'erreur et on continue.
-    // DataWedgeIntents restera `null`, ce qui désactivera les fonctionnalités de scan.
-    console.log("Le module 'react-native-datawedge-intents' n'a pas pu être chargé. Fonctionnalités de scan Zebra désactivées.", error);
-  }
-}
-// --- FIN DU CHARGEMENT CONDITIONNEL ---
+// --- NOUVEAU SYSTÈME DATAWEDGE ---
+// Utilisation du nouveau DataWedgeService pour une gestion simplifiée et automatique
 
 // Renommer CustomView en View pour maintenir la compatibilité avec le code existant
 const View = CustomView;
@@ -107,15 +100,42 @@ export default function ScanScreen({ navigation, route }) {
   const [takingCarePackages, setTakingCarePackages] = useState([]); // Paquets pris en charge
   // Ajouter l'état pour l'ID de session courant
   const [currentSessionId, setCurrentSessionId] = useState(null);
+  
+  // État pour les toasts
+  const [toast, setToast] = useState(null);
+  const [selectedSelas, setSelectedSelas] = useState(null); // AJOUT: État pour la SELAS
 
-  // États pour les informations de session qui seront chargées
-  const [currentTourneeName, setCurrentTourneeName] = useState(route.params?.tournee?.nom || route.params?.tourneeName || sessionData?.tournee?.nom || "Tournée inconnue");
-  // Simplifier l'initialisation, la logique principale sera dans useEffect
-  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState("Véhicule inconnu");
-  const [currentVehiculeId, setCurrentVehiculeId] = useState(null); // NOUVEL ÉTAT pour l'ID du véhicule
-  const [currentTourneeId, setCurrentTourneeId] = useState(route.params?.tourneeId || sessionData?.tournee?.id || null); // RÉINTRODUIT : ID de la tournée
-  // NOUVEL ETAT pour le nom de l'utilisateur
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+  };
+
+
+  
+  // Références pour auto-focus des champs de saisie
+  const siteInputRef = useRef(null);
+  const colisInputRef = useRef(null);
+
+
+
+  // Simplification de la gestion de l'état de la session
+  // On récupère les objets complets depuis les paramètres de navigation
+  const [currentTournee, setCurrentTournee] = useState(route.params?.tournee || null);
+  const [currentVehicule, setCurrentVehicule] = useState(route.params?.vehicule || null);
+  const [currentPole, setCurrentPole] = useState(route.params?.pole || null);
+
+  // Les états dérivés sont maintenus pour l'affichage et la compatibilité
+  const [currentTourneeName, setCurrentTourneeName] = useState(route.params?.tournee?.nom || "Tournée inconnue");
+  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState(route.params?.vehicule?.immatriculation || "Véhicule inconnu");
+  const [currentVehiculeId, setCurrentVehiculeId] = useState(route.params?.vehicule?.id || null);
+  const [currentTourneeId, setCurrentTourneeId] = useState(route.params?.tournee?.id || null);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("Chargement...");
+  
+  // États pour la queue hors-ligne et connectivité
+  const [queueSize, setQueueSize] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
+
+  // État pour gérer l'affichage du clavier
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Réduire les logs inutiles
   // AMÉLIORATION DU CONSOLE.LOG CUSTOM
@@ -126,13 +146,37 @@ export default function ScanScreen({ navigation, route }) {
 
   console.log = (...args) => {
     const messageString = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ');
-    // Rétablir le filtre normal après confirmation, pour l'instant on laisse les DEBUG_SESSION passer.
-    // if (messageString.includes('[TourneeProgress]') || messageString.includes('[loadHistoricalData]') || messageString.includes('restaurés depuis la tournée') || messageString.includes('sauvegardés pour la tournée')) {
-    //   if (!messageString.includes('[DEBUG_SESSION]')) { 
-    //     return; 
-    //   }
-    // }
-    originalConsoleLog.apply(console, args);
+    
+    // FILTRER LES LOGS VERBEUX ET RÉPÉTITIFS
+    const filteredMessages = [
+      '[TourneeProgress]',
+      '[loadHistoricalData]',
+      'restaurés depuis la tournée',
+      'sauvegardés pour la tournée',
+      '[getTourneeWithSites] Site',
+      'Site non trouvé avec l\'ID:',
+      'Récupération de tous les scans',
+      'SELAS ID récupéré du stockage local:',
+      'scans trouvés au total',
+      'Historique local filtré:',
+      'Details complets reçus:',
+      'visité = false',
+      'Chargement des détails de la tournée:',
+      'Récupération de la tournée',
+      'RENDER démarré'
+    ];
+    
+    // Ne pas afficher ces logs sauf s'ils contiennent ERROR ou WARN
+    const shouldFilter = filteredMessages.some(filter => 
+      messageString.includes(filter) && 
+      !messageString.includes('ERROR') && 
+      !messageString.includes('WARN') &&
+      !messageString.includes('ERREUR')
+    );
+    
+    if (!shouldFilter) {
+      originalConsoleLog.apply(console, args);
+    }
   };
   console.info = (...args) => {
     originalConsoleInfo.apply(console, args);
@@ -145,16 +189,7 @@ export default function ScanScreen({ navigation, route }) {
   };
   // FIN AMÉLIORATION CONSOLE.LOG
 
-  // Limiter les appels de log pour éviter les répétitions
-  const logTourneeProgress = (message) => {
-    if (!message.includes('restaurés depuis la tournée') && !message.includes('sauvegardés pour la tournée')) {
-      console.log(message);
-    }
-  };
-
-  // Remplacer les appels de console.log par logTourneeProgress
-  logTourneeProgress(`[TourneeProgress] 1 sites visités restaurés depuis la tournée ${currentTourneeId}`);
-  logTourneeProgress(`[TourneeProgress] 1 sites visités sauvegardés pour la tournée ${currentTourneeId}`);
+  // Code nettoyé - logs répétitifs supprimés
 
   // Effet pour initialiser la session au démarrage OU récupérer la session passée
   useEffect(() => {
@@ -197,24 +232,31 @@ export default function ScanScreen({ navigation, route }) {
         
         // Traiter le nom de l'utilisateur
         if (userProfile) {
-          if (userProfile.prenom && userProfile.nom) {
-            setCurrentUserDisplayName(`${userProfile.prenom} ${userProfile.nom}`);
-          } else if (userProfile.email) {
-            setCurrentUserDisplayName(userProfile.email);
-          } else {
-            setCurrentUserDisplayName("Utilisateur");
-          }
+          setCurrentUserDisplayName(`${userProfile.prenom || ''} ${userProfile.nom || ''}`.trim() || userProfile.email || "Utilisateur");
           console.log(`[SessionInit] Nom utilisateur mis à jour: ${currentUserDisplayName}`);
-        } else {
-          const userData = await firebaseService.getCurrentUser();
-          setCurrentUserDisplayName(userData?.email || "Utilisateur inconnu");
-          console.log(`[SessionInit] Profil utilisateur non trouvé, fallback sur email: ${currentUserDisplayName}`);
         }
 
-        console.log('[SessionInit] Contenu brut de currentSession:', JSON.stringify(currentSession)); // Garder ce log
+        // Si une session existe déjà dans Firestore, on met à jour les états avec ses données
+        if (currentSession) {
+          setCurrentTournee({ id: currentSession.tourneeId, nom: currentSession.tourneeName });
+          setCurrentVehicule({ id: currentSession.vehiculeId, immatriculation: currentSession.immatriculation });
+          setCurrentPole({ id: currentSession.poleId, nom: currentSession.poleName });
+          setSelectedSelas({ id: currentSession.selasId, nom: currentSession.selasName });
+        } else {
+           // Si c'est une NOUVELLE session, on s'assure que les états sont bien définis depuis les route.params
+           setCurrentTournee(route.params?.tournee || null);
+           setCurrentVehicule(route.params?.vehicule || null);
+           setCurrentPole(route.params?.pole || null);
+           // Pour selas, on le récupère du profil car il n'est pas dans les params
+           if (userProfile?.selasId) {
+             setSelectedSelas({ id: userProfile.selasId, nom: userProfile.selasName || '' });
+           }
+        }
+
+ // Garder ce log
 
         if (currentSession) {
-          console.log('[SessionInit] currentSession EXISTE.'); // NOUVEAU LOG
+ // NOUVEAU LOG
           // Mettre à jour l'ID de la tournée - Essayer d'abord le champ direct, puis l'objet
           if (currentSession.tourneeId) {
             setCurrentTourneeId(currentSession.tourneeId);
@@ -236,74 +278,69 @@ export default function ScanScreen({ navigation, route }) {
           
           // Mettre à jour l'immatriculation du véhicule
           if (currentSession.vehicule) {
-            console.info('[DEBUG_SESSION] Dans ScanScreen, avant évaluation vehicule.registrationNumber:');
-            console.info('[DEBUG_SESSION] currentSession.vehicule (ScanScreen): ', currentSession.vehicule);
             // NOUVEAU: Mettre à jour l'ID du véhicule
             if (currentSession.vehicule.id) {
               setCurrentVehiculeId(currentSession.vehicule.id);
-              console.info(`[DEBUG_SESSION] setCurrentVehiculeId appelé avec (ScanScreen): ${currentSession.vehicule.id}`);
             } else {
               setCurrentVehiculeId(null); // S'assurer qu'il est null si non trouvé
-              console.info('[DEBUG_SESSION] currentSession.vehicule.id est MANQUANT (ScanScreen).');
             }
 
             let vehiculeDisplay = "Véhicule inconnu";
             if (currentSession.vehicule.registrationNumber && typeof currentSession.vehicule.registrationNumber === 'string' && currentSession.vehicule.registrationNumber.trim() !== '') {
-              console.info('[DEBUG_SESSION] Utilisation de currentSession.vehicule.registrationNumber (ScanScreen):', currentSession.vehicule.registrationNumber);
               vehiculeDisplay = currentSession.vehicule.registrationNumber;
-            } else {
-              console.info('[DEBUG_SESSION] currentSession.vehicule.registrationNumber est MANQUANTE ou invalide (ScanScreen). Affichage: "Véhicule inconnu". Véhicule brut:', currentSession.vehicule);
             }
             setCurrentVehiculeImmat(vehiculeDisplay);
-            console.info(`[DEBUG_SESSION] setCurrentVehiculeImmat appelée avec (ScanScreen): ${vehiculeDisplay}`);
           } else { 
-            console.info('[DEBUG_SESSION] currentSession.vehicule est MANQUANT (ScanScreen).'); 
             setCurrentVehiculeImmat("Véhicule inconnu"); 
             setCurrentVehiculeId(null); // S'assurer qu'il est null si l'objet vehicule est manquant
           }
 
-          // Mettre à jour les informations du pôle à partir de la session récupérée de Firestore
-          // currentSession ici est la variable locale qui contient le résultat de firebaseService.getCurrentSession()
-          // sessionData ici est le paramètre de la fonction initializeOrUseExistingSession (provenant de route.params)
-          if (currentSession && currentSession.poleId) {
-            const poleIdToUse = currentSession.poleId;
-            let poleNameToUse = '';
-
-            // Essayer de trouver poleName dans currentSession.vehicule
-            if (currentSession.vehicule && currentSession.vehicule.poleId === poleIdToUse && currentSession.vehicule.poleName) {
-                poleNameToUse = currentSession.vehicule.poleName;
-            } else {
-                console.warn(`[DEBUG_SESSION] poleName non trouvé dans currentSession.vehicule pour poleId: ${poleIdToUse}.`);
-            }
-            
-            // Fallback sur sessionData (route.params) si le nom n'a pas été trouvé dans la session de Firestore
-            // et que les ID correspondent.
-            if (!poleNameToUse && sessionData && sessionData.pole && sessionData.pole.id === poleIdToUse && sessionData.pole.nom) {
-                poleNameToUse = sessionData.pole.nom;
-                console.info(`[DEBUG_SESSION] poleName trouvé dans sessionData.pole (route.params) pour poleId: ${poleIdToUse}`);
-            }
-
-            const poleObject = { id: poleIdToUse, nom: poleNameToUse || '' }; // Assurer que nom n'est pas undefined
-            setPole(poleObject);
-            if (poleNameToUse) {
-                console.info(`[DEBUG_SESSION] Pôle mis à jour (ScanScreen): ID=${poleObject.id}, Nom=${poleObject.nom}`);
-            } else {
-                console.warn(`[DEBUG_SESSION] Pôle mis à jour avec ID ${poleObject.id} mais NOM NON TROUVÉ. L'objet pole sera { id: '${poleObject.id}', nom: '' }. (ScanScreen)`);
-            }
-
+          // Mettre à jour les informations du pôle
+          if (currentSession.poleId && currentSession.poleName) {
+            console.log(`[SessionInit] Pôle Info trouvé dans la session: ${currentSession.poleName}`);
+            setPole({ id: currentSession.poleId, nom: currentSession.poleName });
+          } else if (sessionData && sessionData.pole && sessionData.pole.id) {
+            console.log(`[SessionInit] Pôle Info trouvé dans sessionData: ${sessionData.pole.nom}`);
+            setPole(sessionData.pole);
+          } else if (userProfile && userProfile.poleId) {
+            // Fallback sur le profil utilisateur
+            console.log(`[SessionInit] Pôle ID ${userProfile.poleId} récupéré depuis le profil.`);
+            setPole({ id: userProfile.poleId, nom: userProfile.poleName || 'Pôle à définir' });
           } else {
-            // Si currentSession (la session fetchée) n'a pas poleId, vérifier les route.params (sessionData) comme fallback complet.
-            if (sessionData && sessionData.pole && sessionData.pole.id && sessionData.pole.nom) {
-                setPole(sessionData.pole); // Doit être un objet {id, nom}
-                console.info(`[DEBUG_SESSION] Pôle mis à jour depuis sessionData.pole (route.params) car la session fetchée n'avait pas poleId (ScanScreen):`, sessionData.pole);
-            } else {
-                console.warn('[DEBUG_SESSION] Aucune information de pôle (ni poleId dans session fetchée, ni pole object complet dans route.params) trouvée. Pôle initialisé à null. (ScanScreen)');
-                setPole(null); // Aucun pôle trouvé, mettre à null
-            }
+            console.log(`[SessionInit] Pas d'info Pôle dans la session ou le profil.`);
+            setPole(null); // Explicitly set to null if nothing is found
           }
+          
+           if (currentSession.selasId && currentSession.selasName) {
+             console.log(`[SessionInit] SELAS Info trouvée dans la session: ${currentSession.selasName}`);
+             setSelectedSelas({ id: currentSession.selasId, nom: currentSession.selasName });
+           } else {
+             console.log(`[SessionInit] Pas d'info SELAS dans la session, tentative de récupération depuis le profil.`);
+             // Fallback sur le profil utilisateur si l'info n'est pas dans la session
+             if (userProfile && userProfile.selasId) {
+               // Idéalement, on aurait aussi le nom de la SELAS ici.
+               // Pour l'instant, on suppose qu'on peut le récupérer plus tard si besoin.
+               setSelectedSelas({ id: userProfile.selasId, nom: 'SEALS à définir' }); // Placeholder
+               console.log(`[SessionInit] SELAS ID ${userProfile.selasId} récupéré depuis le profil.`);
+             }
+           }
 
         } else {
-           console.info('[DEBUG_SESSION] currentSession est NULL ou UNDEFINED (ScanScreen).'); 
+ // NOUVEAU LOG
+          // Si pas de session, on utilise l'info du profil
+          if (sessionData && sessionData.pole && sessionData.pole.id) {
+            console.log(`[SessionInit] Pôle Info (nouvelle session) trouvé dans sessionData: ${sessionData.pole.nom}`);
+            setPole(sessionData.pole);
+          } else if (userProfile && userProfile.poleId) {
+            console.log(`[SessionInit] Pôle ID ${userProfile.poleId} (depuis profil) utilisé pour la nouvelle session.`);
+            setPole({ id: userProfile.poleId, nom: userProfile.poleName || 'Pôle à définir' });
+          } else {
+            setPole(null);
+          }
+          if (userProfile && userProfile.selasId) {
+             console.log(`[SessionInit] SELAS ID ${userProfile.selasId} (depuis profil) utilisé pour la nouvelle session.`);
+             setSelectedSelas({ id: userProfile.selasId, nom: 'SEALS à définir' });
+          }
         }
       } catch (error) {
         console.error("[SessionInit] ERREUR lors de la récupération/traitement de la session:", error); // Modifié pour plus de clarté
@@ -311,9 +348,9 @@ export default function ScanScreen({ navigation, route }) {
 
       // Charger les données historiques une fois l'ID de session défini
       await loadHistoricalData();
-      // Forcer la mise à jour du suivi de tournée pour réafficher les coches
+      // Forcer la mise à jour du suivi de tournée pour réafficher les coches SANS supprimer la persistance
       if (tourneeProgressRef.current?.loadTourneeDetails) {
-        await tourneeProgressRef.current.loadTourneeDetails(true);
+        await tourneeProgressRef.current.loadTourneeDetails(false); // Changé de true à false pour préserver AsyncStorage
       }
     };
 
@@ -353,7 +390,6 @@ export default function ScanScreen({ navigation, route }) {
 
   // Fonction pour charger tous les données d'historique et de paquets en cours
   const loadHistoricalData = async () => {
-    console.log('[loadHistoricalData] Début du chargement des données historiques');
     
     // Charger l'historique des scans
     await loadHistoricalScans();
@@ -361,9 +397,8 @@ export default function ScanScreen({ navigation, route }) {
     
     // Charger les paquets pris en charge seulement si on a un ID de tournée
     if (currentTourneeId) {
-      await loadTakingCarePackages();
+    await loadTakingCarePackages();
     } else {
-      console.log('[loadHistoricalData] Pas d\'ID de tournée, paquets non chargés');
     }
   };
 
@@ -461,23 +496,20 @@ export default function ScanScreen({ navigation, route }) {
 
   const loadFirestoreScans = async () => {
     try {
-      // On ne charge les scans Firestore que si la session est active
-      const userSessionActive = await AsyncStorage.getItem('userSessionActive');
-      if (userSessionActive !== 'true') {
-        // Si aucune session active, on ne charge pas l'historique Firestore
+      // Vérifier l'authentification en premier
+      if (!await firebaseService.isAuthenticated()) {
+        console.error('Utilisateur non authentifié, abandon du chargement Firestore');
         return;
       }
 
       // Récupérer l'ID de session actuel
       const currentSessionId = await AsyncStorage.getItem('currentSessionId');
-      console.log('Chargement des scans pour la session:', currentSessionId);
 
       // S'assurer que currentTourneeId est disponible pour le filtrage
       if (!currentTourneeId) {
-        console.warn('[loadFirestoreScans] currentTourneeId est null, chargement de tous les scans disponibles.');
-        // Ne pas s'arrêter, continuer avec tous les scans disponibles
+        // Log uniquement une fois, pas à chaque appel
+        // console.warn('[loadFirestoreScans] currentTourneeId est null, chargement de tous les scans disponibles.');
       }
-      console.log('[loadFirestoreScans] Chargement de l\'historique Firestore pour la tournée:', currentTourneeId);
 
       setLoading(true); // Afficher l'indicateur de chargement
 
@@ -503,12 +535,10 @@ export default function ScanScreen({ navigation, route }) {
           // Le filtrage par tournée est maintenant fait côté service, donc isSameTournee n'est plus nécessaire ici
           // const isSameTournee = !currentTourneeId || scan.tourneeId === currentTourneeId;
           
-          // MODIFICATION DU FILTRE DE STATUT ET TYPE
+          // MODIFICATION DU FILTRE DE STATUT ET TYPE - Permettre tous les codes-barres
           const isActualPackage = (scan.operationType === 'entree' || scan.operationType === 'sortie') &&
                                   (scan.status === 'en-cours' || scan.status === 'livré') &&
-                                  scan.idColis && 
-                                  !scan.idColis.startsWith('VISITE_SITE_') && 
-                                  !scan.idColis.startsWith('SITE_');
+                                  scan.idColis;
           
           return scanDateOnly.getTime() === today.getTime() && isActualPackage; // isSameTournee retiré du retour
         });
@@ -552,9 +582,7 @@ export default function ScanScreen({ navigation, route }) {
               try {
                 // Utiliser l'ID du site si disponible, sinon le code barre
                 const siteIdentifier = scan.siteId || scan.code; // Assumer que siteId existe
-                if (siteIdentifier && 
-                    !siteIdentifier.startsWith('TEST_CONTENANT_') && 
-                    !siteIdentifier.match(/^[0-9]{13,}$/)) {
+                if (siteIdentifier) {
                   // Utiliser une variable locale au lieu de réassigner l'état siteDetails
                   const siteInfo = await firebaseService.getSiteById(siteIdentifier); 
                   if (siteInfo) {
@@ -573,10 +601,8 @@ export default function ScanScreen({ navigation, route }) {
                 scan.siteName = scan.code; // Afficher le code si erreur
               }
               
-              // Ne récupérer les informations sur le site que s'il ne s'agit pas d'un conteneur
-              if (scan.site && 
-                  !scan.site.startsWith('TEST_CONTENANT_') && 
-                  !scan.site.match(/^[0-9]{13,}$/)) {
+              // Récupérer les informations sur le site
+              if (scan.site) {
                 const siteInfo = await firebaseService.getSiteById(scan.site);
                 if (siteInfo) return { ...scan, siteDetails: { ...siteInfo } };
               }
@@ -642,7 +668,6 @@ export default function ScanScreen({ navigation, route }) {
     try {
       // S'assurer que currentTourneeId est disponible
       if (!currentTourneeId) {
-        console.log('[loadTakingCarePackages] Pas d\'ID de tournée, nettoyage des paquets');
         setTakingCarePackages([]); // Vider les paquets si pas d'ID de tournée pour éviter la confusion
         return;
       }
@@ -675,148 +700,54 @@ export default function ScanScreen({ navigation, route }) {
     }
   };
 
-  // 🔹 Simulation d'un scan avec des sites valides
-  const simulateScan = () => {
-    if (scanMode === 'site') {
-      // Sites de test qui seront reconnus comme valides
-      const sitesDemoValides = [
-        'SITE123',
-        'SITE456',
-        'SITE789',
-        'LAB001',
-        '12345'
-      ];
-      
-      // Sélectionner un site aléatoire parmi les sites valides pour la démo
-      return sitesDemoValides[Math.floor(Math.random() * sitesDemoValides.length)];
-    } else {
-      // Si on est en mode sortie (dépôt), on doit scanner un colis déjà pris en charge
-      if (operationType === 'sortie') {
-        // Si on est en mode sortie (dépôt), on doit scanner un colis déjà pris en charge
-        if (takingCarePackages.length > 0) {
-          // Sélectionner un colis aléatoire parmi les colis pris en charge
-          const randomPackage = takingCarePackages[Math.floor(Math.random() * takingCarePackages.length)];
-          // Prioriser idColis, puis code, puis une chaîne vide si aucun n'est défini
-          return randomPackage.idColis || randomPackage.code || ''; 
-        } else {
-          // Aucun colis disponible pour le dépôt - cette condition est gérée en amont dans handleSimulatedScan
-          return ''; 
-        }
-      } else {
-        // Simuler un scan de contenant pour prise en charge
-        // Utiliser un préfixe spécifique pour les tests afin de pouvoir les identifier facilement
-        const testId = Date.now(); // Utiliser le timestamp actuel pour créer un ID unique
-        return `TEST_CONTENANT_${testId}`;
-      }
-    }
-  };
 
-  // Modification pour les tests : fonction mock qui simule verifySiteCode
-  const mockVerifySiteCode = async (siteCode) => {
-    // Sites de test qui seront automatiquement validés
-    const sitesDemoValides = {
-      'SITE123': { nom: 'Site Test 1', adresse: '123 Rue Principale', ville: 'Paris', codePostal: '75001' },
-      'SITE456': { nom: 'Site Test 2', adresse: '456 Avenue République', ville: 'Lyon', codePostal: '69001' },
-      'SITE789': { nom: 'Site Test 3', adresse: '789 Boulevard des Tests', ville: 'Toulouse', codePostal: '31000' },
-      '12345': { nom: 'Laboratoire Central', adresse: '12 Rue des Sciences', ville: 'Montpellier', codePostal: '34000' },
-      'LAB001': { nom: 'Laboratoire Mobile', adresse: 'Zone Industrielle', ville: 'Bordeaux', codePostal: '33000' }
-    };
 
-    // Vérifier si le code scanné est dans notre liste de sites de test
-    if (sitesDemoValides[siteCode]) {
-      // Retourner une structure simulant la réponse de Firebase
-      return {
-        valid: true,
-        site: {
-          id: `mock_${siteCode}`,
-          code: siteCode,
-          nom: sitesDemoValides[siteCode].nom,
-          adresse: sitesDemoValides[siteCode].adresse,
-          ville: sitesDemoValides[siteCode].ville,
-          codePostal: sitesDemoValides[siteCode].codePostal
-        }
-      };
-    }
 
-    // Si ce n'est pas un site de test, passer à la vérification normale dans Firebase
-    return await firebaseService.verifySiteCode(siteCode);
-  };
 
   const processScannedData = async (data) => {
     console.log('Code scanné:', data);
     try {
       // Cas 1: Nous n'avons pas encore scanné de site
-      if (!siteScanned && scanMode === 'site') {
-        console.log('[processScannedData] Mode: Scan de site. Données:', data);
+      if (!siteScanned) {
         const siteVerification = await firebaseService.verifySiteCode(data);
-        console.log('[processScannedData] Résultat de verifySiteCode:', JSON.stringify(siteVerification));
 
         if (siteVerification.site) {
           // Toujours enregistrer les infos du site et préparer pour les opérations si le site est valide
           setSiteCode(data);
           setSiteDetails(siteVerification.site);
           
-          // Récupérer le pôle de la session courante
-          console.log('[processScannedData] DÉBUT récupération du pôle depuis la session');
+          // 🚀 OPTIMISATION: Récupération du pôle simplifiée et mise en cache
           try {
-            // D'abord essayer de récupérer le pôle depuis la session courante
-            const currentSession = await firebaseService.getCurrentSession();
-            console.log('[processScannedData] Session courante:', currentSession ? 'trouvée' : 'non trouvée');
-            
             let sessionPole = null;
             
-            if (currentSession && currentSession.poleId) {
-              console.log('[processScannedData] ID du pôle depuis la session:', currentSession.poleId);
-              
-              // Récupérer les détails du pôle par son ID
-              const poleDetails = await firebaseService.getPoleById(currentSession.poleId);
-              if (poleDetails) {
-                sessionPole = {
-                  id: poleDetails.id,
-                  nom: poleDetails.nom
-                };
-                console.log('[processScannedData] ✅ Pôle récupéré depuis la session:', sessionPole);
-              } else {
-                console.log('[processScannedData] ❌ Impossible de récupérer les détails du pôle avec ID:', currentSession.poleId);
-              }
-            } else {
-              console.log('[processScannedData] ⚠️ Pas d\'ID de pôle dans la session courante');
-            }
-            
-            // Fallback: essayer de récupérer le pôle depuis le state local
-            if (!sessionPole && pole && pole.id) {
-              console.log('[processScannedData] 🔄 Fallback: utilisation du pôle depuis le state local:', pole);
+            // 1. Utiliser le pôle en cache s'il existe
+            if (pole && pole.id) {
               sessionPole = pole;
-            }
-            
-            // Fallback: essayer de récupérer le pôle depuis le site
-            if (!sessionPole) {
-              console.log('[processScannedData] 🔄 Fallback: tentative de récupération du pôle depuis le site');
-              const siteWithPole = await firebaseService.getSiteWithPole(siteVerification.site.id);
-              if (siteWithPole && siteWithPole.pole) {
-                sessionPole = siteWithPole.pole;
-                console.log('[processScannedData] 📍 Pôle récupéré depuis le site:', sessionPole);
-              }
-            }
-            
-            if (sessionPole) {
-              setPole(sessionPole);
-              console.log('[processScannedData] 🏁 setPole appelé avec:', sessionPole);
-            } else {
-              console.log('[processScannedData] ❌ Aucun pôle trouvé (ni session, ni state, ni site)');
-              setPole(null);
+            } 
+            // 2. Récupération asynchrone en arrière-plan pour la prochaine fois
+            else {
+              // Ne pas bloquer l'interface - récupérer de manière asynchrone
+              firebaseService.getCurrentSession().then(currentSession => {
+                if (currentSession?.poleId) {
+                  firebaseService.getPoleById(currentSession.poleId).then(poleDetails => {
+                    if (poleDetails) {
+                      const newPole = { id: poleDetails.id, nom: poleDetails.nom };
+                      setPole(newPole);
+                    }
+                  });
+                }
+              }).catch(error => {
+                console.warn('[processScannedData] ⚠️ Erreur récupération pôle en arrière-plan:', error.message);
+              });
             }
           } catch (error) {
-            console.error('[processScannedData] ❌ Erreur lors de la récupération du pôle:', error);
-            setPole(null);
+            console.warn('[processScannedData] ⚠️ Erreur récupération pôle:', error.message);
           }
 
           let occurrenceIndex = -1; // Initialiser à -1 (aucune occurrence non visitée trouvée par défaut)
           if (tourneeProgressRef.current?.getSitesWithStatus) {
             const sitesList = tourneeProgressRef.current.getSitesWithStatus();
-            console.log('[processScannedData] sitesList depuis tourneeProgressRef:', JSON.stringify(sitesList.map(s => ({ id: s.id, name: s.name, visited: s.visited, uniqueDisplayId: s.uniqueDisplayId }))));
             const siteNameToFind = siteVerification.site.nom || siteVerification.site.name;
-            console.log('[processScannedData] Nom du site à trouver:', siteNameToFind);
 
             // Trouver le premier site non visité avec ce nom
             occurrenceIndex = sitesList.findIndex(s => !s.visited && (s.name === siteNameToFind || s.nom === siteNameToFind));
@@ -830,13 +761,10 @@ export default function ScanScreen({ navigation, route }) {
           // Si une occurrence non visitée est trouvée, la marquer
           if (occurrenceIndex !== -1) {
             const identifier = siteVerification.site.id || (siteVerification.site.code || data);
-            console.log('[processScannedData] Identifier pour markSiteVisitedInSession:', identifier);
-            console.log('[processScannedData] currentSessionId avant appel:', currentSessionId);
-            console.log('[processScannedData] occurrenceIndex avant appel:', occurrenceIndex);
 
             if (!currentSessionId) {
               console.error('[processScannedData] ID de session manquant avant markSiteVisitedInSession');
-              Alert.alert('Erreur Critique', 'ID de session manquant. Impossible de continuer.');
+              showToast('ID de session manquant. Impossible de continuer.', 'error');
               // Réinitialiser pour permettre un nouveau scan de site si erreur critique
               setSiteScanned(false);
               setSiteDetails(null);
@@ -846,18 +774,15 @@ export default function ScanScreen({ navigation, route }) {
             }
             
             const markSuccess = await firebaseService.markSiteVisitedInSession(currentSessionId, identifier, occurrenceIndex);
-            console.log('[processScannedData] Résultat de markSiteVisitedInSession:', markSuccess);
             
             if (markSuccess) {
               if (tourneeProgressRef.current?.markSiteAsVisitedLocally) {
-                console.log('[processScannedData] Appel de markSiteAsVisitedLocally avec:', identifier, occurrenceIndex);
                 await tourneeProgressRef.current.markSiteAsVisitedLocally(identifier, occurrenceIndex);
               } else if (tourneeProgressRef.current?.loadTourneeDetails) {
-                console.log('[processScannedData] Appel de loadTourneeDetails(true) car markSiteAsVisitedLocally non dispo.');
                 await tourneeProgressRef.current.loadTourneeDetails(true);
               }
             } else {
-              Alert.alert('Erreur', 'Échec du marquage du site comme visité dans la session Firestore.');
+              showToast('Échec du marquage du site comme visité.', 'error');
               // Ne pas bloquer la suite, l'utilisateur peut vouloir faire des opérations quand même.
             }
           } else {
@@ -865,18 +790,21 @@ export default function ScanScreen({ navigation, route }) {
             // Cela signifie que toutes les instances de ce site dans la tournée sont déjà marquées comme visitées,
             // ou que la liste des sites n'était pas disponible.
             // On ne modifie pas les coches, mais on permet de continuer.
-            console.log('[processScannedData] Aucune occurrence non visitée à marquer pour ce site. Passage aux opérations.');
           }
 
           // Toujours permettre les opérations sur le site si le code site est valide
           setSiteScanned(true);
           setScanMode(''); 
+          
+          // Automatiquement afficher la sélection du type d'opération après validation du site
           setShowOperationTypeSelection(true);
+          
+          // Passage automatique sans popup - site validé
+          
           return;
 
         } else { // siteVerification.site est null/undefined
-          console.log('[processScannedData] Aucun site valide retourné par verifySiteCode pour le code:', data);
-          Alert.alert('Site Inconnu', 'Le code scanné ne correspond à aucun site connu.');
+          showToast('Code inconnu: aucun site correspondant.', 'warning');
            // Réinitialiser pour permettre un nouveau scan
           setSiteScanned(false);
           setSiteDetails(null);
@@ -886,11 +814,17 @@ export default function ScanScreen({ navigation, route }) {
       }
       
       // Cas 2: Site déjà scanné, nous scannons maintenant un contenant
-      if (siteScanned && scanMode === 'contenant') {
-        console.log('[processScannedData] Mode: Scan de contenant. Données:', data);
+      if (siteScanned && (scanMode === 'contenant' || scanMode === '')) {
         handleContenantScan(data);
         // Rester en mode scan contenant pour permettre les scans multiples
         setScanMode('contenant');
+        return; // Sortir après traitement du contenant
+      }
+      
+      // Cas 3: Site déjà scanné mais pas encore en mode contenant - proposer le choix
+      if (siteScanned && !showOperationTypeSelection) {
+        handleContenantScan(data);
+        return;
       }
     } catch (error) {
       console.error('Erreur lors de la gestion du scan:', error);
@@ -904,107 +838,43 @@ export default function ScanScreen({ navigation, route }) {
     }
   };
 
-  // Gérer la simulation d'un scan (pour le développement et les tests)
-  const handleSimulatedScan = () => {
-    // Vérifier si on est en mode sortie sans colis pris en charge
-    if (scanMode === 'contenant' && operationType === 'sortie' && takingCarePackages.length === 0) {
-      Alert.alert(
-        "Aucun colis disponible",
-        "Vous n'avez aucun colis en prise en charge à déposer.",
-        [{ text: "OK" }]
-      );
-      return;
-    }
-    
-    const fakeData = simulateScan();
-    if (fakeData) {
-      console.log(`Simulation de scan avec données: ${fakeData}`);
-    processScannedData(fakeData);
-    } else {
-      console.error("Erreur lors de la simulation du scan: aucune donnée générée");
-      Alert.alert(
-        "Erreur",
-        "Impossible de simuler un scan. Veuillez réessayer.",
-        [{ text: "OK" }]
-      );
-    }
-  };
+
 
   const handleManualScan = () => {
-    if (manualCodeInput.trim() === '') {
-      Alert.alert('Erreur', 'Veuillez entrer un code valide');
-      return;
+    if (manualCodeInput.trim().length > 0 && !isProcessingScan) {
+      // Optimisation Zebra: Debouncing pour éviter les scans multiples
+      const now = Date.now();
+      if (now - lastScanTime < SCAN_DEBOUNCE_MS) {
+        return;
+      }
+      
+      setLastScanTime(now);
+      setIsProcessingScan(true);
+      Keyboard.dismiss(); // Fermer le clavier
+      
+      // Nettoyer le timeout d'auto-validation s'il existe
+      if (autoValidationTimeout) {
+        clearTimeout(autoValidationTimeout);
+        setAutoValidationTimeout(null);
+      }
+      
+      processScannedData(manualCodeInput.trim()).finally(() => {
+        setIsProcessingScan(false);
+      });
+      
+      setManualCodeInput('');
+    } else if (manualCodeInput.trim() === '') {
+      showToast('Veuillez entrer un code valide.', 'warning');
     }
-    
-    processScannedData(manualCodeInput.trim());
-    setManualCodeInput('');
   };
 
-  const activateSiteScan = () => {
-    setScanMode('site');
-    setErrorMessage('');
-    setIsReadyForScan(true);
-    
-    // Montrer une alerte avec plusieurs options pour scanner
-    Alert.alert(
-      "Scanner un site",
-      "Comment souhaitez-vous scanner le site ?",
-      [
-        {
-          text: "Scanner manuellement",
-          onPress: () => showManualSiteInput()
-        },
-        {
-          text: "Simuler scan",
-          onPress: handleSimulatedScan
-        },
-        {
-          text: "Annuler",
-          style: "cancel",
-          onPress: () => setScanMode('')
-        }
-      ]
-    );
-  };
+
 
   // Fonction pour afficher une boîte de dialogue pour saisir manuellement le code du site
   const showManualSiteInput = () => {
-    // Utiliser Alert.prompt sur iOS, mais sur Android, cette fonction n'existe pas
-    // donc nous utilisons une méthode alternative
-    if (Platform.OS === 'ios') {
-      Alert.prompt(
-        "Scanner site manuellement",
-        "Entrez le code ou le nom du site",
-        [
-          { text: "Annuler", onPress: () => setScanMode(''), style: "cancel" },
-          { 
-            text: "Scanner", 
-            onPress: (code) => {
-              if (code && code.trim()) {
-                processScannedData(code.trim());
-              } else {
-                setScanMode('');
-                Alert.alert("Erreur", "Veuillez entrer un code de site valide");
-              }
-            }
-          }
-        ],
-        "plain-text"
-      );
-    } else {
-      // Sur Android, utiliser une solution simple avec TextInput
-      Alert.alert(
-        "Scanner site manuellement",
-        "Entrez le code du site dans le champ de texte en haut de l'écran, puis appuyez sur Scanner",
-        [
-          { text: "OK" }
-        ]
-      );
-      // Focus sur le champ de saisie manuelle
-      // Note: ceci est une approche simplifiée, une solution plus robuste
-      // utiliserait un modal personnalisé avec TextInput
-      setManualCodeInput('');
-      // On garde le mode scan actif pour que le bouton scanner manuel fonctionne
+    if (!siteScanned) {
+      setScanMode('site'); // Active le champ manuel uniquement
+      showToast('Mode manuel activé. Saisissez le code site.', 'info');
     }
   };
 
@@ -1026,37 +896,45 @@ export default function ScanScreen({ navigation, route }) {
       ? "Veuillez scanner le code du contenant à prendre en charge" 
       : "Veuillez scanner le code du contenant à déposer";
     
-    Alert.alert(
-      type === 'entree' ? "Prise en charge" : "Dépôt",
-      message,
-      [{ text: "Annuler", onPress: () => setScanMode('') }]
-    );
+    // Suppression de la popup - mode toast uniquement
+    showToast(message, 'info');
   };
 
   const handleContenantScan = async (code) => {
     if (!siteScanned) {
-      Alert.alert('Erreur', 'Veuillez d\'abord scanner un site');
+      showToast('Veuillez d\'abord scanner un site.', 'warning');
       return;
     }
 
+    // Vérifier si le code n'est pas vide
+    if (!code || code.trim() === '') {
+      showToast('Code invalide ou vide.', 'warning');
+      return;
+    }
+
+    const trimmedCode = code.trim();
+
     try {
+      // Vérifier si le colis n'a pas déjà été scanné
+      const alreadyScanned = scannedContenants.some(contenant => 
+        (contenant.idColis || contenant.code) === trimmedCode
+      );
+      
+      if (alreadyScanned) {
+        showToast(`Colis "${trimmedCode}" déjà scanné.`, 'warning');
+        return;
+      }
+
       // Mode dépôt (sortie) - vérifier que le colis est dans la liste des colis pris en charge
       if (operationType === 'sortie') {
-        // MODIFICATION ICI
-        const isInTakingCare = takingCarePackages.some(pkg => (pkg.idColis || pkg.code) === code);
-        // FIN MODIFICATION
+        const isInTakingCare = takingCarePackages.some(pkg => (pkg.idColis || pkg.code) === trimmedCode);
         if (!isInTakingCare) {
-          Alert.alert(
-            "Colis non reconnu",
-            "Ce colis ne fait pas partie des colis que vous avez en prise en charge.",
-            [{ text: "OK" }]
-          );
+          showToast("Colis non reconnu - pas en prise en charge.", 'warning');
           return;
         }
         
-        // MODIFICATION ICI
-        setTakingCarePackages(takingCarePackages.filter(pkg => (pkg.idColis || pkg.code) !== code));
-        // FIN MODIFICATION
+        // Retirer le colis de la liste des colis pris en charge
+        setTakingCarePackages(takingCarePackages.filter(pkg => (pkg.idColis || pkg.code) !== trimmedCode));
       }
 
       // Obtenir la date actuelle au format approprié
@@ -1065,9 +943,9 @@ export default function ScanScreen({ navigation, route }) {
 
       // Ajouter le contenant à la liste
       const newContenant = {
-        id: Date.now().toString(),
-        code: code,
-        idColis: code,
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        code: trimmedCode,
+        idColis: trimmedCode,
         timeStamp: currentDate.toLocaleTimeString(),
         date: currentDate.toLocaleDateString(),
         scanDate: currentDateISO,
@@ -1076,8 +954,24 @@ export default function ScanScreen({ navigation, route }) {
       };
       
       setScannedContenants([newContenant, ...scannedContenants]);
+      
+      // Afficher une confirmation de scan réussi
+      console.log(`✅ Colis "${trimmedCode}" scanné avec succès (${operationType})`);
+      
+      // Optionnel : Afficher une notification légère de succès
+      // Vous pouvez commenter cette alerte si elle devient trop intrusive
+      /*
+      Alert.alert(
+        'Scan réussi ✅',
+        `Colis "${trimmedCode}" ajouté (${operationType === 'entree' ? 'Prise en charge' : 'Dépôt'})`,
+        [{ text: 'OK' }],
+        { cancelable: true }
+      );
+      */
+      
     } catch (error) {
       console.error('Erreur lors de la gestion du scan:', error);
+              showToast('Erreur lors du scan du colis: ' + error.message, 'error');
       setScanMode('');
     }
   };
@@ -1108,226 +1002,171 @@ export default function ScanScreen({ navigation, route }) {
 
   const handleTransmit = async () => {
     if (scannedContenants.length === 0) {
-      Alert.alert('Attention', 'Aucun contenant scanné à transmettre.');
+      showToast('Aucun contenant scanné à transmettre.', 'warning');
       return;
     }
 
     setLoading(true);
 
     try {
-      // Vérifier et afficher les données de la session pour le débogage
-      console.log('Données de session:', JSON.stringify(sessionData, null, 2));
-      console.log('Données de route:', JSON.stringify(route.params, null, 2));
+      // Vérifier la connectivité réseau d'abord
+      const netState = await NetInfo.fetch();
+      const isConnected = netState.isConnected;
+      console.log(`[handleTransmit] 📶 Connectivité: ${isConnected ? 'En ligne' : 'Hors ligne'}`);
       
-      // Récupérer les données de la tournée et du véhicule avec plus de vérifications
-      const tourneeName = sessionData.tournee?.nom || route.params?.tournee?.nom || '';
-      const tourneeId = sessionData.tournee?.id || route.params?.tournee?.id || '';
-      const vehiculeName = sessionData.vehicule?.immatriculation || route.params?.vehicule?.immatriculation || '';
-      const vehiculeId = sessionData.vehicule?.id || route.params?.vehicule?.id || '';
-      
-      // Utiliser les détails du site validé s'ils sont disponibles
-      let siteName, siteId, siteAdresse, siteCodePostal, siteVille;
-      
-      if (siteDetails) {
-        // Utiliser les bonnes clés du siteDetails (nommage uniforme)
-        siteName = siteDetails.name || siteCode;
-        siteId = siteDetails.id || '';
-        siteAdresse = siteDetails.address || '';
-        siteCodePostal = siteDetails.codePostal || '';
-        siteVille = siteDetails.city || '';
-      } else {
-        // Sinon on utilise ce qu'on a par défaut
-        siteName = sessionData.tournee?.siteDepart || route.params?.tournee?.siteDepart || siteCode || 'Non spécifié';
-        siteId = '';
-      }
-      
-      console.log('Données récupérées pour les scans:', {
-        tourneeName,
-        tourneeId,
-        vehiculeName,
-        vehiculeId,
-        siteName,
-        siteId,
-        siteCode
-      });
+      console.log(`[handleTransmit] 📋 Traitement de ${scannedContenants.length} scan(s) pour le site: ${siteCode}`);
 
-      // Récupérer l'ID de session actuel
-      const currentSessionId = await AsyncStorage.getItem('currentSessionId') || `session_${Date.now()}`;
-      
-      // Récupérer l'ID utilisateur une seule fois avant le map
+      // Récupérer l'ID de session actuel et l'ID utilisateur
+      const currentSessionId = await AsyncStorage.getItem('currentSessionId');
       const currentUserId = await firebaseService.getCurrentUserId();
 
-      // Préparer les scans avec tous les champs nécessaires
-      const scansToSubmit = scannedContenants.map(scan => {
+      // NOUVELLE LOGIQUE DE TRAITEMENT
+      for (const scan of scannedContenants) {
         const scanDate = scan.scanDate || new Date().toISOString();
-        const scanType = scan.type || operationType; // Utilise le type du scan ou le type d'opération global
+        const scanType = scan.type || operationType; // 'entree' ou 'sortie'
+        const currentScanCode = scan.idColis || scan.code;
 
-        // S'assurer que scan.code a une valeur valide (au moins une chaîne vide)
-        const currentScanCode = scan.code === undefined || scan.code === null ? '' : scan.code;
-        if (currentScanCode === '') {
-            console.warn('[handleTransmit] Le code du contenant original (scan.code) est vide ou undefined. idColis sera une chaîne vide. Scan original:', scan);
+        if (!currentScanCode) {
+          console.warn('[handleTransmit] Scan ignoré: ID de colis manquant.');
+          continue; // Ignore les scans sans ID
         }
 
-        // Log pour déboguer la valeur du pôle au moment de la transmission
-        console.log('[handleTransmit] Valeur actuelle de pole:', JSON.stringify(pole, null, 2));
-        
-        // Rationalisation des champs pour l'objet scanItem
-        let scanItem = {
-          // Assurer que idColis est toujours une chaîne
-          idColis: currentScanCode, 
-          scanDate: scanDate,
-          operationType: scanType, 
-          sessionId: currentSessionId,
-          
-          siteDepart: siteDetails?.id || siteCode, 
-          siteDepartName: siteDetails?.name || siteDetails?.nom || '',
-
-          coursierChargeantId: currentUserId,
-          coursierCharg: currentUserDisplayName,
-
-          tourneeId: currentTourneeId || '',
-          tourneeName: currentTourneeName || '', 
-
-          vehiculeId: currentVehiculeId || '',
-          immatriculation: currentVehiculeImmat || '', 
-
-          poleId: pole?.id || '',
-          poleName: pole?.nom || '',
-        };
-        
-        // Gestion spécifique pour les opérations de sortie (dépôt de colis)
         if (scanType === 'sortie') {
-          const currentDate = new Date();
+          // --- Logique de DÉPÔT (Mise à jour) ---
+          console.log(`[handleTransmit] 🟡 Préparation de la mise à jour pour le colis: ${currentScanCode}`);
+          const updateData = {
+            status: 'livré',
+            siteFin: siteDetails?.id || siteCode,
+            siteFinName: siteDetails?.name || 'Inconnu',
+            siteActuel: siteDetails?.id || siteCode,
+            siteActuelName: siteDetails?.name || 'Inconnu',
+            dateHeureFin: scanDate,
+            dateArrivee: new Date(scanDate).toLocaleDateString(),
+            heureArrivee: new Date(scanDate).toLocaleTimeString('fr-FR'),
+            coursierLivraisonId: currentUserId,
+            coursierLivraison: currentUserDisplayName,
+          };
+
+          // On appelle une nouvelle fonction dans le service pour gérer la mise à jour
+          await firebaseService.updatePassageOnSortie(currentScanCode, updateData, isConnected);
+
+        } else {
+          // --- Logique de PRISE EN CHARGE (Création) ---
+          console.log(`[handleTransmit] 🟢 Préparation de la création pour le colis: ${currentScanCode}`);
+                    // Récupérer la session courante et le pôle à jour juste avant la création du passage
+           let latestSession = null;
+           let latestPole = null;
+           let poleId = null;
+           
+           try {
+             // 1. Récupérer la session
+             latestSession = await firebaseService.getCurrentSession();
+             
+             // 2. Recherche du poleId dans différents emplacements
+             if (latestSession) {
+               if (latestSession.poleId) {
+                 poleId = latestSession.poleId;
+               } else if (latestSession.pole) {
+                 if (typeof latestSession.pole === 'string') {
+                   poleId = latestSession.pole;
+                 } else if (latestSession.pole.id) {
+                   poleId = latestSession.pole.id;
+                 }
+               } 
+               
+               if (!poleId && latestSession.vehicule) {
+                 if (latestSession.vehicule.poleId) {
+                   poleId = latestSession.vehicule.poleId;
+                 } else if (latestSession.vehicule.pole && latestSession.vehicule.pole.id) {
+                   poleId = latestSession.vehicule.pole.id;
+                 }
+               }
+               
+               if (!poleId && latestSession.tournee && latestSession.tournee.pole) {
+                 // tournee.pole peut être un id ou un objet
+                 if (typeof latestSession.tournee.pole === 'string') {
+                   poleId = latestSession.tournee.pole;
+                 } else if (latestSession.tournee.pole.id) {
+                   poleId = latestSession.tournee.pole.id;
+                 }
+               }
+             }
+             
+             // 3. Si on a un ID, on tente de récupérer les infos complètes du pôle
+             if (poleId) {
+               latestPole = await firebaseService.getPoleById(poleId);
+               if (latestPole) {
+               } else {
+                 console.warn('[handleTransmit] Aucun détail trouvé pour le pôle ID:', poleId);
+               }
+             } else {
+               console.warn('[handleTransmit] Aucun ID de pôle trouvé dans la session');
+             }
+             
+           } catch (err) {
+             console.error('[handleTransmit] Erreur lors de la récupération du pôle:', err);
+           }
+           
+           // 4. Créer un pôle par défaut si non trouvé
+           if (!latestPole || !latestPole.id) {
+             console.warn('[handleTransmit] Aucun pôle valide trouvé, utilisation d\'un pôle par défaut');
+             latestPole = {
+               id: 'inconnu-' + Date.now(),
+               nom: 'Pôle inconnu',
+               description: 'Pôle non spécifié dans la session'
+             };
+             // On affiche un avertissement mais on continue la création du passage
+             showToast("Attention: Aucun pôle spécifié, utilisation d'un pôle par défaut", 'warning');
+           }
+           const passageData = {
+            idColis: currentScanCode,
+            scanDate,
+            operationType: scanType,
+            status: 'en-cours', // Statut initial
+            sessionId: currentSessionId,
+            siteDepart: siteDetails?.id || siteCode,
+            siteDepartName: siteDetails?.name || 'Inconnu',
+            dateHeureDepart: scanDate,
+            dateDepart: new Date(scanDate).toLocaleDateString(),
+            heureDepart: new Date(scanDate).toLocaleTimeString('fr-FR'),
+            siteFin: '', // Pas encore de site de fin
+            siteFinName: '',
+            dateHeureFin: '',
+            coursierChargeantId: currentUserId,
+            coursierCharg: currentUserDisplayName,
+            tourneeId: currentTournee?.id || '',
+            tourneeName: currentTournee?.nom || '',
+            vehiculeId: currentVehicule?.id || '',
+            immatriculation: currentVehicule?.immatriculation || '',
+            poleId: latestPole.id,
+            poleName: latestPole.nom || '',
+            selasId: selectedSelas?.id || '',
+          };
           
-          scanItem.siteFin = siteDetails?.id || siteCode; 
-          scanItem.siteFinName = siteDetails?.name || siteDetails?.nom || '';
-          scanItem.dateHeureFin = currentDate.toISOString();
-          scanItem.dateArrivee = currentDate.toLocaleDateString(); 
-          scanItem.heureArrivee = currentDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); 
-          scanItem.coursierLivraison = currentUserDisplayName; 
-        }
-        
-        if (siteDetails) {
-          scanItem.siteDepartDetails = { 
-            adresse: siteDetails.address || '',
-            codePostal: siteDetails.codePostal || '',
-            ville: siteDetails.city || ''
-          };
-        }
-
-        if (sessionData.location) {
-          scanItem.location = {
-            latitude: sessionData.location.coords.latitude,
-            longitude: sessionData.location.coords.longitude,
-            accuracy: sessionData.location.coords.accuracy
-          };
-        }
-
-        // Supprimer les champs potentiellement redondants ou anciens.
-        // VEUILLEZ VÉRIFIER QUE LA LIGNE SUIVANTE EST BIEN DÉCOMMENTÉE ET PRÉSENTE :
-
-        // Logs de débogage détaillés pour la propriété 'code'
-        if (scanItem.hasOwnProperty('code')) {
-            console.log(`[handleTransmit] AVANT delete: scanItem.code EXISTE. Valeur:`, scanItem.code);
-        } else {
-            console.log(`[handleTransmit] AVANT delete: scanItem.code N'EXISTE PAS.`);
-        }
-
-        delete scanItem.code; 
-
-        if (scanItem.hasOwnProperty('code')) {
-            console.error(`[handleTransmit] APRÈS delete: scanItem.code EXISTE TOUJOURS! Valeur:`, scanItem.code);
-        } else {
-            console.log(`[handleTransmit] APRÈS delete: scanItem.code a été supprimé ou n'existait pas.`);
-        }
-        // Pour un débogage plus fin si l'erreur persiste :
-        // if (scanItem.hasOwnProperty('code')) {
-        //     console.error("[handleTransmit] DEBUG: scanItem.code existe TOUJOURS après delete!", scanItem.code);
-        // } else {
-        //     console.log("[handleTransmit] DEBUG: scanItem.code supprimé ou n'existait pas.");
-        // }
-
-        return scanItem;
-      });
-      
-      // Afficher les données qui seront transmises (gardez cette ligne active pour le débogage)
-      console.log('Transmission des scans (après map et delete):', JSON.stringify(scansToSubmit, null, 2));
-      
-      // Envoyer les scans à Firebase
-      const result = await firebaseService.addScans(scansToSubmit);
-      console.log('Résultat de la transmission:', result);
-      
-      // Si la transmission réussit, mettre à jour l'historique local
-      if (result.success) {
-        // --- Logique de consolidation --- 
-        const updatedScansMap = new Map();
-        historicalScans.forEach(scan => {
-          // Assurer qu'on a un code pour la clé de la map
-          if (scan.idColis) { // MODIFIÉ: Utiliser idColis au lieu de scan.code
-            updatedScansMap.set(scan.idColis, scan); // MODIFIÉ: Utiliser idColis
-          }
-        });
-        scansToSubmit.forEach(scan => {
-          if (scan.idColis) { // MODIFIÉ: Utiliser idColis au lieu de scan.code
-            const originalScan = scannedContenants.find(s => s.code === scan.idColis); // MODIFIÉ: Comparer avec scan.idColis
-            const scanForHistory = {
-              ...scan,
-              timeStamp: originalScan?.timeStamp || dateUtils.formatTime(scan.scanDate),
+          if (sessionData.location) {
+            passageData.location = {
+              latitude: sessionData.location.coords.latitude,
+              longitude: sessionData.location.coords.longitude,
+              accuracy: sessionData.location.coords.accuracy,
             };
-            updatedScansMap.set(scan.idColis, scanForHistory); // MODIFIÉ: Utiliser idColis
           }
-        });
-        const newHistory = Array.from(updatedScansMap.values());
-        newHistory.sort((a, b) => {
-          const dateA = a.scanDate ? new Date(a.scanDate).getTime() : 0;
-          const dateB = b.scanDate ? new Date(b.scanDate).getTime() : 0;
-          if (isNaN(dateA) && isNaN(dateB)) return 0;
-          if (isNaN(dateA)) return 1;
-          if (isNaN(dateB)) return -1;
-          return dateB - dateA;
-        });
-        // --- Fin de la logique de consolidation ---
 
-        // Sauvegarder l'historique consolidé dans AsyncStorage
-        await AsyncStorage.setItem('scanHistory', JSON.stringify(newHistory));
-        
-        // Mise à jour de l'état React DIFFÉRÉE après les interactions
-        InteractionManager.runAfterInteractions(() => {
-          setHistoricalScans(newHistory);
-        });
-        
-        // Mettre à jour la liste des paquets pris en charge
-        if (operationType === 'entree') {
-          setTakingCarePackages([...scansToSubmit, ...takingCarePackages]);
-        } else if (operationType === 'sortie') {
-          const codesDeposited = scansToSubmit.map(scan => scan.idColis); // MODIFIÉ: Utiliser idColis
-          setTakingCarePackages(takingCarePackages.filter(pkg => pkg.idColis && !codesDeposited.includes(pkg.idColis))); // MODIFIÉ: Utiliser idColis
+          // On appelle une fonction de service pour ajouter le nouveau passage
+          await firebaseService.addPassage(passageData, isConnected);
         }
-        
-        // Réinitialiser complètement l'état pour revenir à l'écran de scan de site
-        resetScan(); // Cette fonction réinitialise les états de base
-
-        // S'assurer que tous les états sont correctement réinitialisés pour revenir à l'écran initial
-        setShowOperationTypeSelection(false);
-        setOperationType('entree'); // Réinitialiser à l'entrée de colis par défaut
-        
-        // Important: Désactiver le chargement AVANT l'alerte
-        setLoading(false);
-        
-        // Afficher l'alerte de succès
-        Alert.alert(
-          'Succès',
-          `${scansToSubmit.length} scan(s) transmis avec succès`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        setLoading(false);
-        throw new Error(result.error || 'Échec de la transmission');
       }
+
+
+      // Après la transmission, vider la liste des scans en attente
+      await updateLocalHistoryOptimized(scannedContenants);
+      updateTakingCarePackagesOptimized(scannedContenants);
+      resetScanInterfaceOptimized();
+
     } catch (error) {
-      console.error('Erreur lors de la transmission:', error);
+      console.error('🚨 [handleTransmit] Erreur majeure lors de la transmission:', error);
+      showToast("Erreur lors de la transmission: " + error.message, 'error');
+    } finally {
       setLoading(false);
-      Alert.alert('Erreur', `Échec de la transmission: ${error.message}`);
     }
   };
 
@@ -1353,28 +1192,13 @@ export default function ScanScreen({ navigation, route }) {
   // Fonction pour effacer l'historique des scans
   const clearHistoricalScans = async () => {
     try {
-      Alert.alert(
-        'Effacer l\'historique',
-        'Voulez-vous vraiment effacer tout l\'historique des scans?',
-        [
-          {
-            text: 'Annuler',
-            style: 'cancel'
-          },
-          {
-            text: 'Effacer',
-            onPress: async () => {
-              await AsyncStorage.removeItem('scanHistory');
-              setHistoricalScans([]);
-              Alert.alert('Succès', 'Historique effacé avec succès');
-            },
-            style: 'destructive'
-          }
-        ]
-      );
+      // ACTION DIRECTE SANS POPUP
+      await AsyncStorage.removeItem('scanHistory');
+      setHistoricalScans([]);
+      showToast('Historique effacé avec succès.', 'success');
     } catch (error) {
       console.error('Erreur lors de l\'effacement de l\'historique:', error);
-      Alert.alert('Erreur', 'Impossible d\'effacer l\'historique');
+      showToast('Impossible d\'effacer l\'historique.', 'error');
     }
   };
 
@@ -1383,191 +1207,355 @@ export default function ScanScreen({ navigation, route }) {
     try {
       const currentSessionId = await AsyncStorage.getItem('currentSessionId');
       if (!currentSessionId) {
-        Alert.alert('Erreur', 'Impossible de déterminer la session actuelle');
+        showToast('Impossible de déterminer la session actuelle', 'error');
         return;
       }
       
-      Alert.alert(
-        'Réinitialiser l\'historique',
-        'Cette action va supprimer tous les scans associés à votre session actuelle. Continuer?',
-        [
-          {
-            text: 'Annuler',
-            style: 'cancel'
-          },
-          {
-            text: 'Supprimer',
-            onPress: async () => {
-              try {
-                // Supprimer les scans associés à la session actuelle
-                setLoading(true);
-                console.log(`Suppression des scans de la session ${currentSessionId}...`);
-                
-                // Fonction côté service qui devrait être implémentée
-                // pour supprimer tous les scans de la session
-                const result = await firebaseService.clearSessionScans(currentSessionId);
-                
-                // Supprimer l'historique local également
-                await AsyncStorage.removeItem('scanHistory');
-                setHistoricalScans([]);
-                
-                setLoading(false);
-                Alert.alert('Succès', 'Historique réinitialisé avec succès');
-              } catch (error) {
-                setLoading(false);
-                console.error('Erreur lors de la suppression des scans:', error);
-                Alert.alert('Erreur', `Échec de la suppression: ${error.message}`);
-              }
-            },
-            style: 'destructive'
-          }
-        ]
-      );
+      // ACTION DIRECTE SANS POPUP
+      try {
+        // Supprimer les scans associés à la session actuelle
+        setLoading(true);
+        console.log(`Suppression des scans de la session ${currentSessionId}...`);
+        
+        // Fonction côté service qui devrait être implémentée
+        // pour supprimer tous les scans de la session
+        const result = await firebaseService.clearSessionScans(currentSessionId);
+        
+        // Supprimer l'historique local également
+        await AsyncStorage.removeItem('scanHistory');
+        setHistoricalScans([]);
+        
+        setLoading(false);
+        showToast('Historique réinitialisé avec succès', 'success');
+      } catch (error) {
+        setLoading(false);
+        console.error('Erreur lors de la suppression des scans:', error);
+        showToast(`Échec de la suppression: ${error.message}`, 'error');
+      }
     } catch (error) {
       console.error('Erreur:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      showToast('Une erreur est survenue', 'error');
     }
   };
 
-  // Handler de déconnexion avec effacement complet de l'historique
+  // CORRECTION: Déconnexion unifiée compatible mobile/web
   const handleLogout = async () => {
     try {
-      Alert.alert(
-        'Déconnexion',
-        'Voulez-vous vous déconnecter? L\'historique des scans sera effacé.',
-        [
-          {
-            text: 'Annuler',
-            style: 'cancel'
-          },
-          {
-            text: 'Déconnecter',
-            onPress: async () => {
-              try {
-                setLoading(true);
-                console.log('Déconnexion en cours...');
+      
+      // Fonction de confirmation compatible mobile et web
+      const showConfirmation = () => {
+        return new Promise((resolve) => {
+          if (Platform.OS === 'web') {
+            // Sur web, utiliser window.confirm
+            const confirmed = window.confirm('Voulez-vous vous déconnecter?');
+            resolve(confirmed);
+          } else {
+            // Sur mobile, utiliser Alert.alert
+            Alert.alert(
+              'Déconnexion',
+              'Voulez-vous vous déconnecter?',
+              [
+                { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Déconnecter', onPress: () => resolve(true) }
+              ]
+            );
+          }
+        });
+      };
+      
+      const confirmLogout = await showConfirmation();
+      
+      if (confirmLogout) {
+        try {
+          setLoading(true);
 
-                // Appeler la méthode de déconnexion de Firebase
-                await firebaseService.logout();
-                console.log('Déconnexion Firebase réussie');
-                
-                // Effacer toutes les données de session
-                await AsyncStorage.removeItem('userSessionActive');
-                await AsyncStorage.removeItem('current_session_id'); // Supprimer également l'ID de session
-                await AsyncStorage.removeItem('scanHistory');
-                await AsyncStorage.removeItem('user_selas_id');
-                await AsyncStorage.removeItem('userToken'); // Ajout de la suppression du userToken
-                
-                // Réinitialiser les états
-                setHistoricalScans([]);
-                setScannedContenants([]);
-                setSiteScanned(false);
-                setSiteCode('');
-                
-                setLoading(false);
-                
-                // Rediriger vers l'écran de connexion
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }]
-                });
-              } catch (error) {
-                setLoading(false);
-                console.error('Erreur lors du processus de déconnexion:', error);
-                Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
-              }
+          // OPTIMISATION: Rafraîchir TourneeProgress si disponible AVANT la déconnexion
+          if (typeof updateTourneeProgress === 'function') {
+            try {
+              await updateTourneeProgress();
+            } catch (error) {
             }
           }
-        ]
-      );
+
+          // Fermer la session Firebase
+          await firebaseService.closeCurrentSession();
+          await firebaseService.logout();
+          console.log('✅ Déconnexion Firebase réussie');
+          
+          // OPTIMISATION: Ne supprimer que les données de session, pas l'historique
+          await AsyncStorage.removeItem('userSessionActive');
+          await AsyncStorage.removeItem('current_session_id');
+          await AsyncStorage.removeItem('user_selas_id');
+          await AsyncStorage.removeItem('userToken');
+          
+          // GARDER: scanHistory (historique des scans)
+          // GARDER: Autres données utilisateur
+          
+          // Réinitialiser seulement les états de session courante
+          setScannedContenants([]);
+          setSiteScanned(false);
+          setSiteCode('');
+          
+          setLoading(false);
+          showToast('Déconnexion réussie', 'success');
+          
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }]
+          });
+        } catch (error) {
+          setLoading(false);
+          console.error('❌ Erreur lors de la déconnexion:', error);
+          
+          const errorMessage = 'Impossible de se déconnecter. Veuillez réessayer.';
+          if (Platform.OS === 'web') {
+            window.alert(errorMessage);
+          } else {
+            Alert.alert('Erreur', errorMessage);
+          }
+        }
+      } else {
+      }
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      console.error('[DEBUG] handleLogout: Erreur dans la fonction:', error);
     }
   };
 
-  // --- DEBUT SECTION SCAN ZEBRA MISE A JOUR ---
-  // Effet pour enregistrer et nettoyer l'écouteur DataWedge
+  // --- DEBUT SECTION SCAN ZEBRA AMELIOREE ---
+  // === NOUVEAU SYSTÈME DATAWEDGE SIMPLIFIÉ ===
+  
   useEffect(() => {
-    // Variable pour garder une référence à l'écouteur
-    let dataWedgeListener = null;
+    const initDataWedge = async () => {
+      try {
+        
+        // Essayer d'abord le service DataWedge standard (Intents)
+        try {
+          await dataWedgeService.initialize();
+          console.log('[ScanScreen] ✅ DataWedge standard initialisé avec succès');
+          showToast('Scanner Zebra prêt (mode Intents)', 'success');
+        } catch (dataWedgeError) {
+          console.warn('[ScanScreen] ⚠️ DataWedge standard échoué, tentative Keystroke:', dataWedgeError.message);
+          
+          // Fallback vers le service Keystroke DataWedge
+          try {
+            await keystrokeDataWedgeService.initialize();
+            console.log('[ScanScreen] ✅ DataWedge Keystroke initialisé avec succès');
+            showToast('Scanner Zebra prêt (mode Keystroke)', 'success');
+          } catch (keystrokeError) {
+            console.error('[ScanScreen] ❌ ERREUR configuration Keystroke:', keystrokeError);
+            showToast('Erreur configuration scanner. Utilisez la saisie manuelle.', 'warning');
+          }
+        }
+        
+      } catch (error) {
+        console.error('[ScanScreen] ERREUR GÉNÉRALE d\'initialisation DataWedge:', error);
+        showToast('Scanner DataWedge non disponible. Utilisez la saisie manuelle.', 'warning');
+      }
+    };
     
-    // La vérification est maintenant plus robuste grâce au chargement conditionnel.
-    // On vérifie simplement si le module a été chargé avec succès.
-    if (!DataWedgeIntents) {
-      console.log('Module DataWedge non disponible, initialisation du listener annulée.');
-      return;
+    // Initialiser seulement sur Android - PAS DE DÉPENDANCES
+    if (Platform.OS === 'android') {
+      initDataWedge();
     }
+    
+    // Nettoyage au démontage
+    return () => {
+      if (Platform.OS === 'android') {
+      }
+    };
+  }, []); // AUCUNE DÉPENDANCE - Actif dès le chargement
 
-    // Fonction pour enregistrer le Broadcast Receiver
-    const registerBroadcastReceiver = () => {
-      // Définir l'action de l'Intent que DataWedge doit envoyer (doit correspondre au profil DataWedge)
-      // Remplacez 'com.votreapp.SCAN' par l'action configurée dans DataWedge sur le Zebra
-      const INTENT_ACTION = 'com.inovie.scan.mobile.SCAN'; // ACTION A VERIFIER/CONFIGURER SUR LE ZEBRA
-      const INTENT_CATEGORY = 'android.intent.category.DEFAULT';
+  // === ÉCOUTEUR POUR LES ÉVÉNEMENTS KEYSTROKE DATAWEDGE ===
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    
+    // Écouter les événements de clavier pour capturer les scans DataWedge
+    const keyDownListener = DeviceEventEmitter.addListener('keyDownEvent', (event) => {
+      console.log('🎯 Événement clavier détecté:', event);
+      
+      // Capturer les scans DataWedge qui arrivent comme des frappes de clavier
+      if (event.keyCode && event.keyCode >= 0) {
+        // Si c'est un caractère imprimable (pas une touche spéciale)
+        if (event.keyCode >= 32 && event.keyCode <= 126) {
+          console.log('📝 Caractère scanné détecté:', String.fromCharCode(event.keyCode));
+          // Ne pas traiter ici, laisser le champ de saisie gérer
+        }
+        // Si c'est Enter (code 13), déclencher le traitement du scan
+        else if (event.keyCode === 13) {
+          console.log('✅ Enter détecté - déclenchement du traitement du scan');
+          if (manualCodeInput && manualCodeInput.trim().length > 0) {
+            processScannedData(manualCodeInput.trim());
+            setManualCodeInput(''); // Vider le champ après traitement
+          }
+        }
+      }
+    });
 
-      // S'assurer que DataWedge envoie bien l'Intent via startActivity ou broadcastIntent
-      DataWedgeIntents.registerBroadcastReceiver({
-        filterActions: [INTENT_ACTION],
-        filterCategories: [INTENT_CATEGORY]
-      });
+    // Écouter les événements de saisie de texte pour capturer les scans complets
+    const textInputListener = DeviceEventEmitter.addListener('onTextInput', (event) => {
+      console.log('📝 Texte saisi détecté:', event.text);
+      if (event.text && event.text.length > 0) {
+        // Traiter le texte scanné
+        processScannedData(event.text.trim());
+      }
+    });
 
-      console.log(`DataWedge Listener enregistré pour l'action: ${INTENT_ACTION}`);
+    // Écouter les Intents DataWedge (pour le service standard)
+    const intentListener = DeviceEventEmitter.addListener('com.inovie.scan.ACTION', (intent) => {
+      console.log('📡 Intent DataWedge reçu:', intent);
+      if (intent && intent.data) {
+        console.log('📝 Données scannées via Intent:', intent.data);
+        processScannedData(intent.data.trim());
+      }
+    });
+
+    console.log('✅ Écouteurs DataWedge configurés (Keystroke + Intents)');
+
+    // Nettoyage
+    return () => {
+      keyDownListener?.remove();
+      textInputListener?.remove();
+      intentListener?.remove();
+    };
+  }, []);
+
+    // === NOUVEAU : INTERCEPTER LE BOUTON PHYSIQUE ZEBRA ===
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    
+    
+    
+    // MÉTHODE 1: Événements clavier génériques
+    const keyDownListener = DeviceEventEmitter.addListener('keyDownEvent', (event) => {
+      // Codes possibles pour les boutons Zebra
+      if (event.keyCode === 280 || event.keyCode === 27 || event.keyCode === 24 || event.keyCode === 25) {
+        console.log('🎯 BOUTON ZEBRA DÉTECTÉ ! Déclenchement scan...');
+        // Note: handlePhysicalScan a été supprimé car on utilise maintenant le mode Keystroke
+      }
+    });
+
+    // MÉTHODE 2: Écouter TOUS les événements DeviceEventEmitter
+    const allEventsListener = DeviceEventEmitter.addListener('*', (eventName, data) => {
+      if (eventName && eventName.includes('key') || eventName.includes('scan') || eventName.includes('trigger')) {
+        console.log(`📡 Événement capturé: ${eventName}`);
+      }
+    });
+
+    // MÉTHODE 3: Écouter les événements DataWedge spécifiques
+    const scanTriggerListener = DeviceEventEmitter.addListener('scan_trigger', (event) => {
+      console.log('🔫 Trigger scan détecté !');
+      // Note: handlePhysicalScan a été supprimé car on utilise maintenant le mode Keystroke
+    });
+
+    // MÉTHODE 4: Écouter les événements hardware
+    const hardwareListener = DeviceEventEmitter.addListener('hardwareBackPress', (event) => {
+      return false; // Laisser passer
+    });
+
+    console.log('✅ Tous les listeners configurés');
+
+    // Nettoyage
+    return () => {
+      keyDownListener.remove();
+      allEventsListener.remove();
+      scanTriggerListener.remove();
+      hardwareListener.remove();
+    };
+  }, []);
+
+  // === FIN INTERCEPTION BOUTON PHYSIQUE ===
+
+  // === AUTO-FOCUS SYSTÉMATIQUE POUR KEYSTROKE ===
+  useEffect(() => {
+    // Focus systématique du bon champ selon le contexte
+    const ensureFocus = () => {
+      if (!siteScanned && siteInputRef.current) {
+        // Mode site : toujours focus sur le champ site
+        siteInputRef.current.focus();
+      } else if (siteScanned && !showOperationTypeSelection && colisInputRef.current) {
+        // Mode colis : toujours focus sur le champ colis
+        colisInputRef.current.focus();
+      }
     };
 
-    // Fonction qui sera appelée lorsqu'un scan DataWedge est reçu
-    const broadcastReceiver = (intent) => {
-      console.log('Intent DataWedge reçu:', intent);
-      // Vérifier si l'intent contient les données scannées et si on est en mode scan
-      // La clé exacte ('com.symbol.datawedge.data_string') peut varier selon la config DataWedge
-      const scannedData = intent && intent['com.symbol.datawedge.data_string'];
-      
-      if (scannedData && typeof scannedData === 'string' && scannedData.trim() && scanMode) {
-        console.log(`Scan DataWedge reçu et traité (${scanMode}): ${scannedData.trim()}`);
-        // Traiter les données scannées
-        processScannedData(scannedData.trim()); 
-      } else {
-        console.log('Intent DataWedge reçu mais non traité (pas de données ou pas en mode scan). ScanMode:', scanMode);
+    // Focus immédiat
+    ensureFocus();
+
+    // Re-focus systématique toutes les 500ms pour garantir le focus
+    const focusInterval = setInterval(ensureFocus, 500);
+
+    return () => clearInterval(focusInterval);
+  }, [siteScanned, showOperationTypeSelection]);
+
+  // Re-focus après chaque scan (quand le champ se vide)
+  useEffect(() => {
+    if (manualCodeInput === '') {
+      const timer = setTimeout(() => {
+        if (!siteScanned && siteInputRef.current) {
+          siteInputRef.current.focus();
+        } else if (siteScanned && colisInputRef.current) {
+          colisInputRef.current.focus();
         }
-      };
-      
-    // Enregistrer l'écouteur uniquement si on est prêt à scanner
-    if (isReadyForScan) {
-      console.log('Préparation de l\'écouteur DataWedge...');
-      // --- AJOUT: La vérification Platform.OS et !DataWedgeIntents est déjà faite au début du useEffect ---
-      registerBroadcastReceiver(); // Enregistrer le receiver auprès de DataWedge
-        
-      // Ajouter l'écouteur d'événements React Native
-      dataWedgeListener = DeviceEventEmitter.addListener(
-        'datawedge_broadcast_intent', // Nom de l'événement émis par react-native-datawedge-intents
-        broadcastReceiver 
-      );
-      console.log('Écouteur DataWedge actif.');
-      // --- FIN AJOUT ---
-    } else {
-      console.log('Non prêt pour le scan, écouteur DataWedge non activé.');
+      }, 100);
+      return () => clearTimeout(timer);
     }
+  }, [manualCodeInput, siteScanned]);
 
-    // Fonction de nettoyage exécutée lorsque le composant est démonté ou que les dépendances changent
-      return () => {
-      // --- AJOUT: Vérifier si l'écouteur a bien été créé avant de le supprimer ---
-      if (dataWedgeListener) {
-        console.log('Suppression de l\'écouteur DataWedge...');
-        dataWedgeListener.remove();
-        dataWedgeListener = null; // Réinitialiser la référence
-        console.log('Écouteur DataWedge supprimé.');
+  // === FIN AUTO-FOCUS AUTOMATIQUE ===
+  
+  // === FIN NOUVEAU SYSTÈME DATAWEDGE ===
+
+  // === GESTION CONNECTIVITÉ ET QUEUE HORS-LIGNE ===
+  useEffect(() => {
+    // Écouter les événements de la queue
+    const unsubscribeQueue = offlineQueueService.addListener((event, data) => {
+      switch (event) {
+        case 'queued':
+          showToast(`📱 ${data.count} scan(s) mis en queue (hors-ligne)`, 'info');
+          setQueueSize(data.queueSize);
+          break;
+        case 'sent':
+          showToast(`📤 ${data.count} scan(s) envoyés automatiquement`, 'success');
+          break;
+        case 'processed':
+          if (data.success > 0) {
+            showToast(`✅ ${data.success} scan(s) synchronisés`, 'success');
+          }
+          setQueueSize(data.remaining);
+          break;
       }
-      // --- FIN AJOUT ---
-      // Optionnel: Désenregistrer le broadcast receiver si nécessaire 
-      // (souvent pas nécessaire si l'enregistrement est lié à l'action/catégorie)
+    });
+
+    // Écouter la connectivité réseau
+    const unsubscribeNet = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected);
+    });
+
+    // Récupérer la taille initiale de la queue
+    const getInitialQueueSize = async () => {
+      const size = await offlineQueueService.getQueueSize();
+      setQueueSize(size);
+    };
+    getInitialQueueSize();
+
+    // Nettoyage
+    return () => {
+      unsubscribeQueue();
+      unsubscribeNet();
+    };
+  }, []);
+
+  // === FIN GESTION CONNECTIVITÉ ===
+
+  // Gérer l'activation/désactivation DataWedge lors de la navigation
+  useFocusEffect(
+    React.useCallback(() => {
+      // En mode Keystroke, pas besoin de gestion spéciale focus/unfocus
+      
+      return () => {
       };
-
-    // Dépendances du useEffect: ré-exécuter si l'état de préparation ou le mode de scan changent
-  }, [isReadyForScan, scanMode, processScannedData]); // processScannedData ajouté aux dépendances
-  // --- FIN SECTION SCAN ZEBRA MISE A JOUR ---
-
-  // --- NOUVELLES IMPORTATIONS ---
-  // L'importation de DataWedgeIntents est maintenant gérée de manière conditionnelle en haut du fichier.
-  // --- FIN NOUVELLES IMPORTATIONS ---
+    }, [])
+  );
 
   // Nouvelle fonction pour mettre à jour uniquement le suivi de tournée sans réinitialiser le site scanné
   const updateTourneeProgress = async () => {
@@ -1599,7 +1587,6 @@ export default function ScanScreen({ navigation, route }) {
 
       // Mettre à jour les informations complètes de la tournée et du véhicule
       try {
-        console.log('[updateTourneeProgress] Récupération des informations complètes de la session');
         const currentSession = await firebaseService.getCurrentSession();
         
         if (currentSession) {
@@ -1658,7 +1645,22 @@ export default function ScanScreen({ navigation, route }) {
       resetScan(); // Réinitialise le site et les contenants scannés
       setShowOperationTypeSelection(false); // Réinitialiser la sélection du type d'opération
       
-      // Récupérer la session actuelle
+      // ÉTAPE 1: Supprimer TOUTES les données persistantes AVANT de recharger
+      const currentSessionIdForCleanup = currentSessionId || await AsyncStorage.getItem('current_session_id');
+      const currentTourneeIdForCleanup = currentTourneeId;
+      
+      if (currentSessionIdForCleanup) {
+        await AsyncStorage.removeItem(`visitedSiteIds_${currentSessionIdForCleanup}`);
+        console.log(`[refreshTourneeData] AsyncStorage session supprimé: ${currentSessionIdForCleanup}`);
+      }
+      
+      if (currentTourneeIdForCleanup) {
+        await AsyncStorage.removeItem(`tourneeVisitedSites_${currentTourneeIdForCleanup}`);
+        await firebaseService.resetTourneeProgress(currentTourneeIdForCleanup);
+        console.log(`[refreshTourneeData] AsyncStorage et Firestore tournée réinitialisés: ${currentTourneeIdForCleanup}`);
+      }
+      
+      // ÉTAPE 2: Récupérer la session actuelle
       const currentSession = await firebaseService.getCurrentSession();
       
       if (currentSession) {
@@ -1694,53 +1696,90 @@ export default function ScanScreen({ navigation, route }) {
         console.warn("[refreshTourneeData] Aucune session active trouvée");
       }
       
-      // Mise à jour de l'historique et des paquets en cours
+      // ÉTAPE 3: Mise à jour de l'historique et des paquets en cours
       await loadHistoricalData();
       
-      // Réinitialiser les sites visités dans Firestore
-      if (currentTourneeId) {
-        console.log(`[refreshTourneeData] Réinitialisation des sites visités pour la tournée: ${currentTourneeId}`);
-        await firebaseService.resetTourneeProgress(currentTourneeId);
-        // Supprimer la persistance locale des visites pour réinitialiser complètement
-        await AsyncStorage.removeItem(`visitedSiteIds_${currentSessionId}`);
-        await AsyncStorage.removeItem(`tourneeVisitedSites_${currentTourneeId}`);
-        console.log(`[refreshTourneeData] Persistance locale des visites supprimée pour la session ${currentSessionId} et la tournée ${currentTourneeId}`);
-      }
-      
-      // Actualiser le suivi de la tournée si un ID est disponible
-      if (currentTourneeId && tourneeProgressRef.current) {
-        console.log(`[refreshTourneeData] Actualisation forcée du suivi de tournée pour ID: ${currentTourneeId}`);
-        await tourneeProgressRef.current.loadTourneeDetails(true);
+      // ÉTAPE 4: Actualiser le suivi de la tournée avec force reload
+      if (currentSession?.tourneeId && tourneeProgressRef.current) {
+        console.log(`[refreshTourneeData] Actualisation forcée du suivi de tournée pour ID: ${currentSession.tourneeId}`);
+        // Utiliser un petit délai pour s'assurer que les suppressions AsyncStorage sont terminées
+        setTimeout(() => {
+          tourneeProgressRef.current.loadTourneeDetails(true);
+        }, 100);
       }
       
       setLoading(false);
       console.log("Rafraîchissement et réinitialisation terminés avec succès");
       
       // Afficher un message à l'utilisateur
-      Alert.alert(
-        "Succès",
-        "La tournée a été complètement réinitialisée avec succès",
-        [{ text: "OK" }]
-      );
+      showToast("La tournée a été complètement réinitialisée avec succès", 'success');
     } catch (error) {
       console.error("[refreshTourneeData] Erreur lors du rafraîchissement des données:", error);
       setLoading(false);
-      Alert.alert(
-        "Erreur",
-        "Impossible de réinitialiser la tournée. Veuillez réessayer.",
-        [{ text: "OK" }]
-      );
+      showToast("Impossible de réinitialiser la tournée. Veuillez réessayer.", 'error');
     }
   };
 
   // Référence au composant TourneeProgress pour le rafraîchissement
   const tourneeProgressRef = React.useRef(null);
 
+  // Effet pour gérer le retour du check véhicule final
+  useEffect(() => {
+    const handleReturnFromFinalCheck = async () => {
+      if (route.params?.fromFinalCheck) {
+        try {
+          
+          // Réinitialisation complète après le check final
+          await refreshTourneeData();
+          
+          // Nettoyer le paramètre pour éviter les refresh répétés
+          navigation.setParams({ fromFinalCheck: undefined });
+          
+          
+        } catch (error) {
+          console.error('[ScanScreen] Erreur lors du refresh après check véhicule final:', error);
+          showToast("Check véhicule enregistré, mais erreur lors du refresh. Redémarrez l'app si nécessaire.", 'warning');
+        }
+      }
+    };
+
+    handleReturnFromFinalCheck();
+  }, [route.params?.fromFinalCheck]);
+
+  // Fonction pour gérer le check véhicule final
+  const handleFinalVehicleCheck = async () => {
+    try {
+      // Récupérer les données de session actuelles
+      const currentSession = await firebaseService.getCurrentSession();
+      
+      if (!currentSession) {
+        showToast('Aucune session active trouvée', 'error');
+        return;
+      }
+
+      // Naviguer vers l'écran CheckVehicule avec un indicateur que c'est un check final
+      const sessionData = {
+        tournee: currentSession.tournee,
+        vehicule: currentSession.vehicule,
+        pole: currentSession.pole || pole,
+        isFinalCheck: true // Indicateur pour le check final
+      };
+      
+      navigation.navigate('CheckVehicule', { 
+        sessionData,
+        isFromScanScreen: true // Indicateur pour le retour
+      });
+    } catch (error) {
+      console.error('[handleFinalVehicleCheck] Erreur:', error);
+      showToast('Impossible de démarrer le check véhicule final', 'error');
+    }
+  };
+
   // --- AJOUT: Nouvelle fonction handleConfirmVisitWithoutPackages ---
   const handleConfirmVisitWithoutPackages = async () => {
     console.log("Confirmation de visite sans colis déclenchée...");
     if (!siteDetails) {
-      Alert.alert("Erreur", "Impossible de confirmer la visite, détails du site manquants.");
+      showToast("Impossible de confirmer la visite, détails du site manquants", 'error');
       return;
     }
 
@@ -1758,7 +1797,6 @@ export default function ScanScreen({ navigation, route }) {
       const siteId = siteDetails.id || '';
       // Définir le nom du coursier si disponible
       // const coursierName = sessionData.coursierCharg || route.params?.coursierCharg || ''; // Ancienne méthode
-      console.log('[handleConfirmVisitWithoutPackages] Valeur de currentUserDisplayName:', currentUserDisplayName); // AJOUT DU CONSOLE.LOG
       const coursierName = currentUserDisplayName; // Utiliser l'état actuel du nom de l'utilisateur
 
       const userData = await firebaseService.getCurrentUser();
@@ -1779,15 +1817,19 @@ export default function ScanScreen({ navigation, route }) {
         siteDepart: siteName,
         siteDépart: siteName, // Champ existant avec accent
         siteDepartName: siteName || '', // MODIFIÉ: Assurer une chaîne vide par défaut
+        siteName: siteName, // Ajouté pour correspondre aux champs attendus par addScans
+        siteFin: siteName, // Ajouté pour les visites sans colis
+        siteFinName: siteName, // Ajouté pour les visites sans colis
         sessionId: currentSessionId,
         operationType: 'visite_sans_colis', 
-        status: 'pas_de_colis', // Le statut demandé
-        statut: 'Pas de colis', // Pour affichage potentiel
+        status: 'pas_de_colis', // Modifié pour correspondre au format attendu
+        statut: 'Pas de colis', // Modifié pour correspondre au format attendu
         type: 'visite_sans_colis', // Cohérence
         coursierCharg: coursierName,
         coursierChargeantId: userData?.uid,
-        poleId: pole?.id || '', // AJOUTÉ: ID du pôle depuis l'état pole
-        poleName: pole?.nom || '' // AJOUTÉ: Nom du pôle depuis l'état pole
+        // ✅ CORRECTION: Ne pas définir poleId/poleName ici pour laisser le fallback dans addScans() fonctionner
+        // poleId: pole?.id || '', // Supprimé: laisser addScans() gérer le fallback
+        // poleName: pole?.nom || '' // Supprimé: laisser addScans() gérer le fallback
       };
 
       console.log("Envoi du scan 'visite_sans_colis' à Firestore:", JSON.stringify(visitScan, null, 2));
@@ -1801,7 +1843,7 @@ export default function ScanScreen({ navigation, route }) {
         resetScan();
         setShowOperationTypeSelection(false);
         setLoading(false);
-        Alert.alert("Succès", "Visite du site enregistrée (sans colis).");
+        showToast("Visite du site enregistrée (sans colis)", 'success');
       } else {
         throw new Error(result.error || "Échec de l'enregistrement de la visite");
       }
@@ -1809,39 +1851,19 @@ export default function ScanScreen({ navigation, route }) {
     } catch (error) {
       console.error("Erreur lors de la confirmation de la visite sans colis:", error);
       setLoading(false);
-      Alert.alert("Erreur", `Impossible d'enregistrer la visite : ${error.message}`);
+      showToast(`Impossible d'enregistrer la visite : ${error.message}`, 'error');
     }
   };
   // --- FIN AJOUT ---
 
   // Fonction pour gérer la sélection d'un site depuis le suivi de tournée
   const handleSiteSelection = (site) => {
-    console.log('[handleSiteSelection] Site reçu:', JSON.stringify(site)); // AJOUT POUR DÉBOGAGE
-    const siteName = site.nom || site.name; // Support des deux formats
-    if (site && siteName) {
-      let siteIndex = null;
-      // Nouvel ajout: déterminer l'index de la première occurrence non visitée
-      if (tourneeProgressRef.current?.getSitesWithStatus) {
-        const sitesList = tourneeProgressRef.current.getSitesWithStatus();
-        const foundIndex = sitesList.findIndex(s =>
-          !s.visited && (s.id === site.id || s.code === site.code || (s.nom || s.name) === siteName)
-        );
-        if (foundIndex >= 0) {
-          siteIndex = foundIndex;
-          console.log(`[handleSiteSelection] Index trouvé via getSitesWithStatus: ${siteIndex}`);
-        } else {
-          // Si tous les sites de ce nom sont déjà visités, NE PLUS alerter ET NE PLUS faire de return ici.
-          // On permet de continuer pour que l'utilisateur puisse re-scanner le site pour d'autres opérations.
-          // La logique de ne pas re-cocher est dans processScannedData.
-          console.log('[handleSiteSelection] Toutes les occurrences de ce site sont déjà marquées comme visitées. On continue quand même.');
-          // Alert.alert(
-          //   'Site déjà visité',
-          //   'Ce site a déjà été visité ou n\'est pas dans votre tournée.'
-          // );
-          // return; // SUPPRIMÉ LE RETURN
-        }
-      }
-      // Fallback: extraire depuis uniqueDisplayId si aucun index trouvé
+    if (site && !siteScanned) {
+      const siteName = site.nom || site.name;
+      const siteId = site.id; // Stocker l'ID réel du site
+      let siteIndex = site.index; // Récupérer l'index du site s'il est disponible
+      
+      // Si l'index n'est pas disponible directement, l'extraire de uniqueDisplayId
       if (siteIndex === null && site.uniqueDisplayId) {
         const parts = site.uniqueDisplayId.split('_');
         if (parts.length > 1) {
@@ -1850,71 +1872,52 @@ export default function ScanScreen({ navigation, route }) {
         }
       }
     
-      // Générer le code-barre tel qu'il est configuré: préfixe "SITE_" + nom du site
+      // Stocker les détails du site sélectionné pour utilisation ultérieure
+      setSiteDetails({
+        id: siteId,
+        name: siteName,
+        nom: siteName
+      });
+      
+      // Le code-barres à scanner reste sous forme lisible, mais on stocke l'ID séparément
       const siteCodeToUse = `SITE_${siteName}`;
 
-      setScanMode('site'); // ACTIVER LE MODE SCAN SITE pour rendre le champ visible
-      setManualCodeInput(siteCodeToUse); // Mettre à jour le champ de saisie manuelle
-
-      // Simuler un scan de site
-      Alert.alert(
-        'Scanner ce site ?',
-        `Voulez-vous scanner le site ${siteName} ?`,
-        [
-          { text: 'Annuler', style: 'cancel', onPress: () => {
-              setManualCodeInput('');
-              setScanMode(''); // RÉINITIALISER LE MODE SCAN SI ANNULATION
-          }},
-          { 
-            text: 'Scanner', 
-            onPress: async () => {
-              console.log(`[handleSiteSelection] Confirmation du scan pour: ${siteCodeToUse}`);
-              await processScannedData(siteCodeToUse);
-              // processScannedData mettra scanMode à '' et siteScanned à true si le scan est réussi,
-              // ce qui cachera le champ de saisie du site.
-            } 
-          }
-        ]
-      );
+      // ACTIVATION DIRECTE DU MODE MANUEL avec code pré-rempli
+      console.log(`[handleSiteSelection] Code-barres: ${siteCodeToUse}, ID stocké: ${siteId}`);
+      setScanMode('site');
+      setManualCodeInput(siteCodeToUse);
+      showToast(`Code site pré-rempli: ${siteCodeToUse}`, 'info');
     }
   };
 
   // Fonction pour effacer tous les colis en cours
   const handleClearAllInProgressScans = () => {
-    Alert.alert(
-      "Effacer tous les colis",
-      "Êtes-vous sûr de vouloir effacer tous les colis pris en charge ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        { 
-          text: "Effacer", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setLoading(true);
-              // Récupérer l'ID de session actuel
-              const currentSessionId = await AsyncStorage.getItem('currentSessionId');
-              if (!currentSessionId) {
-                throw new Error("ID de session non disponible");
-              }
-
-              // Appeler le service pour effacer les scans en cours
-              await firebaseService.clearInProgressScans(currentSessionId);
-              
-              // Vider le tableau local
-              setTakingCarePackages([]);
-              
-              setLoading(false);
-              Alert.alert("Succès", "Tous les colis pris en charge ont été effacés");
-            } catch (error) {
-              setLoading(false);
-              console.error("Erreur lors de l'effacement des colis:", error);
-              Alert.alert("Erreur", `Impossible d'effacer les colis: ${error.message}`);
-            }
-          }
+    // ACTION DIRECTE SANS POPUP
+    const clearData = async () => {
+      try {
+        setLoading(true);
+        // Récupérer l'ID de session actuel
+        const currentSessionId = await AsyncStorage.getItem('currentSessionId');
+        if (!currentSessionId) {
+          throw new Error("ID de session non disponible");
         }
-      ]
-    );
+
+        // Appeler le service pour effacer les scans en cours
+        await firebaseService.clearInProgressScans(currentSessionId);
+        
+        // Vider le tableau local
+        setTakingCarePackages([]);
+        
+        setLoading(false);
+        showToast("Tous les colis pris en charge ont été effacés", 'success');
+      } catch (error) {
+        setLoading(false);
+        console.error("Erreur lors de l'effacement des colis:", error);
+        showToast(`Impossible d'effacer les colis: ${error.message}`, 'error');
+      }
+    };
+    
+    clearData();
   };
 
   // Assurez-vous que l'historique n'est chargé qu'une seule fois
@@ -1925,23 +1928,281 @@ export default function ScanScreen({ navigation, route }) {
   }, [sessionHistoryLoaded]);
 
   // Effet pour gérer l'écouteur de scan
+  // Ancien useEffect supprimé - remplacé par le nouveau système DataWedge
+
+  // Fonction pour changer de tournée
+  const handleChangeTournee = async () => {
+    try {
+      
+      // Fermer la session actuelle
+      await firebaseService.closeCurrentSession();
+      
+      // Navigation simple vers TourneeScreen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Tournee' }]
+      });
+    } catch (error) {
+      console.error('Erreur lors du changement de tournée:', error);
+      showToast('Impossible de changer de tournée.', 'error');
+    }
+  };
+
+  // Fonction pour changer de véhicule (même comportement que changer tournée)
+  const handleChangeVehicule = async () => {
+    try {
+      
+      // Fermer la session actuelle
+      await firebaseService.closeCurrentSession();
+      
+      // Navigation simple vers TourneeScreen (même comportement que changer tournée)
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Tournee' }]
+      });
+    } catch (error) {
+      console.error('Erreur lors du changement de véhicule:', error);
+      showToast('Impossible de changer de véhicule.', 'error');
+    }
+  };
+
+  // État pour gérer la validation automatique
+  const [autoValidationTimeout, setAutoValidationTimeout] = useState(null);
+  const [isProcessingScan, setIsProcessingScan] = useState(false);
+  
+  // Optimisations pour Zebra - État pour le debouncing
+  const [lastScanTime, setLastScanTime] = useState(0);
+  const SCAN_DEBOUNCE_MS = 100; // 100ms de délai minimum entre les scans
+
+  // Fonction pour gérer le changement de texte avec DÉTECTION AUTOMATIQUE des scans Zebra
+  const handleTextChange = (text) => {
+    // Empêcher le traitement si un scan est déjà en cours
+    if (isProcessingScan) {
+      return;
+    }
+
+    // Optimisation Zebra: Debouncing pour éviter les scans multiples
+    const now = Date.now();
+    if (now - lastScanTime < SCAN_DEBOUNCE_MS) {
+      return;
+    }
+
+    setManualCodeInput(text);
+    
+    // Effacer le timeout précédent s'il existe (nettoyage)
+    if (autoValidationTimeout) {
+      clearTimeout(autoValidationTimeout);
+      setAutoValidationTimeout(null);
+    }
+    
+    // NOUVEAU: Détection automatique des scans Zebra via Keystroke
+    // Méthode 1: Détection des caractères de fin (Enter, Tab, Retour chariot)
+    if (text.includes('\n') || text.includes('\t') || text.includes('\r')) {
+      // Nettoyer le code scanné (supprimer les caractères de contrôle)
+      const cleanCode = text.replace(/[\n\t\r]/g, '').trim();
+      
+      if (cleanCode.length > 0) {
+        setLastScanTime(now);
+        setIsProcessingScan(true);
+        
+        // Traiter automatiquement le scan
+        processScannedData(cleanCode).finally(() => {
+          setIsProcessingScan(false);
+        });
+        
+        // Vider le champ immédiatement
+        setManualCodeInput('');
+        return;
+      }
+    }
+    
+    // Méthode 2: Auto-validation par délai (si le texte fait plus de 6 caractères)
+    // Les scanners Zebra saisissent rapidement, contrairement à la saisie manuelle
+    if (text.length >= 6 && !autoValidationTimeout) {
+      const timeout = setTimeout(() => {
+        const currentText = text.trim();
+        if (currentText.length > 0 && !isProcessingScan) {
+          setLastScanTime(Date.now());
+          setIsProcessingScan(true);
+          
+          processScannedData(currentText).finally(() => {
+            setIsProcessingScan(false);
+          });
+          setManualCodeInput('');
+        }
+        setAutoValidationTimeout(null);
+      }, 200); // Réduit à 200ms pour une meilleure réactivité sur Zebra
+      
+      setAutoValidationTimeout(timeout);
+    }
+    
+    // Note: Pour la saisie manuelle, l'utilisateur doit toujours appuyer sur "Scanner"
+  }; // handleTextChange
+
+
+
+  // Nettoyer le timeout lors du démontage du composant
   useEffect(() => {
-    // La fonction qui sera appelée par le service à chaque scan
-    const handleScan = (scannedData) => {
-      processScannedData(scannedData);
-    };
-
-    // Ajouter l'écouteur au service
-    scannerService.addScanListener(handleScan);
-
-    // Nettoyage : supprimer l'écouteur lorsque l'écran est démonté
     return () => {
-      scannerService.removeScanListener(handleScan);
+      if (autoValidationTimeout) {
+        clearTimeout(autoValidationTimeout);
+      }
     };
-  }, []); // Le tableau vide assure que l'effet s'exécute une seule fois
+  }, [autoValidationTimeout]);
+
+
+  // Fonction pour activer le scan de site - NOUVELLE VERSION SANS CHAMP
+  const activateSiteScan = () => {
+    
+    // Pas besoin de setScanMode, le DataWedge est toujours actif
+    // Simplement informer l'utilisateur que le scan est prêt
+    if (!siteScanned) {
+      showToast('Scanner prêt pour un site. Utilisez votre scanner Zebra.', 'info');
+    } else {
+      showToast('Site déjà scanné. Scannez des colis ou changez de site.', 'warning');
+    }
+  };
+
+  // BOUTON TEST ZEBRA - Simule les scans pour tester l'application
+  const testZebraScan = () => {
+    const testCodes = [
+      'SITE_123', // Code site
+      'PKG_ABC123', // Code colis
+      'PKG_DEF456', // Autre colis
+      'SITE_TEST', // Autre site
+      'PKG_XYZ789' // Autre colis
+    ];
+    
+    const randomCode = testCodes[Math.floor(Math.random() * testCodes.length)];
+    console.log(`[TEST_ZEBRA] Simulation scan du code: ${randomCode}`);
+    
+    // Simuler l'événement DataWedge exactement comme un vrai scan
+    processScannedData(randomCode);
+    
+    // Message adapté selon la plateforme
+    const platformMsg = Platform.OS === 'web' 
+      ? `Test web scan: ${randomCode}` 
+      : `Test mobile scan: ${randomCode} (pour tester sans scanner Zebra)`;
+    showToast(platformMsg, 'info');
+  };
+
+  // === FONCTIONS UTILITAIRES OPTIMISÉES ===
+  
+  // Mise à jour optimisée de l'historique local
+  const updateLocalHistoryOptimized = async (scansToSubmit) => {
+    try {
+      const formattedScans = scansToSubmit.map(scan => ({
+        idColis: scan.idColis,
+        scanDate: scan.scanDate,
+        operationType: scan.operationType,
+        site: scan.siteDepart,
+        siteName: scan.siteDepartName,
+        tournee: scan.tourneeName,
+        vehicule: scan.immatriculation,
+        userId: scan.coursierChargeantId,
+        userName: scan.coursierCharg,
+        sessionId: scan.sessionId
+      }));
+      
+      const existingHistory = await AsyncStorage.getItem('scanHistory') || '[]';
+      const historyArray = JSON.parse(existingHistory);
+      const updatedHistory = [...formattedScans, ...historyArray].slice(0, 100); // Limiter à 100
+      
+      await AsyncStorage.setItem('scanHistory', JSON.stringify(updatedHistory));
+      setHistoricalScans(updatedHistory); // Mise à jour immédiate
+      
+      console.log(`[updateLocalHistory] ✅ ${formattedScans.length} scans ajoutés`);
+    } catch (error) {
+      console.error('[updateLocalHistory] ❌', error.message);
+    }
+  };
+
+  // Mise à jour optimisée des paquets pris en charge
+  const updateTakingCarePackagesOptimized = (scansToSubmit) => {
+    if (operationType === 'entree') {
+      setTakingCarePackages(prev => [...scansToSubmit, ...prev]);
+    } else if (operationType === 'sortie') {
+      const codesDeposited = scansToSubmit.map(scan => scan.idColis);
+      setTakingCarePackages(prev => prev.filter(pkg => pkg.idColis && !codesDeposited.includes(pkg.idColis)));
+    }
+  };
+
+  // Réinitialisation optimisée de l'interface
+  const resetScanInterfaceOptimized = () => {
+    resetScan();
+    setShowOperationTypeSelection(false);
+    setOperationType('entree');
+  };
+
+
+
+
+
+
+
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1a4d94" translucent={false} />
+      
+      {/* DEBUG: Log pour vérifier le rendu */}
+      
+      {/* En-tête personnalisé compact */}
+      <View style={styles.customHeader}>
+        {/* Indicateur de connectivité permanent - GAUCHE */}
+        <View style={[
+          styles.connectivityIndicator, 
+          isOnline ? styles.onlineIndicator : styles.offlineIndicator
+        ]}>
+          {isOnline ? (
+            queueSize > 0 ? (
+              // En ligne avec synchronisation
+              <>
+                <MaterialCommunityIcons name="sync" size={14} color="#007AFF" />
+                <Text style={styles.queueSizeText}>{queueSize}</Text>
+              </>
+            ) : (
+              // En ligne normal
+              <MaterialCommunityIcons name="wifi" size={14} color="#28a745" />
+            )
+          ) : (
+            // Hors ligne
+            <>
+              <MaterialCommunityIcons name="wifi-off" size={14} color="#ff9500" />
+              {queueSize > 0 && (
+                <Text style={styles.queueSizeText}>{queueSize}</Text>
+              )}
+            </>
+          )}
+        </View>
+        
+        {/* Espace vide à la place du titre */}
+        <View style={styles.headerTitle}>
+          {/* Titre supprimé - pas d'affichage */}
+        </View>
+        
+        <View style={styles.headerButtons}>
+          
+          <TouchableOpacity onPress={() => navigation.setParams({ refresh: Date.now() })} style={styles.headerButton}>
+            <Ionicons name="refresh" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.setParams({ showHistory: true })} style={styles.headerButton}>
+            <Ionicons name="time-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('BigSacoche')} style={styles.headerButton}>
+            <Ionicons name="briefcase-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerButton}>
+            <Ionicons name="settings-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+            <Ionicons name="log-out-outline" size={24} color="#ff3b30" />
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <ScrollView style={styles.content}>
+        {/* Déplacement du bandeau dans le ScrollView pour qu'il ne soit plus fixe */}
       <View style={styles.sessionInfoContainer}>
         {/* NOUVEL AFFICHAGE pour le nom de l'utilisateur - DÉPLACÉ EN HAUT */}
         <View style={styles.sessionInfoRow}>
@@ -1951,18 +2212,32 @@ export default function ScanScreen({ navigation, route }) {
 
         <View style={styles.sessionInfoRow}>
           <MaterialCommunityIcons name="map-marker-path" size={20} color="#1a4d94" style={styles.sessionInfoIcon} />
-          {/* Utiliser l'état pour l'affichage */}
           <Text style={styles.sessionInfoText}>Tournée: {currentTourneeName}</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              handleChangeTournee();
+            }} 
+            style={styles.changeButton}
+          >
+            <Text style={styles.changeButtonText}>Changer</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sessionInfoRow}>
           <MaterialCommunityIcons name="truck" size={20} color="#1a4d94" style={styles.sessionInfoIcon} />
-          {/* Utiliser l'état pour l'affichage */}
           <Text style={styles.sessionInfoText}>Véhicule: {currentVehiculeImmat}</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              handleChangeVehicule();
+            }} 
+            style={styles.changeButton}
+          >
+            <Text style={styles.changeButtonText}>Changer</Text>
+          </TouchableOpacity>
         </View>
       </View>
-      
-      <ScrollView style={styles.content}>
+
+        
         {siteScanned ? (
           // Si le site a été scanné, afficher la section scan des contenants
           <>
@@ -2051,22 +2326,58 @@ export default function ScanScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-                {/* Formulaire de scan manuel */}
-                <View style={styles.manualScanContainer}>
-                  <TextInput
-                    style={styles.manualInput}
-                    placeholder="Saisir un code manuellement..."
-                    value={manualCodeInput}
-                    onChangeText={setManualCodeInput}
-                    onSubmitEditing={handleManualScan}
-                  />
-            <TouchableOpacity 
-                    style={styles.manualScanButton}
-                    onPress={handleManualScan}
-            >
-                    <Text style={styles.manualScanButtonText}>Scanner</Text>
-            </TouchableOpacity>
-          </View>
+                {/* Interface minimaliste pour scan colis */}
+                <View style={styles.minimalScanContainer}>
+                  <View style={styles.scanTitleRow}>
+                    <MaterialCommunityIcons name="package-variant" size={16} color="#1a4d94" />
+                    <Text style={styles.minimalScanTitle}>Scanner un code-barres de COLIS</Text>
+                  </View>
+                  <View style={styles.scanInputRow}>
+                    <TextInput
+                      ref={colisInputRef}
+                      style={styles.minimalScanInput}
+                      placeholder="Scanner un code colis..."
+                      value={manualCodeInput}
+                      onChangeText={handleTextChange}
+                      onSubmitEditing={handleManualScan}
+                      autoFocus={true}
+                      blurOnSubmit={false}
+                      editable={true}
+                      returnKeyType="done"
+                      showSoftInputOnFocus={isKeyboardVisible}
+                    />
+                    <TouchableOpacity 
+                      style={[styles.validateButton, { backgroundColor: isKeyboardVisible ? '#e74c3c' : '#3498db', marginRight: 8 }]} 
+                      onPress={() => {
+                        if (isKeyboardVisible) {
+                          // Masquer le clavier
+                          Keyboard.dismiss();
+                          setIsKeyboardVisible(false);
+                        } else {
+                          // Activer le clavier
+                          setIsKeyboardVisible(true);
+                          setTimeout(() => {
+                            if (colisInputRef.current) {
+                              colisInputRef.current.focus();
+                            }
+                          }, 100);
+                        }
+                      }}
+                    >
+                      <MaterialCommunityIcons 
+                        name={isKeyboardVisible ? "keyboard-off" : "keyboard"} 
+                        size={16} 
+                        color="#fff" 
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.validateButton} 
+                      onPress={handleManualScan}
+                    >
+                      <Text style={styles.validateButtonText}>✓</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
 
                 {/* Liste des contenants scannés */}
                 {scannedContenants.length > 0 && (
@@ -2087,72 +2398,99 @@ export default function ScanScreen({ navigation, route }) {
                     <FlatList
                       data={scannedContenants}
                       renderItem={renderScannedItem}
-                      keyExtractor={item => item.id}
+                      keyExtractor={(item, index) => `${item.idColis || 'unknown'}-${item.timeStamp || index}`}
                       style={styles.scannedList}
+                      nestedScrollEnabled={true}
+                      scrollEnabled={true}
+                      removeClippedSubviews={true}
+                      initialNumToRender={15}
+                      maxToRenderPerBatch={8}
+                      windowSize={8}
+                      updateCellsBatchingPeriod={50}
+                      getItemLayout={(data, index) => ({
+                        length: 60,
+                        offset: 60 * index,
+                        index,
+                      })}
                     />
           </View>
         )}
         
-                {/* Bouton pour simuler un scan */}
-              <TouchableOpacity
-                  style={styles.simulateScanButton}
-                  onPress={handleSimulatedScan}
-              >
-                  <Text style={styles.simulateScanButtonText}>Simuler scan</Text>
-              </TouchableOpacity>
+
               </>
             )}
           </>
         ) : (
-          // Si aucun site n'a été scanné, afficher le bouton scan site PUIS le composant suivi de tournée
+          // Si aucun site n'a été scanné, afficher l'interface simplifiée pour Zebra
           <>
-              <TouchableOpacity 
-              style={styles.scanSiteButton}
-              onPress={activateSiteScan}
-              >
-              <MaterialCommunityIcons name="barcode-scan" size={24} color="#fff" />
-              <Text style={styles.scanSiteButtonText}>Scan site</Text>
-              </TouchableOpacity>
-            
-            {/* Champ de saisie de code qui apparaît si le mode scan est activé */}
-            {scanMode === 'site' && (
-              <View style={styles.scanModeInputContainer}>
-                <TextInput
-                  style={styles.scanModeInput}
-                  placeholder="Entrez le code du site ici..."
-                  value={manualCodeInput}
-                  onChangeText={setManualCodeInput}
-                  onSubmitEditing={handleManualScan}
-                  // autoFocus={true} // TEMPORAIREMENT COMMENTÉ POUR TEST
-                />
-              <TouchableOpacity 
-                  style={styles.scanModeButton}
-                  onPress={handleManualScan}
-              >
-                  <Text style={styles.scanModeButtonText}>Scanner</Text>
-              </TouchableOpacity>
+            {/* Interface minimaliste pour scan automatique */}
+            <View style={styles.minimalScanContainer}>
+              <View style={styles.scanTitleRow}>
+                <MaterialCommunityIcons name="barcode" size={16} color="#1a4d94" />
+                <Text style={styles.minimalScanTitle}>Scanner un code-barres SITE</Text>
               </View>
-            )}
+              <View style={styles.scanInputRow}>
+                <TextInput
+                  ref={siteInputRef}
+                  style={styles.minimalScanInput}
+                  placeholder="Scanner un code site..."
+                  value={manualCodeInput}
+                  onChangeText={handleTextChange}
+                  onSubmitEditing={handleManualScan}
+                  autoCapitalize="characters"
+                  autoFocus={true}
+                  blurOnSubmit={false}
+                  editable={true}
+                  returnKeyType="done"
+                  showSoftInputOnFocus={isKeyboardVisible}
+                />
+                <TouchableOpacity 
+                  style={[styles.validateButton, { backgroundColor: isKeyboardVisible ? '#e74c3c' : '#3498db', marginRight: 8 }]} 
+                  onPress={() => {
+                    if (isKeyboardVisible) {
+                      // Masquer le clavier
+                      Keyboard.dismiss();
+                      setIsKeyboardVisible(false);
+                    } else {
+                      // Activer le clavier
+                      setIsKeyboardVisible(true);
+                      setTimeout(() => {
+                        if (siteInputRef.current) {
+                          siteInputRef.current.focus();
+                        }
+                      }, 100);
+                    }
+                  }}
+                >
+                  <MaterialCommunityIcons 
+                    name={isKeyboardVisible ? "keyboard-off" : "keyboard"} 
+                    size={16} 
+                    color="#fff" 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.validateButton} 
+                  onPress={handleManualScan}
+                >
+                  <Text style={styles.validateButtonText}>✓</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             
-            {/* Suivi de tournée - placé APRÈS le bouton scan site */}
-            {/* --- AJOUT LOG --- */}
-            {console.log(`[ScanScreen Render] Vérification avant TourneeProgress: tourneeId = ${currentTourneeId}, currentSessionId = ${currentSessionId}`)}
-            {/* --- FIN LOG --- */}
+            {/* Suivi de tournée */}
             {currentTourneeId && currentSessionId && (
-              <TourneeProgress 
-                tourneeId={currentTourneeId} // Utiliser l'état ici
-                sessionId={currentSessionId} // Passer l'ID de session en prop
-                onSiteSelect={handleSiteSelection}
-                ref={ref => {
-                  // Stocker la référence pour pouvoir appeler loadTourneeDetails
-                  if (ref) {
-                    tourneeProgressRef.current = ref;
-                  }
+              <TourneeProgress
+                ref={(ref) => {
+                  tourneeProgressRef.current = ref;
                 }}
+                tourneeId={currentTourneeId}
+                sessionId={currentSessionId}
+                onSiteSelect={handleSiteSelection}
+                onFinalVehicleCheck={handleFinalVehicleCheck}
               />
             )}
           </>
-            )}
+        )}
 
         {/* Message d'erreur */}
         {errorMessage ? (
@@ -2180,9 +2518,7 @@ export default function ScanScreen({ navigation, route }) {
                   styles.takingCareItem, 
                   item.status === 'pas_de_colis' ? styles.takingCareItemNoPackage : null
                 ]}>
-                  {/* MODIFICATION ICI */}
                   <Text style={styles.takingCareCode}>{item.idColis || item.code}</Text>
-                  {/* FIN MODIFICATION */}
                   <View style={styles.takingCareDetails}>
                     <Text style={styles.takingCareTime}>
                       {dateUtils.formatTime(item.scanDate || item.createdAt)}
@@ -2193,8 +2529,20 @@ export default function ScanScreen({ navigation, route }) {
                   </View>
                 </View>
               )}
-              keyExtractor={item => item.idColis || item.id || `fallback_${Math.random()}`}
+              keyExtractor={(item, index) => `${item.idColis || 'unknown'}-${item.timeStamp || index}`}
               style={styles.takingCareList}
+              nestedScrollEnabled={true}
+              scrollEnabled={true}
+              removeClippedSubviews={true}
+              initialNumToRender={15}
+              maxToRenderPerBatch={8}
+              windowSize={8}
+              updateCellsBatchingPeriod={50}
+              getItemLayout={(data, index) => ({
+                length: 50,
+                offset: 50 * index,
+                index,
+              })}
             />
           </View>
       )}
@@ -2228,14 +2576,15 @@ export default function ScanScreen({ navigation, route }) {
               <FlatList
                 data={historicalScans}
                 renderItem={({ item }) => <ScanHistoryItem item={item} />} 
-                // MODIFICATION ICI pour la clé
-                keyExtractor={(item) => item.idColis || item.id || `fallback-${Math.random()}`} 
+                keyExtractor={(item, index) => `${item.idColis || 'unknown'}-${item.timeStamp || index}`} 
                 style={styles.historyList}
                 contentContainerStyle={{ paddingBottom: 10 }}
-                // Ajout d'optimisations FlatList
-                initialNumToRender={10} // Rendre les 10 premiers items initialement
-                maxToRenderPerBatch={5} // Rendre 5 items par batch ensuite
-                windowSize={10} // Garder 10 fenêtres de rendu (5 avant, 5 après)
+                scrollEnabled={true}
+                initialNumToRender={12}
+                maxToRenderPerBatch={8}
+                windowSize={10}
+                removeClippedSubviews={true}
+                updateCellsBatchingPeriod={50}
               />
             ) : (
               <View style={styles.emptyHistoryContainer}>
@@ -2253,7 +2602,16 @@ export default function ScanScreen({ navigation, route }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      {/* Toast pour les notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast(null)}
+        />
+      )}
+    </View>
   );
 }
 
@@ -2261,36 +2619,151 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    paddingTop: 0,
   },
-  content: {
+  customHeader: {
+    height: hp(45),
+    backgroundColor: '#1a4d94',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: sp(12),
+    elevation: 4,
+    shadowOpacity: 0.3,
+  },
+  headerTitle: {
     flex: 1,
-    padding: 15,
+    alignItems: 'center',
   },
-  sessionInfoContainer: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ecf0f1',
+  headerTitleText: {
+    color: '#fff',
+    fontSize: fp(18),
+    fontWeight: 'bold',
   },
-  sessionInfoRow: {
+  headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
   },
-  sessionInfoIcon: {
-    marginRight: 5,
+  headerButton: {
+    padding: 6,
+    marginLeft: 6,
   },
-  sessionInfoText: {
-    fontSize: 14,
-    color: '#34495e',
-  },
-  scanSiteButton: {
-    backgroundColor: '#3498db',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
+  connectivityIndicator: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+    minWidth: 24,
     justifyContent: 'center',
+  },
+  onlineIndicator: {
+    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+  },
+  offlineIndicator: {
+    backgroundColor: 'rgba(255, 149, 0, 0.2)',
+  },
+  syncingIndicator: {
+    backgroundColor: 'rgba(0, 122, 255, 0.2)',
+  },
+  queueSizeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  testZebraButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 6,
+  },
+  testZebraText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  diagnosticButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 4,
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(231, 76, 60, 0.5)',
+  },
+  diagnosticText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  zebraButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 3,
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(46, 204, 113, 0.5)',
+  },
+  zebraText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  testButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 3,
+    backgroundColor: 'rgba(255, 193, 7, 0.2)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 193, 7, 0.5)',
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  logsButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 3,
+    backgroundColor: 'rgba(156, 39, 176, 0.2)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(156, 39, 176, 0.5)',
+  },
+  logsText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  debugButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 3,
+    backgroundColor: 'rgba(255, 87, 34, 0.2)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 87, 34, 0.5)',
+  },
+  debugText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  logsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
     marginBottom: 16,
     elevation: 3,
     shadowColor: '#000',
@@ -2298,11 +2771,179 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  scanSiteButtonText: {
-    color: '#fff',
-    fontSize: 18,
+  logsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
+  },
+  logsTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
+    color: '#2c3e50',
+  },
+  clearLogsButton: {
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  clearLogsText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  logsScrollView: {
+    maxHeight: 200,
+    padding: 12,
+  },
+  noLogsText: {
+    textAlign: 'center',
+    color: '#7f8c8d',
+    fontStyle: 'italic',
+    padding: 20,
+  },
+  logItem: {
+    padding: 8,
+    marginBottom: 4,
+    borderRadius: 6,
+    borderLeftWidth: 3,
+  },
+  logItemInfo: {
+    backgroundColor: '#e8f4fd',
+    borderLeftColor: '#3498db',
+  },
+  logItemSuccess: {
+    backgroundColor: '#e8f5e8',
+    borderLeftColor: '#27ae60',
+  },
+  logItemError: {
+    backgroundColor: '#fdf2f2',
+    borderLeftColor: '#e74c3c',
+  },
+  logTimestamp: {
+    fontSize: 10,
+    color: '#7f8c8d',
+    fontWeight: 'bold',
+  },
+  logMessage: {
+    fontSize: 12,
+    color: '#2c3e50',
+    marginTop: 2,
+  },
+  content: {
+    flex: 1,
+    paddingTop: sp(8),
+    paddingBottom: sp(15),
+  },
+  sessionInfoContainer: {
+    backgroundColor: '#fff',
+    padding: sp(12),
+    marginBottom: sp(8),
+    borderRadius: sp(8),
+    marginHorizontal: sp(16),
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  sessionInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: sp(8),
+  },
+  sessionInfoIcon: {
+    marginRight: sp(8),
+  },
+  sessionInfoText: {
+    flex: 1,
+    fontSize: fp(14),
+    color: '#34495e',
+  },
+  changeButton: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
     marginLeft: 10,
+  },
+  changeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  // Styles minimalistes pour interface scan
+  minimalScanContainer: {
+    backgroundColor: '#fff',
+    padding: sp(12),
+    marginHorizontal: sp(16),
+    marginBottom: sp(8),
+    borderRadius: sp(8),
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  scanTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: sp(8),
+    gap: sp(6),
+  },
+  minimalScanTitle: {
+    fontSize: sp(14),
+    fontWeight: '600',
+    color: '#1a4d94',
+  },
+  scanInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: sp(8),
+  },
+  minimalScanInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#1a4d94',
+    borderRadius: sp(6),
+    paddingHorizontal: sp(12),
+    paddingVertical: sp(10),
+    fontSize: sp(14),
+    color: '#2c3e50',
+    textAlign: 'center',
+    fontWeight: '500',
+    flex: 1,
+  },
+  validateButton: {
+    backgroundColor: '#1a4d94',
+    borderRadius: sp(6),
+    paddingHorizontal: sp(12),
+    paddingVertical: sp(10),
+    minWidth: sp(40),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  validateButtonText: {
+    color: '#fff',
+    fontSize: sp(16),
+    fontWeight: '600',
+  },
+  cancelManualButton: {
+    backgroundColor: '#e74c3c',
+    paddingHorizontal: sp(12),
+    paddingVertical: sp(8),
+    borderRadius: sp(6),
+    marginLeft: sp(8),
+  },
+  cancelManualButtonText: {
+    color: '#fff',
+    fontSize: fp(12),
+    fontWeight: 'bold',
   },
   scannedSiteContainer: {
     backgroundColor: '#fff',
@@ -2440,45 +3081,36 @@ const styles = StyleSheet.create({
   manualScanContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: sp(16),
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 10,
+    borderRadius: sp(12),
+    padding: sp(12),
     elevation: 2,
   },
   manualInput: {
     flex: 1,
-    height: 40,
+    height: hp(44),
     borderColor: '#e0e0e0',
     borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    marginRight: 10,
+    borderRadius: sp(8),
+    paddingHorizontal: sp(12),
+    marginRight: sp(12),
+    fontSize: fp(16),
   },
   manualScanButton: {
     backgroundColor: '#3498db',
-    padding: 10,
-    borderRadius: 6,
+    padding: sp(12),
+    borderRadius: sp(8),
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: wp(80),
   },
   manualScanButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+    fontSize: fp(14),
   },
-  simulateScanButton: {
-    backgroundColor: '#9b59b6',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  simulateScanButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+
   scannedListContainer: {
     backgroundColor: '#fff',
     borderRadius: 10,
@@ -2749,5 +3381,71 @@ const styles = StyleSheet.create({
     opacity: 0.9, // Légère opacité pour hiérarchie si souhaité sur fond blanc
     textAlign: 'center', 
     marginTop: 4, 
+  },
+  // AJOUT: Styles manquants pour la saisie manuelle
+  manualInputContainer: {
+    flexDirection: 'column',
+    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    elevation: 2,
+  },
+  manualInput: {
+    height: 40,
+    borderColor: '#e0e0e0',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    fontSize: 16,
+  },
+  manualButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  manualValidateButton: {
+    backgroundColor: '#3498db',
+    padding: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  manualValidateButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  // FIN AJOUT des styles manquants
+  
+  // Styles pour les boutons de diagnostic dans la section logs
+  diagnosticButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingHorizontal: 5,
+  },
+  diagnosticBtn: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 6,
+    marginHorizontal: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  diagnosticBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  forceButton: {
+    backgroundColor: '#e67e22', // Orange pour le forçage
+  },
+  keystrokeButton: {
+    backgroundColor: '#9b59b6', // Violet pour Keystroke
   },
 });

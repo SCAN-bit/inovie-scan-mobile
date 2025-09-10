@@ -12,8 +12,8 @@ class ApiService {
    */
   async login(email, password) {
     try {
-      const user = await FirebaseService.login(email, password);
-      return { success: true, user };
+      const result = await FirebaseService.login(email, password);
+      return { success: true, user: result.user, userData: result.userData };
     } catch (error) {
       return { 
         success: false, 

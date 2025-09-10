@@ -13,10 +13,13 @@ import {
   SafeAreaView, // Ajout pour la modale
   StatusBar, // Ajout pour la barre de statut
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import CustomPicker from '../components/CustomPicker';
+import Toast from '../components/Toast';
 import FirebaseService from '../services/firebaseService';
 import CustomView from '../components/CustomView';
-import { Ionicons } from '@expo/vector-icons'; // AJOUT DE L'IMPORTATION POUR LES ICÔNES
+import { Ionicons } from '@expo/vector-icons';
+import CustomHeader from '../components/CustomHeader';
+import { wp, hp, fp, sp } from '../utils/responsiveUtils';
 
 // Renommer CustomView en View pour maintenir la compatibilité avec le code existant
 const View = CustomView;
@@ -24,17 +27,14 @@ const View = CustomView;
 // Assurez-vous d'installer: npm install @react-native-picker/picker
 
 // Fonction pour ouvrir Google Maps
-const handleOpenMaps = (item) => {
-  console.log('[TourneeScreen] handleOpenMaps appelé avec item:', JSON.stringify(item, null, 2)); // LOG AJOUTÉ
-  const { latitude, longitude, nom } = item;
+  const handleOpenMaps = (item) => {
+    // console.log('[TourneeScreen] handleOpenMaps appelé avec item:', JSON.stringify(item, null, 2)); // LOG AJOUTÉ
+    const { latitude, longitude, nom } = item;
 
   // Vérifiez que latitude et longitude sont bien des nombres et existent
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    console.log('[TourneeScreen] Coordonnées invalides ou manquantes pour:', nom); // LOG AJOUTÉ
-    Alert.alert(
-      'Coordonnées invalides',
-      `Les coordonnées pour "${nom || 'ce site'}" ne sont pas disponibles ou sont incorrectes pour la navigation.`
-    );
+    // console.log('[TourneeScreen] Coordonnées invalides ou manquantes pour:', nom); // LOG AJOUTÉ
+    console.log(`Coordonnées invalides pour ${nom || 'ce site'}`);
     return;
   }
 
@@ -48,21 +48,20 @@ const handleOpenMaps = (item) => {
     const webFallbackUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
     Linking.openURL(webFallbackUrl).catch(webErr => {
       console.error('Erreur lors de l\'ouverture de Google Maps via URL web:', webErr);
-      Alert.alert(
-        'Erreur d\'ouverture',
-        'Impossible d\'ouvrir Google Maps. Veuillez vérifier si une application de cartographie est installée et fonctionnelle.'
-      );
+      console.log('Impossible d\'ouvrir Google Maps');
     });
   });
 };
 
-export default function TourneeScreen({ navigation }) {
+export default function TourneeScreen({ navigation, route }) {
+  const { preSelectedTournee, preSelectedPole, changeVehicleMode, resetSelection } = route.params || {};
+  
   const [tournees, setTournees] = useState([]);
   const [vehicules, setVehicules] = useState([]);
   const [poles, setPoles] = useState([]);
-  const [selectedTournee, setSelectedTournee] = useState(null);
+  const [selectedTournee, setSelectedTournee] = useState(resetSelection ? null : (preSelectedTournee || null));
   const [selectedVehicule, setSelectedVehicule] = useState(null);
-  const [selectedPole, setSelectedPole] = useState(null);
+  const [selectedPole, setSelectedPole] = useState(resetSelection ? null : (preSelectedPole || null));
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -70,36 +69,77 @@ export default function TourneeScreen({ navigation }) {
   const [modalVehiculeVisible, setModalVehiculeVisible] = useState(false);
   const [rechercheVehiculeTexte, setRechercheVehiculeTexte] = useState('');
   const [vehiculesFiltres, setVehiculesFiltres] = useState([]);
+  
+  // État pour les toasts
+  const [toast, setToast] = useState(null);
 
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+  };
+
+  // OPTIMISATION: Chargement initial optimisé
   useEffect(() => {
-    // Charger les pôles, tournées et véhicules sans reprise de session
-    const fetchData = async () => {
+    const fetchDataOptimized = async () => {
+      const startTime = Date.now();
+      // console.log('🚀 [TourneeScreen] Chargement initial optimisé');
+      
       try {
         setIsLoading(true);
         setError(null);
 
-        // Récupérer les pôles
-        const polesData = await FirebaseService.getPoles();
-        setPoles(polesData);
-
-        // Récupérer tournées et véhicules
-        const [tourneesData, vehiculesData] = await Promise.all([
+        // OPTIMISATION 1: Toutes les requêtes en parallèle
+        const [polesData, tourneesData, vehiculesData] = await Promise.all([
+          FirebaseService.getPoles(),
           FirebaseService.getTournees(),
           FirebaseService.getVehicules()
         ]);
-        setTournees(tourneesData);
-        setVehicules(vehiculesData);
-        setVehiculesFiltres(vehiculesData || []); // Initialiser les véhicules filtrés
+
+        setPoles(polesData || []);
+
+        // OPTIMISATION 2: Sauvegarder dans le cache ET afficher les données
+        allDataCache.current = { tournees: tourneesData || [], vehicules: vehiculesData || [] };
+        // console.log(`💾 [TourneeScreen] Cache mis à jour: ${tourneesData?.length || 0} tournées, ${vehiculesData?.length || 0} véhicules`);
+
+        if (preSelectedPole) {
+          // console.log(`🎯 [TourneeScreen] Filtrage pour pôle: ${preSelectedPole.id}`);
+          
+          // Filtrer localement avec la nouvelle logique
+          const tourneesFiltered = (tourneesData || []).filter(t => {
+            return t.poleId === preSelectedPole.id || t.pole === preSelectedPole.id || t.pole === preSelectedPole.nom;
+          });
+          const vehiculesFiltered = (vehiculesData || []).filter(v => {
+            return v.poleId === preSelectedPole.id || v.pole === preSelectedPole.id || v.pole === preSelectedPole.nom;
+          });
+          
+          setTournees(tourneesFiltered);
+          setVehicules(vehiculesFiltered);
+          setVehiculesFiltres(vehiculesFiltered);
+          setSelectedPole(preSelectedPole);
+          
+          // console.log(`🎯 [TourneeScreen] Pré-filtrage: ${tourneesFiltered.length} tournées, ${vehiculesFiltered.length} véhicules`);
+        } else {
+          // Mode normal : toutes les données
+          setTournees(tourneesData || []);
+          setVehicules(vehiculesData || []);
+          setVehiculesFiltres(vehiculesData || []);
+          
+          // console.log(`📊 [TourneeScreen] Mode normal: ${tourneesData?.length || 0} tournées, ${vehiculesData?.length || 0} véhicules`);
+        }
+
+        const loadTime = Date.now() - startTime;
+        // console.log(`⚡ [TourneeScreen] Chargement terminé en ${loadTime}ms`);
+        
       } catch (error) {
-        console.error('Erreur lors du chargement des données:', error);
+        console.error('❌ [TourneeScreen] Erreur chargement:', error);
         setError("Impossible de charger les données. Veuillez vérifier votre connexion.");
-        Alert.alert('Erreur','Impossible de récupérer les données. Veuillez réessayer.');
+        showToast('Impossible de récupérer les données.', 'error');
       } finally {
         setIsLoading(false);
       }
     };
-    fetchData();
-  }, [navigation]);
+    
+    fetchDataOptimized();
+  }, [navigation, preSelectedPole]);
 
   // Mettre à jour vehiculesFiltres lorsque vehicules ou rechercheVehiculeTexte change
   useEffect(() => {
@@ -114,10 +154,18 @@ export default function TourneeScreen({ navigation }) {
     }
   }, [rechercheVehiculeTexte, vehicules]);
 
-  // Fonction pour gérer la sélection d'un pôle
+  // OPTIMISATION: Cache pour éviter les requêtes répétées
+  const allDataCache = React.useRef({ tournees: [], vehicules: [] });
+
+  // Fonction OPTIMISÉE pour gérer la sélection d'un pôle
   const handlePoleSelect = async (poleId) => {
+            // console.log(`🎯 [TourneeScreen] Sélection pôle: ${poleId}`);
+    
     try {
-      if (poleId === selectedPole?.id) return; // Éviter de recharger si c'est le même pôle
+      if (poleId === selectedPole?.id) {
+        // console.log('⚡ [TourneeScreen] Même pôle, pas de rechargement');
+        return; // Éviter de recharger si c'est le même pôle
+      }
       
       setIsLoading(true);
       
@@ -130,30 +178,74 @@ export default function TourneeScreen({ navigation }) {
       setSelectedPole(pole);
       
       if (pole) {
-        // Récupérer les tournées et véhicules filtrés par pôle
-        const [tourneesData, vehiculesData] = await Promise.all([
-          FirebaseService.getTourneesByPole(pole.id),
-          FirebaseService.getVehiculesByPole(pole.id)
-        ]);
+        // OPTIMISATION: Utiliser le cache si disponible, sinon charger
+        let tourneesData = allDataCache.current.tournees;
+        let vehiculesData = allDataCache.current.vehicules;
+
+        if (tourneesData.length === 0 || vehiculesData.length === 0) {
+          // console.log('📡 [TourneeScreen] Cache vide, chargement depuis Firebase');
+          [tourneesData, vehiculesData] = await Promise.all([
+            FirebaseService.getTournees(),
+            FirebaseService.getVehicules()
+          ]);
+          
+          // Sauvegarder dans le cache
+          allDataCache.current = { tournees: tourneesData, vehicules: vehiculesData };
+        } else {
+          // console.log('⚡ [TourneeScreen] Utilisation du cache local');
+        }
+
+        // CORRECTION: Filtrage local avec plusieurs champs possibles pour le pôle
+        const tourneesFiltered = tourneesData.filter(t => {
+          // Essayer plusieurs champs possibles pour la relation pôle/tournée
+          return t.poleId === pole.id || t.pole === pole.id || t.pole === pole.nom;
+        });
         
-        console.log('[TourneeScreen] Tournées chargées pour le pôle:', JSON.stringify(tourneesData, null, 2)); // LOG AJOUTÉ
-        // S'assurer qu'aucun véhicule par défaut n'est ajouté
-        setTournees(tourneesData || []);
-        setVehicules(vehiculesData || []);
-        setVehiculesFiltres(vehiculesData || []); // Mettre à jour les véhicules filtrés
-        console.log(`Véhicules chargés pour le pôle ${pole.id}:`, vehiculesData);
+        const vehiculesFiltered = vehiculesData.filter(v => {
+          // Essayer plusieurs champs possibles pour la relation pôle/véhicule  
+          return v.poleId === pole.id || v.pole === pole.id || v.pole === pole.nom;
+        });
+
+        // DEBUG: Afficher quelques exemples pour comprendre la structure des données
+        if (tourneesData.length > 0) {
+          // console.log('🔍 [TourneeScreen] Structure d\'une tournée exemple:', {
+          //   id: tourneesData[0].id,
+          //   nom: tourneesData[0].nom,
+          //   poleId: tourneesData[0].poleId,
+          //   pole: tourneesData[0].pole,
+          //   allFields: Object.keys(tourneesData[0])
+          // });
+        }
+        
+        if (vehiculesData.length > 0) {
+          // console.log('🔍 [TourneeScreen] Structure d\'un véhicule exemple:', {
+          //   id: vehiculesData[0].id,
+          //   immatriculation: vehiculesData[0].immatriculation,
+          //   poleId: vehiculesData[0].poleId,
+          //   pole: vehiculesData[0].pole,
+          //   allFields: Object.keys(vehiculesData[0])
+          // });
+        }
+        
+        setTournees(tourneesFiltered);
+        setVehicules(vehiculesFiltered);
+        setVehiculesFiltres(vehiculesFiltered);
+        
+        // console.log(`⚡ [TourneeScreen] Filtrage local: ${tourneesFiltered.length} tournées, ${vehiculesFiltered.length} véhicules`);
       } else {
-        // Si aucun pôle n'est sélectionné, réinitialiser les données
-        setTournees([]);
-        setVehicules([]);
-        setVehiculesFiltres([]); // Réinitialiser si aucun pôle
+        // Si aucun pôle n'est sélectionné, afficher toutes les données
+        const { tournees, vehicules } = allDataCache.current;
+        setTournees(tournees);
+        setVehicules(vehicules);
+        setVehiculesFiltres(vehicules);
       }
     } catch (error) {
-      console.error('Erreur lors du filtrage par pôle:', error);
-      Alert.alert('Erreur', 'Impossible de filtrer les données par pôle. Veuillez réessayer.');
+      console.error('❌ [TourneeScreen] Erreur filtrage pôle:', error);
+      showToast('Impossible de filtrer les données par pôle.', 'error');
       // En cas d'erreur, s'assurer que les listes sont vides
       setTournees([]);
       setVehicules([]);
+      setVehiculesFiltres([]);
     } finally {
       setIsLoading(false);
     }
@@ -163,12 +255,13 @@ export default function TourneeScreen({ navigation }) {
     setSelectedTournee(tournee);
   };
 
+  const handleVehiculeSelect = (vehicule) => {
+    setSelectedVehicule(vehicule);
+  };
+
   const handleSubmit = async () => {
     if (!selectedTournee || !selectedVehicule) {
-      Alert.alert(
-        'Information incomplète',
-        'Veuillez sélectionner une tournée et un véhicule.'
-      );
+      showToast('Veuillez sélectionner une tournée et un véhicule.', 'warning');
       return;
     }
 
@@ -182,21 +275,43 @@ export default function TourneeScreen({ navigation }) {
         pole: selectedPole
       };
 
-      // LOG AJOUTÉ pour vérifier l'objet pôle
-      console.log("[TourneeScreen] Données de session préparées pour CheckVehicule:", JSON.stringify(sessionData, null, 2));
+      // Log des données de session pour debug
+              // console.log("[TourneeScreen] Données de session préparées pour CheckVehicule:", JSON.stringify(sessionData, null, 2));
       
       // Naviguer vers l'écran suivant
       navigation.navigate('CheckVehicule', { sessionData });
     } catch (error) {
       console.error('Erreur lors de la soumission:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
+              showToast('Une erreur est survenue.', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
+    // OPTIMISATION: Déconnexion rapide sans confirmation pour l'en-tête
+  const handleLogout = async () => {
+    try {
+      // console.log('🚪 [TourneeScreen] Déconnexion depuis l\'en-tête');
+      
+      // Fermer la session actuelle
+      await FirebaseService.closeCurrentSession();
+      await FirebaseService.logout();
+      
+      showToast('Déconnexion réussie', 'success');
+      
+      // Redirection vers Login
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    } catch (error) {
+      console.error('❌ [TourneeScreen] Erreur déconnexion:', error);
+      showToast('Impossible de se déconnecter.', 'error');
+    }
+  };
+
   const renderTourneeItem = ({ item }) => {
-    console.log('[TourneeScreen] renderTourneeItem avec item:', JSON.stringify(item, null, 2)); // LOG AJOUTÉ
+    // console.log('[TourneeScreen] renderTourneeItem avec item:', JSON.stringify(item, null, 2)); // LOG AJOUTÉ
     // Enveloppez l'item et le bouton dans une View avec flexDirection: 'row'
     return (
       <View style={styles.tourneeItemContainer}>
@@ -234,110 +349,154 @@ export default function TourneeScreen({ navigation }) {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
-        <Text style={styles.loadingText}>Chargement des données...</Text>
+      <View style={{ flex: 1 }}>
+        <CustomHeader 
+          title="Sélection de tournée"
+          navigation={navigation}
+          showBackButton={false}
+          showLogoutButton={true}
+          handleLogout={handleLogout}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3498db" />
+          <Text style={styles.loadingText}>Chargement des données...</Text>
+        </View>
       </View>
     );
   }
   
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => navigation.replace('Tournee')}
-        >
-          <Text style={styles.retryButtonText}>Réessayer</Text>
-        </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        <CustomHeader 
+          title="Sélection de tournée"
+          navigation={navigation}
+          showBackButton={false}
+          showLogoutButton={true}
+          handleLogout={handleLogout}
+        />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => navigation.replace('Tournee')}
+          >
+            <Text style={styles.retryButtonText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
   
   if (poles.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Aucun pôle disponible actuellement.</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => navigation.replace('Tournee')}
-        >
-          <Text style={styles.retryButtonText}>Actualiser</Text>
-        </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        <CustomHeader 
+          title="Sélection de tournée"
+          navigation={navigation}
+          showBackButton={false}
+          showLogoutButton={true}
+          handleLogout={handleLogout}
+        />
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Aucun pôle disponible actuellement.</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => navigation.replace('Tournee')}
+          >
+            <Text style={styles.retryButtonText}>Actualiser</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      {/* Sélection du pôle */}
-      <Text style={styles.sectionTitle}>Sélectionnez votre pôle</Text>
+    <View style={{ flex: 1 }}>
+      <CustomHeader 
+        title="Sélection de tournée"
+        navigation={navigation}
+        showBackButton={false}
+        showLogoutButton={true}
+        handleLogout={handleLogout}
+      />
       
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedPole?.id}
-          onValueChange={(itemValue) => {
-            handlePoleSelect(itemValue);
-          }}
-          style={styles.picker}
-          prompt="Choisissez un pôle"
-        >
-          <Picker.Item label="-- Choisissez un pôle --" value={null} />
-          {poles.map((pole) => (
-            <Picker.Item
-              key={pole.id}
-              label={pole.nom}
-              value={pole.id}
-            />
-          ))}
-        </Picker>
-      </View>
+      <View style={styles.container}>
+        {/* Sélection du pôle */}
+        {(
+          <>
+            <Text style={styles.sectionTitle}>Sélectionnez votre pôle</Text>
+          
+                            <CustomPicker
+                  selectedValue={selectedPole?.id}
+                  onValueChange={handlePoleSelect}
+                  items={[
+                    { label: "-- Choisissez un pôle --", value: null },
+                    ...poles.map(pole => ({ label: pole.nom, value: pole.id }))
+                  ]}
+                  placeholder="-- Choisissez un pôle --"
+                  enabled={poles.length > 0}
+                />
+          </>
+        )}
       
       {selectedPole && (
         <>
-          <Text style={styles.sectionTitle}>Sélectionnez votre tournée</Text>
-          
-          {tournees.length > 0 ? (
-            <FlatList
-              data={tournees}
-              renderItem={renderTourneeItem}
-              keyExtractor={(item) => item.id}
-              horizontal={false} // Afficher verticalement
-              numColumns={1} // Sur une seule colonne
-              contentContainerStyle={styles.tourneeListContainer}
-            />
-          ) : (
-            <View style={styles.emptyListContainer}>
-              <Text style={styles.emptyListText}>Aucune tournée disponible pour ce pôle</Text>
-            </View>
+          {/* Sélection de tournée */}
+          {(
+            <>
+              <Text style={styles.sectionTitle}>Sélectionnez votre tournée</Text>
+              
+              {tournees.length > 0 ? (
+                <FlatList
+                  data={tournees}
+                  renderItem={renderTourneeItem}
+                  keyExtractor={(item) => item.id}
+                  horizontal={false} // Afficher verticalement
+                  numColumns={1} // Sur une seule colonne
+                  contentContainerStyle={styles.tourneeListContainer}
+                />
+              ) : (
+                <View style={styles.emptyListContainer}>
+                  <Text style={styles.emptyListText}>Aucune tournée disponible pour ce pôle</Text>
+                </View>
+              )}
+            </>
           )}
 
-          <View style={styles.vehiculeContainer}>
-            <Text style={styles.sectionTitle}>Sélectionnez votre véhicule</Text>
-            
-            <TouchableOpacity 
-              style={styles.pickerContainer} 
-              onPress={() => setModalVehiculeVisible(true)}
-            >
-              <Text style={styles.pickerPlaceholder}>
-                {selectedVehicule ? selectedVehicule.immatriculation || selectedVehicule.nom : "-- Choisissez un véhicule --"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Sélection de véhicule */}
+          {selectedTournee && (
+            <>
+              <View style={styles.vehiculeContainer}>
+                <Text style={styles.sectionTitle}>Sélectionnez votre véhicule</Text>
+                
+                <TouchableOpacity 
+                  style={styles.pickerContainer} 
+                  onPress={() => setModalVehiculeVisible(true)}
+                >
+                  <Text style={styles.pickerPlaceholder}>
+                    {selectedVehicule ? selectedVehicule.immatriculation || selectedVehicule.nom : "-- Choisissez un véhicule --"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (!selectedTournee || !selectedVehicule) && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={!selectedTournee || !selectedVehicule || isLoading}
-          >
-            <Text style={styles.submitButtonText}>
-              Continuer vers vérification du véhicule
-            </Text>
-          </TouchableOpacity>
+              {/* Bouton de soumission */}
+              {(
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    (!selectedTournee || !selectedVehicule) && styles.submitButtonDisabled,
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={!selectedTournee || !selectedVehicule || isLoading}
+                >
+                  <Text style={styles.submitButtonText}>
+                    Continuer vers vérification du véhicule
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </>
       )}
 
@@ -379,7 +538,7 @@ export default function TourneeScreen({ navigation }) {
                 <TouchableOpacity 
                   style={styles.modalItem}
                   onPress={() => {
-                    setSelectedVehicule(item);
+                    handleVehiculeSelect(item);
                     setModalVehiculeVisible(false);
                     setRechercheVehiculeTexte('');
                   }}
@@ -394,6 +553,16 @@ export default function TourneeScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onHide={() => setToast(null)}
+        />
+      )}
+      </View>
     </View>
   );
 }
@@ -402,7 +571,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 16,
+    padding: sp(12),
   },
   loadingContainer: {
     flex: 1,
@@ -410,77 +579,77 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: sp(10),
+    fontSize: fp(15),
     color: '#7f8c8d',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: sp(20),
   },
   errorText: {
-    fontSize: 16,
+    fontSize: fp(16),
     color: '#e74c3c',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: sp(20),
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: sp(20),
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: fp(16),
     color: '#7f8c8d',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: sp(20),
   },
   emptyListContainer: {
-    padding: 20,
+    padding: sp(20),
     backgroundColor: '#ffffff',
-    borderRadius: 8,
-    marginVertical: 10,
+    borderRadius: sp(8),
+    marginVertical: sp(10),
     alignItems: 'center',
   },
   emptyListText: {
-    fontSize: 14,
+    fontSize: fp(14),
     color: '#7f8c8d',
     textAlign: 'center',
   },
   retryButton: {
     backgroundColor: '#3498db',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    paddingVertical: sp(12),
+    paddingHorizontal: sp(20),
+    borderRadius: sp(8),
   },
   retryButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: fp(16),
     fontWeight: 'bold',
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: fp(16),
     fontWeight: 'bold',
-    marginBottom: 12,
-    marginTop: 12,
+    marginBottom: sp(10),
+    marginTop: sp(10),
     color: '#2c3e50',
   },
   tourneeListContainer: {
-    paddingBottom: 10,
+    paddingBottom: sp(10),
   },
   tourneeItemContainer: { // Nouveau style pour le conteneur de l'item et du bouton
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: sp(8),
     // Les propriétés de fond/bordure sont maintenant sur tourneeItem et mapsButton individuellement
   },
   tourneeItem: {
     backgroundColor: '#ffffff',
-    borderRadius: 8,
-    padding: 16,
+    borderRadius: sp(6),
+    padding: sp(12),
     // marginBottom: 8, // Géré par tourneeItemContainer
     borderWidth: 1,
     borderColor: '#e0e0e0',
@@ -491,46 +660,64 @@ const styles = StyleSheet.create({
     backgroundColor: '#ecf0f1',
   },
   tourneeName: {
-    fontSize: 16,
+    fontSize: fp(15),
     fontWeight: 'bold',
     color: '#2c3e50',
   },
   tourneeDetails: {
-    fontSize: 14,
+    fontSize: fp(13),
     color: '#7f8c8d',
-    marginTop: 4,
+    marginTop: sp(3),
   },
   tourneeDescription: {
-    fontSize: 14,
+    fontSize: fp(14),
     color: '#7f8c8d',
-    marginTop: 8,
+    marginTop: sp(8),
     fontStyle: 'italic',
   },
   vehiculeContainer: {
-    marginBottom: 20,
+    marginBottom: sp(20),
   },
   pickerContainer: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    marginBottom: 20,
+    borderRadius: sp(8),
+    marginBottom: sp(16),
     borderWidth: 1,
     borderColor: '#ddd',
     justifyContent: 'center',
+    paddingHorizontal: sp(8),
   },
   picker: {
-    height: 50,
+    height: hp(48),
     width: '100%',
+    color: '#1f2937',
+    fontSize: fp(16),
+  },
+  pickerItem: {
+    fontSize: fp(16),
+    color: '#1f2937',
+    fontWeight: '600',
+    textAlign: 'left',
+    paddingLeft: sp(8),
+  },
+  pickerItemPlaceholder: {
+    fontSize: fp(16),
+    color: '#6b7280',
+    fontStyle: 'italic',
+    textAlign: 'left',
+    paddingLeft: sp(8),
   },
   pickerPlaceholder: {
-    paddingHorizontal: 10,
-    paddingVertical: 15,
-    fontSize: 16,
-    color: '#000', // Ou une couleur plus foncée pour le texte non sélectionné
+    paddingHorizontal: sp(10),
+    paddingVertical: sp(15),
+    fontSize: fp(16),
+    color: '#1f2937',
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#3498db',
-    paddingVertical: 16,
-    borderRadius: 8,
+    paddingVertical: hp(16),
+    borderRadius: sp(8),
     alignItems: 'center',
   },
   submitButtonDisabled: {
@@ -538,7 +725,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: fp(16),
     fontWeight: 'bold',
   },
   // Nouveaux styles pour le bouton Maps
@@ -653,5 +840,19 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
     color: '#7f8c8d',
-  }
+  },
+  changeVehicleNotice: {
+    backgroundColor: '#ecf0f1',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  changeVehicleNoticeText: {
+    fontSize: 16,
+    color: '#333',
+    marginLeft: 10,
+    flex: 1,
+  },
 });

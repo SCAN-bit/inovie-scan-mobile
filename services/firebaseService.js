@@ -16,24 +16,32 @@ import {
   deleteDoc, 
   query, 
   where,
+  limit,
   serverTimestamp,
   orderBy,
   setDoc,
   writeBatch
 } from 'firebase/firestore';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytesResumable, 
+  getDownloadURL 
+} from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { v4 as uuidv4 } from 'uuid';
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
+import SupabaseService from './supabaseService';
 
-// Configuration Firebase - Mise à jour avec configuration valide
+// Configuration Firebase - SCAN (corrigée)
 const firebaseConfig = {
-  apiKey: "AIzaSyBWDncE18JG9yjPX4kxTbSB9wLPi2qcAOw",
-  authDomain: "application-inovie-scan.firebaseapp.com",
-  projectId: "application-inovie-scan",
-  storageBucket: "application-inovie-scan.appspot.com",
-  messagingSenderId: "703727839643",
-  appId: "1:703727839643:web:f58c9241fb0d05a813593e"
+  apiKey: "AIzaSyBCcN9z5oixLmS_abShJFTkjn3LJGrBHlY",
+  authDomain: "scan-70156.firebaseapp.com",
+  projectId: "scan-70156",
+  storageBucket: "scan-70156.appspot.com", // Correction: utiliser .appspot.com au lieu de .firebasestorage.app
+  messagingSenderId: "566648702832",
+  appId: "1:566648702832:android:1a71f64c5b0399e76531b5"
 };
 
 // Initialiser Firebase
@@ -44,6 +52,7 @@ if (!firebase.apps.length) {
 }
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Clé pour le stockage local du token
 const AUTH_TOKEN_KEY = 'auth_token';
@@ -78,19 +87,48 @@ const FirebaseService = {
       
       const user = userCredential.user;
       
+      // Récupérer le rôle depuis Firestore
+      let userData = null;
+      try {
+        const usersCollection = collection(db, 'users');
+        const userQuery = query(usersCollection, where('email', '==', email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+          userData = userSnapshot.docs[0].data();
+          console.log('Données utilisateur récupérées depuis Firestore:', userData);
+        } else {
+          console.log('Aucun utilisateur trouvé dans Firestore pour cet email');
+        }
+      } catch (firestoreError) {
+        console.error('Erreur lors de la récupération des données utilisateur depuis Firestore:', firestoreError);
+      }
+      
       // Stocker les informations utilisateur
       try {
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, user.uid);
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify({
-        email: user.email,
-        uid: user.uid
-      }));
+        await AsyncStorage.setItem(AUTH_TOKEN_KEY, user.uid);
+        await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify({
+          email: user.email,
+          uid: user.uid,
+          role: userData?.role || 'Utilisateur',
+          ...userData
+        }));
         console.log('Informations utilisateur stockées avec succès');
       } catch (storageError) {
         console.error('Erreur lors du stockage des informations utilisateur:', storageError);
       }
       
-      return user;
+      // Retourner l'utilisateur avec ses données Firestore
+      console.log('🔍 [firebaseService.login] Retour des données:', {
+        user: user,
+        userData: userData,
+        userDataRole: userData?.role
+      });
+      
+      return {
+        user: user,
+        userData: userData
+      };
     } catch (error) {
       console.error('Erreur détaillée de connexion:', {
         code: error.code,
@@ -157,15 +195,21 @@ const FirebaseService = {
       
       // Créer un profil utilisateur avec le selasId
       const userProfile = {
-        userId: user.uid,
+        uid: user.uid,
+        identifiant: user.email.split('@')[0], // Utiliser la partie avant @ de l'email comme identifiant
         email: user.email,
+        nom: user.email.split('@')[0], // Utiliser la partie avant @ de l'email comme nom par défaut
+        role: 'Utilisateur', // Rôle par défaut
+        pole: '', // Pôle vide par défaut
+        statut: 'actif', // Statut actif par défaut
         selasId: finalSelasId,
-        role: 'user', // Rôle par défaut
-        createdAt: serverTimestamp()
+        permissions: [], // Permissions vides par défaut
+        dateCreation: serverTimestamp(),
+        dateModification: serverTimestamp()
       };
       
       // Enregistrer le profil dans Firestore
-      await setDoc(doc(db, 'userProfiles', user.uid), userProfile);
+      await setDoc(doc(db, 'users', user.uid), userProfile);
       
       // Stocker le selasId localement
       if (finalSelasId) {
@@ -185,22 +229,17 @@ const FirebaseService = {
   getCurrentUser: async () => {
     try {
       const userData = await AsyncStorage.getItem(USER_DATA_KEY);
-      console.log('Donnees utilisateur récupérées depuis AsyncStorage:', userData);
       
       // Vérifier si l'utilisateur est toujours authentifié dans Firebase
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      console.log('Utilisateur actuel dans Firebase Auth:', currentUser ? 
-                  `${currentUser.email} (${currentUser.uid})` : 'Aucun utilisateur connecté');
       
       if (!userData && !currentUser) {
-        console.log('Aucune donnée utilisateur trouvée localement ni dans Firebase');
         return null;
       }
       
       // Si l'utilisateur est dans Firebase mais pas dans AsyncStorage, mettre à jour AsyncStorage
       if (currentUser && !userData) {
-        console.log('Utilisateur Firebase trouvé mais pas dans AsyncStorage, mise à jour du stockage');
         const userToSave = {
           email: currentUser.email,
           uid: currentUser.uid
@@ -234,12 +273,10 @@ const FirebaseService = {
   isAuthenticated: async () => {
     try {
       const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      console.log('Token d\'authentification trouvé dans AsyncStorage:', !!token);
       
       // Vérifier aussi dans Firebase
       const auth = getAuth();
       const isAuthInFirebase = !!auth.currentUser;
-      console.log('Authentifié dans Firebase:', isAuthInFirebase);
       
       return !!token && isAuthInFirebase;
     } catch (error) {
@@ -255,22 +292,22 @@ const FirebaseService = {
       if (!userData) throw new Error('Utilisateur non authentifié');
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       
       // Construire la requête avec filtres
       const scanCollection = collection(db, 'passages');
       let q;
       
       if (selasId) {
-        // Si nous avons un selasId, filtre par selasId et userId
+        // Si nous avons un selasId, filtre par selasId et uid
         q = query(
           scanCollection, 
           where('selasId', '==', selasId),
-          where('userId', '==', userData.uid)
+          where('uid', '==', userData.uid)
         );
       } else {
-        // Sinon, filtre seulement par userId
-        q = query(scanCollection, where('userId', '==', userData.uid));
+        // Sinon, filtre seulement par uid
+        q = query(scanCollection, where('uid', '==', userData.uid));
       }
       
       const querySnapshot = await getDocs(q);
@@ -292,7 +329,7 @@ const FirebaseService = {
       
       const newScan = {
         ...scanData,
-        userId: userData.uid,
+        uid: userData.uid,
         createdAt: serverTimestamp(),
         scanId: uuidv4()
       };
@@ -309,7 +346,7 @@ const FirebaseService = {
   },
   
   // Ajout d'une fonction pour obtenir la SELAS d'un utilisateur
-  getUserSelas: async () => {
+  getUserSelasId: async () => {
     try {
       // D'abord vérifier si le selasId est stocké localement
       const selasId = await AsyncStorage.getItem('user_selas_id');
@@ -322,8 +359,8 @@ const FirebaseService = {
       const userData = await FirebaseService.getCurrentUser();
       if (!userData) throw new Error('Utilisateur non authentifié');
       
-      // Vérifier si l'utilisateur a un selasId dans sa collection userProfiles
-      const userProfileDoc = await getDoc(doc(db, 'userProfiles', userData.uid));
+      // Vérifier si l'utilisateur a un selasId dans sa collection users
+      const userProfileDoc = await getDoc(doc(db, 'users', userData.uid));
       
       if (userProfileDoc.exists() && userProfileDoc.data().selasId) {
         const selasId = userProfileDoc.data().selasId;
@@ -343,7 +380,7 @@ const FirebaseService = {
         const selasId = querySnapshot.docs[0].id;
         // Mettre à jour le profil utilisateur
         if (userProfileDoc.exists()) {
-          await updateDoc(doc(db, 'userProfiles', userData.uid), {
+          await updateDoc(doc(db, 'users', userData.uid), {
             selasId: selasId
           });
         }
@@ -362,10 +399,70 @@ const FirebaseService = {
     }
   },
 
-  // Récupérer toutes les SELAS disponibles
+  // Récupérer la SELAS de l'utilisateur connecté uniquement
+  getUserSelas: async () => {
+    try {
+      // console.log('Récupération de la SELAS de l\'utilisateur connecté...');
+      
+      // Récupérer le selasId de l'utilisateur connecté
+      const userProfile = await FirebaseService.getUserProfile();
+      if (!userProfile?.selasId) {
+        // console.log('⚠️ Utilisateur sans SELAS, retour SELAS par défaut');
+        // Retourner uniquement la SELAS LABOSUD par défaut
+        const selasCollection = collection(db, 'selas');
+        const labosudQuery = query(selasCollection, where('id', '==', 'iYWSwBh92twpoiZUWWqt'));
+        const labosudSnapshot = await getDocs(labosudQuery);
+        
+        if (!labosudSnapshot.empty) {
+          const selasData = labosudSnapshot.docs[0].data();
+          return [{
+            id: labosudSnapshot.docs[0].id,
+            nom: selasData.nom || 'LABOSUD',
+            description: selasData.description || '',
+            code: selasData.code || '',
+            active: true,
+            dateCreation: selasData.dateCreation,
+            dateModification: selasData.dateModification,
+            accesPages: selasData.accesPages || {},
+            sitesAutorises: selasData.sitesAutorises || []
+          }];
+        }
+        return [];
+      }
+      
+      // Récupérer uniquement la SELAS de l'utilisateur
+      const selasCollection = collection(db, 'selas');
+      const userSelasQuery = query(selasCollection, where('id', '==', userProfile.selasId));
+      const querySnapshot = await getDocs(userSelasQuery);
+      
+      const selasList = [];
+      querySnapshot.forEach((doc) => {
+        const selasData = doc.data();
+        selasList.push({
+          id: doc.id,
+          nom: selasData.nom || 'SELAS sans nom',
+          description: selasData.description || '',
+          code: selasData.code || '',
+          active: selasData.active !== false,
+          dateCreation: selasData.dateCreation,
+          dateModification: selasData.dateModification,
+          accesPages: selasData.accesPages || {},
+          sitesAutorises: selasData.sitesAutorises || []
+        });
+      });
+      
+      // console.log(`${selasList.length} SELAS récupérée pour l'utilisateur:`, selasList.map(s => s.nom));
+      return selasList;
+    } catch (error) {
+      console.error('Erreur lors de la récupération de la SELAS:', error);
+      throw error;
+    }
+  },
+
+  // Récupérer toutes les SELAS disponibles (pour la sélection)
   getAllSelas: async () => {
     try {
-      console.log('Récupération de toutes les SELAS...');
+      // console.log('Récupération de toutes les SELAS disponibles...');
       
       const selasCollection = collection(db, 'selas');
       const querySnapshot = await getDocs(selasCollection);
@@ -378,7 +475,7 @@ const FirebaseService = {
           nom: selasData.nom || 'SELAS sans nom',
           description: selasData.description || '',
           code: selasData.code || '',
-          active: selasData.active !== false, // Par défaut true si pas défini
+          active: selasData.active !== false,
           dateCreation: selasData.dateCreation,
           dateModification: selasData.dateModification,
           accesPages: selasData.accesPages || {},
@@ -386,7 +483,7 @@ const FirebaseService = {
         });
       });
       
-      console.log(`${selasList.length} SELAS récupérées:`, selasList.map(s => s.nom));
+      // console.log(`${selasList.length} SELAS disponibles:`, selasList.map(s => s.nom));
       return selasList;
     } catch (error) {
       console.error('Erreur lors de la récupération des SELAS:', error);
@@ -394,9 +491,9 @@ const FirebaseService = {
     }
   },
   
-  // Ajouter des scans multiples à la collection 'passages'
+  // Ajouter des scans multiples à la collection 'passages' - VERSION OPTIMISÉE
   addScans: async (scansArray) => {
-    console.log('addScans appelé avec:', JSON.stringify(scansArray, null, 2));
+    console.log('addScans appelé avec:', scansArray.length, 'scans');
     try {
       const user = await FirebaseService.getCurrentUser();
       if (!user) {
@@ -404,122 +501,195 @@ const FirebaseService = {
         return { success: false, error: 'Utilisateur non connecté' };
       }
       
-      // Récupérer le profil utilisateur pour le nom
-      const userProfile = await FirebaseService.getUserProfile();
-      const userName = userProfile?.nom && userProfile?.prenom 
-        ? `${userProfile.prenom} ${userProfile.nom}` 
-        : user.email;
+      // 🚀 OPTIMISATION: Récupération parallèle des données nécessaires
+      const [userProfile, selaId, sessionData] = await Promise.all([
+        FirebaseService.getUserProfile(),
+        FirebaseService.getUserSelasId(),  
+        FirebaseService.getCurrentSession()
+      ]);
       
-      // Récupérer la SELAS ID
-      const selaId = await FirebaseService.getUserSelas();
-      console.log('SELAS ID pour les scans:', selaId);
+              const userName = userProfile?.nom 
+          ? userProfile.nom 
+          : user.email;
       
-      // Récupérer la session active pour obtenir les informations de véhicule et tournée
-      const sessionData = await FirebaseService.getCurrentSession();
-      console.log('Session active récupérée:', sessionData ? 'Oui' : 'Non');
+      console.log('✅ Données récupérées en parallèle - Session:', sessionData ? 'Oui' : 'Non');
       
-      // Formatage complet des données à envoyer
-      const formattedScans = await Promise.all(scansArray.map(async scan => {
-        // Utiliser les données de session si disponibles, sinon utiliser les données du scan
-        let vehiculeName = sessionData?.vehicule?.immatriculation || scan.vehicule || '';
-        const vehiculeId = sessionData?.vehicule?.id || scan.vehiculeId || '';
-        const tourneeName = sessionData?.tournee?.nom || scan.tournee || '';
-        const tourneeId = sessionData?.tournee?.id || scan.tourneeId || '';
+      // 🚀 OPTIMISATION: Pré-récupération des données communes pour éviter les appels répétés
+      let poleDetails = null;
+      let vehiculeDetails = null;
+      let siteDetails = null;
+      
+      // Récupérer les détails du site (qui contient les infos de pôle) une seule fois
+      const siteId = sessionData?.tournee?.siteDepart || scansArray[0]?.site || scansArray[0]?.siteDepart;
+      if (siteId && !scansArray[0]?.poleId) {
+        try {
+          console.log('🔍 Récupération des détails du site avec pôle:', siteId);
+          siteDetails = await FirebaseService.getSiteWithPole(siteId);
+          if (siteDetails?.pole) {
+            poleDetails = siteDetails.pole;
+            console.log('✅ Détails du pôle récupérés depuis le site:', poleDetails?.nom);
+          } else {
+            console.log('⚠️ Aucun pôle trouvé pour ce site');
+          }
+        } catch (error) {
+          console.warn('❌ Erreur récupération site/pôle:', error.message);
+        }
+      }
+      
+      // Fallback: Récupérer le pôle depuis la session si disponible
+      if (!poleDetails && sessionData?.poleId && !scansArray[0]?.poleId) {
+        try {
+          poleDetails = await FirebaseService.getPoleById(sessionData.poleId);
+          console.log('✅ Détails du pôle récupérés depuis la session:', poleDetails?.nom);
+        } catch (error) {
+          console.warn('❌ Erreur récupération pôle depuis session:', error.message);
+        }
+      }
+      
+      // 🆕 FALLBACK ULTIME: Utiliser le pôle de l'utilisateur connecté si aucun pôle trouvé
+      console.log('🔍 [FALLBACK DEBUG] Profil utilisateur:', JSON.stringify(userProfile, null, 2));
+      console.log('🔍 [FALLBACK DEBUG] poleDetails avant fallback:', poleDetails);
+      console.log('🔍 [FALLBACK DEBUG] Aucun scan n\'a de poleId:', !scansArray.some(scan => scan.poleId));
+      
+      if (!poleDetails && !scansArray.some(scan => scan.poleId)) {
+        try {
+          console.log('🔄 [FALLBACK] Aucun pôle trouvé, recherche du pôle "CENTRE" par défaut...');
+          
+          // Chercher directement le pôle "CENTRE" comme fallback universel
+          const polesQuery = query(collection(db, 'poles'), where('nom', '==', 'CENTRE'));
+          const polesSnapshot = await getDocs(polesQuery);
+          
+          if (!polesSnapshot.empty) {
+            const poleDoc = polesSnapshot.docs[0];
+            poleDetails = { id: poleDoc.id, ...poleDoc.data() };
+            console.log('✅ [FALLBACK] Pôle CENTRE trouvé par défaut:', poleDetails?.nom, 'ID:', poleDetails?.id);
+          } else {
+            console.warn('❌ [FALLBACK] Pôle CENTRE non trouvé, essai avec profil utilisateur...');
+            
+            // Si CENTRE n'existe pas, essayer avec le profil utilisateur
+            if (userProfile?.pole) {
+              if (typeof userProfile.pole === 'string') {
+                const userPolesQuery = query(collection(db, 'poles'), where('nom', '==', userProfile.pole));
+                const userPolesSnapshot = await getDocs(userPolesQuery);
+                if (!userPolesSnapshot.empty) {
+                  const userPoleDoc = userPolesSnapshot.docs[0];
+                  poleDetails = { id: userPoleDoc.id, ...userPoleDoc.data() };
+                  console.log('✅ [FALLBACK] Pôle utilisateur trouvé:', poleDetails?.nom);
+                }
+              } else if (typeof userProfile.pole === 'object' && userProfile.pole.id) {
+                poleDetails = userProfile.pole;
+                console.log('✅ [FALLBACK] Pôle utilisateur objet utilisé:', poleDetails?.nom);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('❌ [FALLBACK] Erreur récupération pôle fallback:', error.message);
+        }
+      }
+      
+      console.log('🏁 [FALLBACK DEBUG] poleDetails final:', poleDetails);
+      
+      // Récupérer les détails du véhicule une seule fois si nécessaire
+      const vehiculeId = sessionData?.vehicule?.id || scansArray[0]?.vehiculeId;
+      let vehiculeName = sessionData?.vehicule?.immatriculation || scansArray[0]?.vehicule;
+      
+      // 🔧 AMÉLIORATION : Toujours essayer de récupérer le véhicule si on a un ID
+      if (vehiculeId) {
+        try {
+          vehiculeDetails = await FirebaseService.getVehiculeById(vehiculeId);
+          vehiculeName = vehiculeDetails?.immatriculation || vehiculeName || '';
+          console.log('✅ Détails du véhicule récupérés:', vehiculeName);
+        } catch (error) {
+          console.warn('❌ Erreur récupération véhicule:', error.message);
+        }
+      }
+      
+      // 🔧 AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
+      const tourneeId = sessionData?.tournee?.id || scansArray[0]?.tourneeId;
+      let tourneeName = sessionData?.tournee?.nom || scansArray[0]?.tournee;
+      
+      if (tourneeId && !tourneeName) {
+        try {
+          const tourneeDetails = await FirebaseService.getTourneeById(tourneeId);
+          tourneeName = tourneeDetails?.nom || '';
+          console.log('✅ Détails de la tournée récupérés:', tourneeName);
+        } catch (error) {
+          console.warn('❌ Erreur récupération tournée:', error.message);
+        }
+      }
+
+      // Formatage optimisé des données
+      const formattedScans = scansArray.map(scan => {
+        // Utiliser les données pré-récupérées ou celles du scan
+        const poleId = scan.poleId || poleDetails?.id || sessionData?.poleId || sessionData?.pole?.id || '';
+        const poleName = scan.poleName || poleDetails?.nom || sessionData?.pole?.nom || scan.pole || '';
+        
+        console.log(`🏷️ [addScans] Pôle pour ${scan.idColis}: ID=${poleId}, Nom=${poleName}`);
+        
+        const finalVehiculeId = scan.vehiculeId || vehiculeId || '';
+        const finalVehiculeName = scan.vehicule || vehiculeName || '';
+        const finalTourneeName = tourneeName || sessionData?.tournee?.nom || scan.tournee || '';
+        const finalTourneeId = sessionData?.tournee?.id || scan.tourneeId || tourneeId || '';
         const siteName = sessionData?.tournee?.siteDepart || scan.site || scan.siteDepart || 'Non spécifié';
         
-        // Récupérer les informations du pôle
-        let poleId = '';
-        let poleName = '';
-        
-        // D'abord essayer depuis les données du scan (qui peuvent venir du state local)
-        if (scan.poleId && scan.poleName) {
-          poleId = scan.poleId;
-          poleName = scan.poleName;
-          console.log('🎯 Pôle récupéré depuis les données du scan:', { poleId, poleName });
-        }
-        // Ensuite essayer depuis la session Firebase
-        else if (sessionData?.poleId) {
-          poleId = sessionData.poleId;
-          console.log('🔍 ID du pôle trouvé dans la session:', poleId);
-          
-          // Récupérer le nom du pôle par son ID
-          try {
-            const poleDetails = await FirebaseService.getPoleById(poleId);
-            if (poleDetails) {
-              poleName = poleDetails.nom;
-              console.log('✅ Nom du pôle récupéré:', poleName);
-            } else {
-              console.log('❌ Impossible de récupérer les détails du pôle');
-            }
-          } catch (poleError) {
-            console.error('❌ Erreur lors de la récupération du pôle:', poleError);
-          }
-        }
-        // Fallback: essayer les anciennes méthodes
-        else {
-          poleId = sessionData?.pole?.id || scan.poleId || '';
-          poleName = sessionData?.pole?.nom || scan.pole || '';
-        }
-        
-        console.log('Données de pôle utilisées:', { poleId, poleName });
-        console.log('Source des données de pôle:', { 
-          poleIdFromSession: sessionData?.poleId || sessionData?.pole?.id || 'Non disponible', 
-          poleIdFromScan: scan.poleId || 'Non disponible',
-          poleNameFromSession: sessionData?.pole?.nom || 'Non disponible',
-          poleNameFromScan: scan.poleName || scan.pole || 'Non disponible'
-        });
-        
-        // Si nous avons l'ID du véhicule mais pas son immatriculation, essayons de le récupérer
-        if (vehiculeId && !vehiculeName) {
-          try {
-            console.log('Tentative de récupération des détails du véhicule depuis son ID:', vehiculeId);
-            const vehiculeDetails = await FirebaseService.getVehiculeById(vehiculeId);
-            if (vehiculeDetails && vehiculeDetails.immatriculation) {
-              vehiculeName = vehiculeDetails.immatriculation;
-              console.log('Immatriculation récupérée:', vehiculeName);
-            }
-          } catch (vehiculeError) {
-            console.warn('Impossible de récupérer les détails du véhicule:', vehiculeError);
-          }
-        }
-        
-        console.log('Données utilisées pour le scan:', {
-          vehiculeName,
-          vehiculeId,
-          tourneeName,
-          tourneeId,
-          siteName,
-          poleId,
-          poleName
-        });
-        
-        const formattedScan = {
+        console.log(`🚗 [addScans] Véhicule pour ${scan.idColis}: ID=${finalVehiculeId}, Nom=${finalVehiculeName}`);
+        console.log(`🚌 [addScans] Tournée pour ${scan.idColis}: ID=${finalTourneeId}, Nom=${finalTourneeName}`);
+         
+         const formattedScan = {
+          // Champs principaux - correspondance exacte avec le site web
           idColis: scan.idColis || scan.code || '',
           scanDate: scan.scanDate || new Date().toISOString(),
           operationType: scan.operationType || 'entree',
           sessionId: scan.sessionId || '',
+          
+          // Coursier - correspondance exacte
           coursierCharg: userName || user.email,
+          coursierChargement: userName || user.email, // Pour le site web
           coursierChargeantId: user.uid,
+          
+          // Dates et heures - correspondance exacte
           dateHeureDepart: scan.scanDate || new Date().toISOString(),
-          tournee: tourneeName,
-          tourneeId: tourneeId,
-          vehicule: vehiculeName,
-          vehiculeId: vehiculeId,
-          immatriculation: vehiculeName,
+          heureDepart: scan.heureDepart || (scan.scanDate ? new Date(scan.scanDate).toLocaleTimeString('fr-FR') : ''),
+          
+          // Tournée - correspondance exacte
+          tournee: finalTourneeName,
+          tourneeName: finalTourneeName, // Pour le site web
+          tourneeId: finalTourneeId,
+          
+          // Véhicule - correspondance exacte
+          vehicule: finalVehiculeName,
+          vehiculeDisplay: finalVehiculeName, // Pour le site web
+          vehiculeId: finalVehiculeId,
+          immatriculation: finalVehiculeName,
+          
+          // Sites - correspondance exacte
           site: siteName,
           siteDepart: siteName,
-          siteDepartName: scan.siteDepartName || '',
+          siteDepartName: scan.siteDepartName || siteName, // Utiliser siteName si siteDepartName est vide
           siteDépart: siteName,
-          siteFin: scan.siteFin || 'Laboratoire Central',
-          siteFinName: scan.siteFinName || '',
+          
+          // 🔧 CORRECTION : Ne définir siteFin que pour les sorties
+          ...(scan.operationType === 'sortie' ? {
+            siteFin: scan.siteFin || scan.siteActuel || scan.site || '', // Site où on livre (pas le site de départ)
+            siteFinName: scan.siteFinName || scan.siteActuelName || ''
+          } : {}),
+          
+          // Pôle - correspondance exacte
           selasId: selaId || null,
-          poleId: poleId,
-          poleName: poleName,
+          pole: poleName, // Le site web s'attend au NOM du pôle, pas l'ID
+          poleId: poleId, // Garder l'ID pour référence
+          poleName: poleName, // Le nom du pôle pour affichage direct
+          
+          // Autres champs
           location: scan.location || null,
+          uid: user.uid,
+          createdAt: serverTimestamp(),
+          
+          // Statut - correspondance exacte avec le site web
+          statut: scan.operationType === 'sortie' ? 'Livré' : 
+                  scan.operationType === 'visite_sans_colis' ? 'Pas de colis' : 'En cours',
           status: scan.operationType === 'sortie' ? 'livré' : 
-                  scan.operationType === 'visite_sans_colis' ? 'visite-terminee' : 'en-cours', // Status basé sur le type d'opération
-          userId: user.uid,
-          createdAt: serverTimestamp()
+                  scan.operationType === 'visite_sans_colis' ? 'pas_de_colis' : 'en-cours'
         };
 
         // Ajouter le champ 'code' seulement s'il n'est pas undefined
@@ -540,11 +710,20 @@ const FirebaseService = {
           formattedScan.siteDepartDetails = scan.siteDepartDetails;
         }
 
-        // IMPORTANT: S'assurer qu'aucun champ statut n'est présent (éviter les doublons)
-        delete formattedScan.statut;
+        // Ajouter les champs spécifiques pour les visites sans colis
+        if (scan.operationType === 'visite_sans_colis') {
+          formattedScan.siteFin = scan.site || scan.siteDepart || '';
+          formattedScan.siteFinName = scan.siteName || scan.siteDepartName || '';
+          formattedScan.dateHeureFin = scan.scanDate;
+          formattedScan.datearrivee = scan.scanDate; // Pour le site web
+          formattedScan.dateArrivee = new Date(scan.scanDate).toLocaleDateString('fr-FR');
+          formattedScan.heureArrivee = new Date(scan.scanDate).toLocaleTimeString('fr-FR');
+          formattedScan.coursierLivraison = formattedScan.coursierCharg;
+          // Les statuts sont déjà définis dans formattedScan
+        }
 
         return formattedScan;
-      }));
+      });
       
       console.log('Données formatées pour Firestore:', JSON.stringify(formattedScans, null, 2));
       
@@ -553,54 +732,105 @@ const FirebaseService = {
       let updatedCount = 0;
       let createdCount = 0;
       
-      for (const formattedScan of formattedScans) {
+      // Optimisation : grouper les requêtes pour éviter les appels séquentiels
+      const idColisList = formattedScans.map(scan => scan.idColis);
+      const selasId = formattedScans[0]?.selasId; // Supposer même SELAS pour tous les scans
+
+      // Requête groupée pour vérifier les passages existants
+      let existingPassagesMap = new Map();
+      if (idColisList.length > 0 && selasId) {
         try {
-          // Chercher si un passage existe déjà pour ce colis
           const passagesQuery = query(
             collection(db, 'passages'), 
-            where('idColis', '==', formattedScan.idColis),
-            where('selasId', '==', formattedScan.selasId)
+            where('idColis', 'in', idColisList.slice(0, 10)), // Firestore limite à 10 éléments dans 'in'
+            where('selasId', '==', selasId)
           );
           const existingPassages = await getDocs(passagesQuery);
           
-          if (!existingPassages.empty) {
-            // Un passage existe déjà - le mettre à jour
-            const existingDoc = existingPassages.docs[0];
-            const existingData = existingDoc.data();
+          existingPassages.forEach(doc => {
+            existingPassagesMap.set(doc.data().idColis, { id: doc.id, data: doc.data() });
+          });
+          
+          console.log(`🔍 Vérification groupée: ${existingPassagesMap.size} passages existants trouvés`);
+        } catch (error) {
+          console.warn('❌ Erreur requête groupée, fallback mode individuel:', error.message);
+        }
+      }
+
+      // Traitement des scans avec logique de mise à jour conditionnelle
+      for (const formattedScan of formattedScans) {
+        try {
+          const existingPassage = existingPassagesMap.get(formattedScan.idColis);
+          
+          // Décider si on met à jour ou crée un nouveau passage
+          let shouldUpdate = false;
+          
+          if (existingPassage) {
+            const existingStatus = existingPassage.data.status;
             
-            console.log(`📝 Mise à jour du passage existant pour le colis ${formattedScan.idColis}`);
+            // ✅ Logique corrigée : Ne mettre à jour que si le statut permet la modification
+            if (existingStatus === 'en-cours' || existingStatus === 'en cours' || !existingStatus) {
+              // Le colis est en cours ou sans statut -> on peut le mettre à jour
+              shouldUpdate = true;
+              console.log(`📝 Mise à jour autorisée pour ${formattedScan.idColis} (statut: ${existingStatus})`);
+            } else if (existingStatus === 'livré') {
+              // Le colis est déjà livré -> créer un nouveau passage (code-barre réutilisable)
+              shouldUpdate = false;
+              console.log(`🔄 Création nouveau passage pour ${formattedScan.idColis} (ancien statut: livré)`);
+            } else {
+              // Autres statuts -> créer un nouveau passage par sécurité
+              shouldUpdate = false;
+              console.log(`🆕 Création nouveau passage pour ${formattedScan.idColis} (statut: ${existingStatus})`);
+            }
+          }
+          
+          if (shouldUpdate && existingPassage) {
+            // Mise à jour d'un passage existant (seulement si en cours)
+            // ✅ CORRECTION : Pour les livraisons, ne mettre à jour QUE les champs de livraison
+            // sans écraser les données de départ (siteDepart, siteDepartName, etc.)
             
-            // Préparer les données de mise à jour
-            const updateData = {
-              ...formattedScan,
+            let updateData = {
               updatedAt: serverTimestamp()
             };
             
-            // IMPORTANT: Supprimer explicitement le champ statut pour éviter les doublons
-            delete updateData.statut;
-            
-            // Si c'est une sortie, mettre à jour les champs de livraison
             if (formattedScan.operationType === 'sortie') {
-              updateData.status = 'livré';
-              updateData.dateHeureFin = formattedScan.scanDate;
-              updateData.siteFin = formattedScan.site;
-              updateData.siteFinName = formattedScan.siteDepartName;
-              updateData.coursierLivraison = formattedScan.coursierCharg;
-              updateData.dateArrivee = new Date().toLocaleDateString('fr-FR');
-              updateData.heureArrivee = new Date().toLocaleTimeString('fr-FR');
+              // Pour les livraisons, mettre à jour UNIQUEMENT les champs de fin
+              updateData = {
+                ...updateData,
+                statut: 'Livré', // Pour le site web
+                status: 'livré',
+                dateHeureFin: formattedScan.scanDate,
+                datearrivee: formattedScan.scanDate, // Pour le site web
+                siteFin: formattedScan.siteFin || '',
+                siteFinName: formattedScan.siteFinName || '',
+                coursierLivraison: formattedScan.coursierCharg,
+                dateArrivee: new Date().toLocaleDateString('fr-FR'),
+                heureArrivee: new Date().toLocaleTimeString('fr-FR'),
+                operationType: 'sortie'
+              };
+              
+              // ✅ IMPORTANT : NE PAS écraser siteDepart, siteDepartName, etc.
+              // Ces données doivent rester intactes depuis la création initiale
+              
+            } else {
+              // Pour les autres opérations, utiliser toutes les données formatées
+              updateData = {
+                ...formattedScan,
+                updatedAt: serverTimestamp()
+              };
+              delete updateData.statut; // Éviter les doublons
             }
             
-            batch.update(doc(db, 'passages', existingDoc.id), updateData);
+            batch.update(doc(db, 'passages', existingPassage.id), updateData);
             updatedCount++;
           } else {
-            // Aucun passage existant - créer un nouveau
-            console.log(`➕ Création d'un nouveau passage pour le colis ${formattedScan.idColis}`);
+            // Création d'un nouveau passage
             const newScanRef = doc(collection(db, 'passages'));
             batch.set(newScanRef, formattedScan);
             createdCount++;
           }
         } catch (error) {
-          console.error(`❌ Erreur lors du traitement du colis ${formattedScan.idColis}:`, error);
+          console.error(`❌ Erreur traitement ${formattedScan.idColis}:`, error.message);
         }
       }
       
@@ -683,17 +913,17 @@ const FirebaseService = {
       if (!userData) throw new Error('Utilisateur non authentifié');
       
       // Vérifier si l'utilisateur a un profil
-      const profileDoc = await getDoc(doc(db, 'userProfiles', userData.uid));
+      const profileDoc = await getDoc(doc(db, 'users', userData.uid));
       
       if (profileDoc.exists()) {
         const profileData = profileDoc.data();
         
         // Si le profil n'a pas de selasId, essayer de le récupérer et mettre à jour le profil
         if (!profileData.selasId) {
-          const selasId = await FirebaseService.getUserSelas();
+          const selasId = await FirebaseService.getUserSelasId();
           if (selasId) {
             // Mettre à jour le profil avec le selasId
-            await updateDoc(doc(db, 'userProfiles', userData.uid), {
+            await updateDoc(doc(db, 'users', userData.uid), {
               selasId: selasId,
               updatedAt: serverTimestamp()
             });
@@ -714,18 +944,24 @@ const FirebaseService = {
         };
       } else {
         // Créer un profil par défaut si aucun n'existe
-        const selasId = await FirebaseService.getUserSelas();
+        const selasId = await FirebaseService.getUserSelasId();
         
         const defaultProfile = {
-          userId: userData.uid,
+          uid: userData.uid,
+          identifiant: userData.email.split('@')[0], // Utiliser la partie avant @ de l'email comme identifiant
           email: userData.email,
+          nom: userData.email.split('@')[0], // Utiliser la partie avant @ de l'email comme nom par défaut
+          role: 'Utilisateur', // Rôle par défaut
+          pole: '', // Pôle vide par défaut
+          statut: 'actif', // Statut actif par défaut
           selasId: selasId, // Associer l'utilisateur à sa SELAS
-          role: 'user', // Rôle par défaut
-          createdAt: serverTimestamp()
+          permissions: [], // Permissions vides par défaut
+          dateCreation: serverTimestamp(),
+          dateModification: serverTimestamp()
         };
         
         // Créer le profil dans Firestore
-        const profileRef = doc(db, 'userProfiles', userData.uid);
+        const profileRef = doc(db, 'users', userData.uid);
         await setDoc(profileRef, defaultProfile);
         
         // Stocker le selasId localement
@@ -751,14 +987,14 @@ const FirebaseService = {
       
       // Si le selasId n'est pas fourni, essayer de le récupérer
       if (!profileData.selasId) {
-        const selasId = await FirebaseService.getUserSelas();
+        const selasId = await FirebaseService.getUserSelasId();
         if (selasId) {
           profileData.selasId = selasId;
         }
       }
       
       // Mettre à jour le profil dans Firestore
-      const profileRef = doc(db, 'userProfiles', userData.uid);
+      const profileRef = doc(db, 'users', userData.uid);
       await updateDoc(profileRef, {
         ...profileData,
         updatedAt: serverTimestamp()
@@ -770,7 +1006,7 @@ const FirebaseService = {
       }
       
       return {
-        userId: userData.uid,
+        uid: userData.uid,
         ...profileData
       };
     } catch (error) {
@@ -784,23 +1020,10 @@ const FirebaseService = {
     try {
       console.log('Tentative de récupération des véhicules...');
       
-      // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
-      console.log('SELAS ID pour filtrage des véhicules:', selasId);
-      
+      // Récupérer TOUS les véhicules sans filtrage par SELAS (comme le site web)
       const vehiculesCollection = collection(db, 'vehicules');
-      let querySnapshot;
-      
-      // Si nous avons un selasId, filtrer les véhicules par selasId
-      if (selasId) {
-        const q = query(vehiculesCollection, where('selasId', '==', selasId));
-        querySnapshot = await getDocs(q);
-        console.log(`Véhicules filtrés par SELAS ${selasId}: ${querySnapshot.size} trouvés`);
-      } else {
-        // Sinon, récupérer tous les véhicules
-        querySnapshot = await getDocs(vehiculesCollection);
-        console.log(`Tous les véhicules (pas de filtre SELAS): ${querySnapshot.size} trouvés`);
-      }
+      const querySnapshot = await getDocs(vehiculesCollection);
+      console.log(`Tous les véhicules récupérés: ${querySnapshot.size} trouvés`);
       
       if (querySnapshot.empty) {
         console.log('Aucun véhicule trouvé, retour des données par défaut');
@@ -832,7 +1055,7 @@ const FirebaseService = {
       console.log('Utilisation de données véhicules par défaut');
       
       // Récupérer le selasId pour les données par défaut
-      const selasId = await FirebaseService.getUserSelas().catch(() => "");
+      const selasId = await FirebaseService.getUserSelasId().catch(() => "");
       
       // Données par défaut en cas d'erreur
       return [
@@ -869,7 +1092,7 @@ const FirebaseService = {
   getTournees: async () => {
     try {
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       
       const tourneesCollection = collection(db, 'tournees');
       let q;
@@ -904,7 +1127,7 @@ const FirebaseService = {
       console.log('Tentative de récupération des pôles...');
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       console.log('SELAS ID pour filtrage des pôles:', selasId);
       
       const polesCollection = collection(db, 'poles');
@@ -946,7 +1169,7 @@ const FirebaseService = {
       console.log('Utilisation de données pôles par défaut');
       
       // Récupérer le selasId pour les données par défaut
-      const selasId = await FirebaseService.getUserSelas().catch(() => "");
+      const selasId = await FirebaseService.getUserSelasId().catch(() => "");
       
       // Données par défaut en cas d'erreur
       return [
@@ -963,7 +1186,7 @@ const FirebaseService = {
       console.log('🔍 getTourneesByPole appelé avec poleId:', poleId);
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       console.log('🔍 SELAS ID pour filtrage des tournées:', selasId);
       
       const tourneesCollection = collection(db, 'tournees');
@@ -1068,7 +1291,7 @@ const FirebaseService = {
         code: error.code,
         message: error.message,
         poleId: poleId,
-        selasId: await FirebaseService.getUserSelas().catch(() => 'erreur')
+        selasId: await FirebaseService.getUserSelasId().catch(() => 'erreur')
       });
       throw error;
     }
@@ -1080,7 +1303,7 @@ const FirebaseService = {
       console.log('Tentative de récupération des véhicules par pôle:', poleId);
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       
       const vehiculesCollection = collection(db, 'vehicules');
       let q;
@@ -1132,7 +1355,7 @@ const FirebaseService = {
       console.error('Erreur lors de la récupération des véhicules par pôle:', error);
       
       // Récupérer le selasId pour les données par défaut
-      const selasId = await FirebaseService.getUserSelas().catch(() => "");
+      const selasId = await FirebaseService.getUserSelasId().catch(() => "");
       
       // Données par défaut en cas d'erreur
       return [
@@ -1166,14 +1389,27 @@ const FirebaseService = {
       const userData = await FirebaseService.getCurrentUser();
       if (!userData) throw new Error('Utilisateur non authentifié');
       
-      const sessionInfo = {
-        userId: userData.uid,
-        tourneeId: sessionData.tournee?.id,
-        vehiculeId: sessionData.vehicule?.id,
+      // Récupérer le selasId pour l'associer aux données
+      const selasId = await FirebaseService.getUserSelasId();
+      
+      // Nettoyer les données pour éviter les valeurs undefined
+      const rawSessionInfo = {
+        uid: userData.uid,
+        tourneeId: sessionData.tournee?.id || null,
+        vehiculeId: sessionData.vehicule?.id || null,
         vehiculeCheck: sessionData.vehiculeCheck || null,
         startTime: serverTimestamp(),
-        status: 'active'
+        status: 'active',
+        selasId: selasId || null
       };
+      
+      // Nettoyer récursivement toutes les valeurs undefined
+      const sessionInfo = FirebaseService.cleanUndefinedValues(rawSessionInfo);
+      
+      // Si on a des données de vérification de véhicule, les sauvegarder dans une collection dédiée
+      if (sessionData.vehiculeCheck) {
+        await FirebaseService.saveVehicleCheck(sessionData.vehiculeCheck, userData.uid, selasId);
+      }
       
       // Sauvegarder la session dans Firebase
       const docRef = await addDoc(collection(db, 'sessions'), sessionInfo);
@@ -1190,7 +1426,314 @@ const FirebaseService = {
       throw error;
     }
   },
-  
+
+    // Fonction utilitaire pour nettoyer récursivement les valeurs undefined
+  cleanUndefinedValues: (obj) => {
+    if (obj === null || obj === undefined) {
+      return null;
+    }
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => FirebaseService.cleanUndefinedValues(item)).filter(item => item !== undefined);
+    }
+    
+    if (typeof obj === 'object') {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          cleaned[key] = FirebaseService.cleanUndefinedValues(value);
+        }
+      }
+      return cleaned;
+    }
+    
+    return obj;
+  },
+
+  // Nouvelle fonction pour sauvegarder spécifiquement les checks de véhicules
+  saveVehicleCheck: async (vehiculeCheckData, uid, selasId) => {
+    try {
+      console.log(`[saveVehicleCheck] Début sauvegarde pour véhicule: ${vehiculeCheckData.vehiculeId}`);
+      console.log(`[saveVehicleCheck] Données reçues:`, {
+        vehiculeId: vehiculeCheckData.vehiculeId,
+        immatriculation: vehiculeCheckData.immatriculation,
+        photosCount: vehiculeCheckData.photos?.length || 0,
+        defectsCount: vehiculeCheckData.defects?.length || 0,
+        notes: vehiculeCheckData.notes,
+        selasId: selasId
+      });
+      
+      // Vérifier si un document existe déjà pour ce véhicule
+      let existingCheckDoc = null;
+      try {
+        const existingCheckQuery = query(
+          collection(db, 'vehicleChecks'),
+          where('vehiculeId', '==', vehiculeCheckData.vehiculeId),
+          limit(1)
+        );
+        
+        const existingCheckSnapshot = await getDocs(existingCheckQuery);
+        if (!existingCheckSnapshot.empty) {
+          existingCheckDoc = existingCheckSnapshot.docs[0];
+          console.log(`[saveVehicleCheck] Document existant trouvé: ${existingCheckDoc.id}`);
+        } else {
+          console.log(`[saveVehicleCheck] Aucun document existant trouvé pour vehiculeId: ${vehiculeCheckData.vehiculeId}`);
+        }
+      } catch (queryError) {
+        console.warn('[saveVehicleCheck] Erreur lors de la recherche du document existant:', queryError);
+      }
+
+      // Préparer les nouvelles données
+      const newCheckEntry = {
+        checkId: `check_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        date: vehiculeCheckData.date || new Date().toISOString(),
+        checkType: vehiculeCheckData.checkType || 'debut_tournee',
+        kilometrage: vehiculeCheckData.kilometrage || null,
+        defects: vehiculeCheckData.defects || [],
+        photos: vehiculeCheckData.photos || [],
+        notes: vehiculeCheckData.notes || '',
+        washInfo: {
+          washCompleted: vehiculeCheckData.washInfo?.washCompleted || false,
+          washTypes: vehiculeCheckData.washInfo?.washTypes || []
+        },
+        managerAlertRequested: vehiculeCheckData.managerAlertRequested || false,
+        createdAt: serverTimestamp()
+      };
+
+      if (existingCheckDoc) {
+        // Mettre à jour le document existant
+        console.log('[saveVehicleCheck] Mise à jour du document existant');
+        
+        const existingData = existingCheckDoc.data();
+        const updatedData = {
+          // Garder les informations de base
+          uid: uid || existingData.uid,
+          selasId: selasId || existingData.selasId,
+          vehiculeId: vehiculeCheckData.vehiculeId || existingData.vehiculeId,
+          immatriculation: vehiculeCheckData.immatriculation || existingData.immatriculation,
+          vehicleSchemaName: vehiculeCheckData.vehicleSchemaName || existingData.vehicleSchemaName || 'car-diagram.png',
+          
+          // Mettre à jour les informations actuelles
+          lastCheckDate: newCheckEntry.date,
+          lastCheckType: newCheckEntry.checkType,
+          lastKilometrage: newCheckEntry.kilometrage,
+          lastCheckId: newCheckEntry.checkId,
+          
+          // Ajouter le nouveau check à l'historique
+          checkHistory: [
+            newCheckEntry,
+            ...(existingData.checkHistory || [])
+          ],
+          
+          // Mettre à jour les photos (toutes les photos de tous les checks)
+          allPhotos: [
+            ...(newCheckEntry.photos || []),
+            ...(existingData.allPhotos || [])
+          ],
+          
+          // Mettre à jour les défauts (tous les défauts de tous les checks)
+          allDefects: [
+            ...(newCheckEntry.defects || []),
+            ...(existingData.allDefects || [])
+          ],
+          
+          // Mettre à jour le timestamp
+          updatedAt: serverTimestamp(),
+          
+          // Garder la date de création originale
+          createdAt: existingData.createdAt
+        };
+
+        // Nettoyer les données
+        const cleanUpdatedData = FirebaseService.cleanUndefinedValues(updatedData);
+        
+        // Mettre à jour le document
+        await updateDoc(doc(db, 'vehicleChecks', existingCheckDoc.id), cleanUpdatedData);
+        
+        console.log(`[saveVehicleCheck] Document mis à jour: ${existingCheckDoc.id}`);
+        
+        return {
+          id: existingCheckDoc.id,
+          ...cleanUpdatedData
+        };
+        
+      } else {
+        // Créer un nouveau document
+        console.log('[saveVehicleCheck] Création d\'un nouveau document');
+        console.log('[saveVehicleCheck] Données du nouveau check:', {
+          photosCount: newCheckEntry.photos?.length || 0,
+          defectsCount: newCheckEntry.defects?.length || 0,
+          checkType: newCheckEntry.checkType,
+          kilometrage: newCheckEntry.kilometrage
+        });
+        
+        const newCheckData = {
+          uid: uid || null,
+          selasId: selasId || null,
+          vehiculeId: vehiculeCheckData.vehiculeId || null,
+          immatriculation: vehiculeCheckData.immatriculation || null,
+          vehicleSchemaName: vehiculeCheckData.vehicleSchemaName || 'car-diagram.png',
+          
+          // Informations du premier check
+          lastCheckDate: newCheckEntry.date,
+          lastCheckType: newCheckEntry.checkType,
+          lastKilometrage: newCheckEntry.kilometrage,
+          lastCheckId: newCheckEntry.checkId,
+          
+          // Historique des checks
+          checkHistory: [newCheckEntry],
+          
+          // Toutes les photos
+          allPhotos: newCheckEntry.photos || [],
+          
+          // Tous les défauts
+          allDefects: newCheckEntry.defects || [],
+          
+          // Timestamps
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+
+        // Nettoyer les données
+        const cleanNewData = FirebaseService.cleanUndefinedValues(newCheckData);
+        console.log('[saveVehicleCheck] Données nettoyées pour création:', {
+          vehiculeId: cleanNewData.vehiculeId,
+          immatriculation: cleanNewData.immatriculation,
+          allPhotosCount: cleanNewData.allPhotos?.length || 0,
+          allDefectsCount: cleanNewData.allDefects?.length || 0
+        });
+        
+        // Créer le document
+        const docRef = await addDoc(collection(db, 'vehicleChecks'), cleanNewData);
+        
+        console.log(`[saveVehicleCheck] Nouveau document créé: ${docRef.id}`);
+        
+        return {
+          id: docRef.id,
+          ...cleanNewData
+        };
+      }
+      
+    } catch (error) {
+      console.error('[saveVehicleCheck] Erreur lors de la sauvegarde du check véhicule:', error);
+      throw error;
+    }
+  },
+
+  // Fonction pour récupérer l'historique complet d'un véhicule
+  getVehicleCheckHistory: async (vehiculeId) => {
+    try {
+      console.log(`[getVehicleCheckHistory] Récupération de l'historique pour véhicule: ${vehiculeId}`);
+      
+      const vehicleCheckQuery = query(
+        collection(db, 'vehicleChecks'),
+        where('vehiculeId', '==', vehiculeId),
+        limit(1)
+      );
+      
+      const vehicleCheckSnapshot = await getDocs(vehicleCheckQuery);
+      
+      if (vehicleCheckSnapshot.empty) {
+        console.log(`[getVehicleCheckHistory] Aucun historique trouvé pour le véhicule: ${vehiculeId}`);
+        return null;
+      }
+      
+      const vehicleCheckDoc = vehicleCheckSnapshot.docs[0];
+      const vehicleCheckData = vehicleCheckDoc.data();
+      
+      console.log(`[getVehicleCheckHistory] Historique trouvé avec ${vehicleCheckData.checkHistory?.length || 0} checks`);
+      
+      return {
+        id: vehicleCheckDoc.id,
+        ...vehicleCheckData,
+        // Convertir les timestamps en dates lisibles
+        createdAt: vehicleCheckData.createdAt?.toDate?.() || vehicleCheckData.createdAt,
+        updatedAt: vehicleCheckData.updatedAt?.toDate?.() || vehicleCheckData.updatedAt,
+        // Convertir les timestamps dans l'historique
+        checkHistory: vehicleCheckData.checkHistory?.map(check => ({
+          ...check,
+          createdAt: check.createdAt?.toDate?.() || check.createdAt
+        })) || []
+      };
+      
+    } catch (error) {
+      console.error('[getVehicleCheckHistory] Erreur lors de la récupération de l\'historique:', error);
+      throw error;
+    }
+  },
+
+  // Fonction pour récupérer les checks de véhicules (pour l'interface web)
+  getVehicleChecks: async (filters = {}) => {
+    try {
+      console.log(`[getVehicleChecks] Récupération avec filtres:`, filters);
+      
+      let q = collection(db, 'vehicleChecks');
+      
+      // Appliquer les filtres si fournis
+      if (filters.selasId) {
+        q = query(q, where('selasId', '==', filters.selasId));
+        console.log(`[getVehicleChecks] Filtre selasId appliqué: ${filters.selasId}`);
+      }
+      if (filters.vehiculeId) {
+        q = query(q, where('vehiculeId', '==', filters.vehiculeId));
+        console.log(`[getVehicleChecks] Filtre vehiculeId appliqué: ${filters.vehiculeId}`);
+      }
+      if (filters.uid) {
+        q = query(q, where('uid', '==', filters.uid));
+        console.log(`[getVehicleChecks] Filtre uid appliqué: ${filters.uid}`);
+      }
+      
+      // Trier par date de création (plus récent en premier)
+      q = query(q, orderBy('createdAt', 'desc'));
+      
+      const querySnapshot = await getDocs(q);
+      
+      const results = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Convertir les timestamps en dates lisibles
+        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        date: doc.data().date
+      }));
+      
+      console.log(`[getVehicleChecks] ${results.length} résultats trouvés`);
+      console.log(`[getVehicleChecks] Premier résultat:`, results[0] ? {
+        id: results[0].id,
+        vehiculeId: results[0].vehiculeId,
+        immatriculation: results[0].immatriculation,
+        lastCheckDate: results[0].lastCheckDate,
+        checkHistoryLength: results[0].checkHistory?.length || 0
+      } : 'Aucun résultat');
+      
+      return results;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des checks véhicules:', error);
+      throw error;
+    }
+  },
+
+  // Fonction pour récupérer un check de véhicule spécifique
+  getVehicleCheckById: async (checkId) => {
+    try {
+      const checkDoc = await getDoc(doc(db, 'vehicleChecks', checkId));
+      
+      if (!checkDoc.exists()) {
+        throw new Error('Check véhicule non trouvé');
+      }
+      
+      return {
+        id: checkDoc.id,
+        ...checkDoc.data(),
+        createdAt: checkDoc.data().createdAt?.toDate?.() || checkDoc.data().createdAt
+      };
+    } catch (error) {
+      console.error('Erreur lors de la récupération du check véhicule:', error);
+      throw error;
+    }
+  },
+
+
+
   getCurrentSession: async () => {
     try {
       // Vérifier s'il existe une session active dans le stockage local
@@ -1241,19 +1784,26 @@ const FirebaseService = {
       
       if (!sessionId) return false;
       
-      // Mettre à jour la session comme terminée
-      await updateDoc(doc(db, 'sessions', sessionId), {
-        endTime: serverTimestamp(),
-        status: 'completed'
-      });
+      // Vérifier d'abord si la session existe
+      const sessionDoc = await getDoc(doc(db, 'sessions', sessionId));
       
-      // Supprimer la référence locale
+      if (sessionDoc.exists()) {
+        // Mettre à jour la session comme terminée
+        await updateDoc(doc(db, 'sessions', sessionId), {
+          endTime: serverTimestamp(),
+          status: 'completed'
+        });
+      }
+      
+      // Supprimer la référence locale même si la session n'existe pas
       await AsyncStorage.removeItem('current_session_id');
       
       return true;
     } catch (error) {
       console.error('Erreur lors de la fermeture de la session:', error);
-      throw error;
+      // Ne pas lancer l'erreur, juste la logger et nettoyer le stockage local
+      await AsyncStorage.removeItem('current_session_id');
+      return false;
     }
   },
   
@@ -1264,14 +1814,14 @@ const FirebaseService = {
       if (!userData) throw new Error('Utilisateur non authentifié');
       
       // Récupérer le selasId de l'utilisateur actuel
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       if (!selasId) {
         throw new Error('Aucune SELAS associée à cet utilisateur');
       }
       
       // Récupérer tous les utilisateurs de cette SELAS
-      const userProfilesCollection = collection(db, 'userProfiles');
-      const q = query(userProfilesCollection, where('selasId', '==', selasId));
+      const usersCollection = collection(db, 'users');
+      const q = query(usersCollection, where('selasId', '==', selasId));
       const querySnapshot = await getDocs(q);
       
       return querySnapshot.docs.map(doc => ({
@@ -1329,7 +1879,7 @@ const FirebaseService = {
       const userData = await FirebaseService.getCurrentUser();
       if (!userData) return false;
       
-      const userProfileDoc = await getDoc(doc(db, 'userProfiles', userData.uid));
+      const userProfileDoc = await getDoc(doc(db, 'users', userData.uid));
       if (!userProfileDoc.exists()) return false;
       
       const userRole = userProfileDoc.data().role;
@@ -1340,7 +1890,7 @@ const FirebaseService = {
     }
   },
   
-  // Vérifie si un code de site existe dans Firestore
+  // Vérifie si un code de site existe dans Firestore - VERSION OPTIMISÉE
   verifySiteCode: async function(siteCode) {
     try {
       console.log(`Vérification du site: ${siteCode}`);
@@ -1352,159 +1902,89 @@ const FirebaseService = {
 
       const sitesRef = firebase.firestore().collection('sites');
       
-      // 1. Essayer de trouver un site par son codeBarre exact
-      console.log(`[verifySiteCode] Recherche par codeBarre: ${siteCode}`);
-      const barcodeSnapshot = await sitesRef.where('codeBarre', '==', siteCode).get();
+      // 🚀 OPTIMISATION: Toutes les requêtes en parallèle au lieu de séquentiel
+      const searchPromises = [];
       
-      if (!barcodeSnapshot.empty) {
-        const siteData = barcodeSnapshot.docs[0].data();
-        console.log(`[verifySiteCode] Site trouvé par codeBarre:`, siteData);
-        return { 
-          valid: true, 
-          site: {
-            id: barcodeSnapshot.docs[0].id,
-            name: siteData.name || siteData.nom || "Site sans nom",
-            address: siteData.address || siteData.adresse || "",
-            city: siteData.city || siteData.ville || "",
-            code: siteData.codeBarre || siteData.code || siteCode
-          }
-        };
-      }
-
-      // 2. Essayer de trouver un site par son code exact
-      console.log(`[verifySiteCode] Recherche par code exact: ${siteCode}`);
-      const siteSnapshot = await sitesRef.where('code', '==', siteCode).get();
+      // 1. Recherche par codeBarre
+      searchPromises.push(
+        sitesRef.where('codeBarre', '==', siteCode).limit(1).get()
+          .then(snapshot => ({ type: 'codeBarre', snapshot }))
+      );
       
-      if (!siteSnapshot.empty) {
-        const siteData = siteSnapshot.docs[0].data();
-        console.log(`[verifySiteCode] Site trouvé par code exact:`, siteData);
-        return { 
-          valid: true, 
-          site: {
-            id: siteSnapshot.docs[0].id,
-            name: siteData.name || siteData.nom || "Site sans nom",
-            address: siteData.address || siteData.adresse || "",
-            city: siteData.city || siteData.ville || "",
-            code: siteData.codeBarre || siteData.code || siteCode
-          }
-        };
-      }
+      // 2. Recherche par code
+      searchPromises.push(
+        sitesRef.where('code', '==', siteCode).limit(1).get()
+          .then(snapshot => ({ type: 'code', snapshot }))
+      );
       
-      // 3. Essayer de chercher par ID (en enlevant le préfixe "SITE_" s'il existe)
+      // 3. Recherche par ID (en enlevant le préfixe "SITE_" s'il existe)
       const siteId = siteCode.replace(/^SITE_?/i, '');
-      console.log(`[verifySiteCode] Recherche par ID: ${siteId}`);
-      const siteDoc = await sitesRef.doc(siteId).get();
-      
-      if (siteDoc.exists) {
-        const siteData = siteDoc.data();
-        console.log(`[verifySiteCode] Site trouvé par ID:`, siteData);
-        return { 
-          valid: true, 
-          site: {
-            id: siteDoc.id,
-            name: siteData.name || siteData.nom || "Site sans nom",
-            address: siteData.address || siteData.adresse || "",
-            city: siteData.city || siteData.ville || "",
-            code: siteData.codeBarre || siteData.code || siteCode
-          }
-        };
-      }
+      searchPromises.push(
+        sitesRef.doc(siteId).get()
+          .then(doc => ({ type: 'docId', doc }))
+      );
       
       // 4. Recherche par nom (extraire la partie après "SITE_")
       const siteName = siteCode.replace(/^SITE_?/i, '');
       if (siteName && siteName !== siteCode) {
-        console.log(`[verifySiteCode] Recherche par nom: ${siteName}`);
+        searchPromises.push(
+          sitesRef.where('name', '==', siteName).limit(1).get()
+            .then(snapshot => ({ type: 'name', snapshot }))
+        );
         
-        // Recherche par nom exact
-        const nameQuery = await sitesRef.where('name', '==', siteName).get();
-        if (!nameQuery.empty) {
-          const siteData = nameQuery.docs[0].data();
-          console.log(`[verifySiteCode] Site trouvé par nom:`, siteData);
-          return { 
-            valid: true, 
-            site: {
-              id: nameQuery.docs[0].id,
-              name: siteData.name || siteData.nom || "Site sans nom",
-              address: siteData.address || siteData.adresse || "",
-              city: siteData.city || siteData.ville || "",
-              code: siteData.codeBarre || siteData.code || siteCode
-            }
-          };
-        }
-        
-        // Recherche par nom (champ "nom" au lieu de "name")
-        const nomQuery = await sitesRef.where('nom', '==', siteName).get();
-        if (!nomQuery.empty) {
-          const siteData = nomQuery.docs[0].data();
-          console.log(`[verifySiteCode] Site trouvé par nom (champ 'nom'):`, siteData);
-          return { 
-            valid: true, 
-            site: {
-              id: nomQuery.docs[0].id,
-              name: siteData.name || siteData.nom || "Site sans nom",
-              address: siteData.address || siteData.adresse || "",
-              city: siteData.city || siteData.ville || "",
-              code: siteData.codeBarre || siteData.code || siteCode
-            }
-          };
-        }
+        searchPromises.push(
+          sitesRef.where('nom', '==', siteName).limit(1).get()
+            .then(snapshot => ({ type: 'nom', snapshot }))
+        );
       }
+
+      console.log(`[verifySiteCode] ⚡ Exécution de ${searchPromises.length} requêtes en parallèle`);
       
-      // 5. Recherche flexible - tous les sites pour débugger
-      console.log(`[verifySiteCode] Recherche flexible - récupération de tous les sites pour debug`);
-      const allSitesQuery = await sitesRef.limit(10).get();
-      console.log(`[verifySiteCode] Nombre total de sites trouvés: ${allSitesQuery.size}`);
+      // Exécuter toutes les recherches en parallèle
+      const results = await Promise.allSettled(searchPromises);
       
-      allSitesQuery.docs.forEach((doc, index) => {
-        const data = doc.data();
-        console.log(`[verifySiteCode] Site ${index + 1}:`, {
-          id: doc.id,
-          code: data.code,
-          codeBarre: data.codeBarre,
-          name: data.name,
-          nom: data.nom,
-          address: data.address,
-          adresse: data.adresse
-        });
-      });
-      
-      // 6. Recherche plus flexible par contenu partiel
-      const searchTerms = [
-        siteName.toLowerCase(),
-        siteCode.toLowerCase(),
-        siteCode.replace(/^SITE_?/i, '').toLowerCase()
-      ];
-      
-      for (const term of searchTerms) {
-        if (term && term.length > 2) {
-          console.log(`[verifySiteCode] Recherche flexible avec terme: ${term}`);
+      // Analyser les résultats par priorité
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const { type, snapshot, doc } = result.value;
           
-          // Recherche dans les sites existants
-          for (const doc of allSitesQuery.docs) {
-            const data = doc.data();
-            const siteName = (data.name || data.nom || '').toLowerCase();
-            const siteCode = (data.code || '').toLowerCase();
-            const codeBarreValue = (data.codeBarre || '').toLowerCase();
-            
-            if (siteName.includes(term) || siteCode.includes(term) || codeBarreValue.includes(term)) {
-              console.log(`[verifySiteCode] Site trouvé par recherche flexible:`, data);
-              return { 
-                valid: true, 
-                site: {
-                  id: doc.id,
-                  name: data.name || data.nom || "Site sans nom",
-                  address: data.address || data.adresse || "",
-                  city: data.city || data.ville || "",
-                  code: data.codeBarre || data.code || siteCode
-                }
-              };
-            }
+          // Vérifier les snapshots de requêtes
+          if (snapshot && !snapshot.empty) {
+            const siteData = snapshot.docs[0].data();
+            console.log(`[verifySiteCode] ✅ Site trouvé par ${type}:`, siteData.name || siteData.nom);
+            return { 
+              valid: true, 
+              site: {
+                id: snapshot.docs[0].id,
+                name: siteData.name || siteData.nom || "Site sans nom",
+                address: siteData.address || siteData.adresse || "",
+                city: siteData.city || siteData.ville || "",
+                code: siteData.codeBarre || siteData.code || siteCode
+              }
+            };
+          }
+          
+          // Vérifier le document direct (recherche par ID)
+          if (doc && doc.exists) {
+            const siteData = doc.data();
+            console.log(`[verifySiteCode] ✅ Site trouvé par ID:`, siteData.name || siteData.nom);
+            return { 
+              valid: true, 
+              site: {
+                id: doc.id,
+                name: siteData.name || siteData.nom || "Site sans nom",
+                address: siteData.address || siteData.adresse || "",
+                city: siteData.city || siteData.ville || "",
+                code: siteData.codeBarre || siteData.code || siteCode
+              }
+            };
           }
         }
       }
       
-      console.log(`Aucun site trouvé avec le code: ${siteCode}`);
+      console.log(`❌ Aucun site trouvé avec le code: ${siteCode}`);
       return { valid: false, error: "Site non trouvé" };
+      
     } catch (error) {
       console.error("Erreur lors de la vérification du site:", error);
       return { valid: false, error: "Erreur lors de la vérification du site" };
@@ -1525,7 +2005,7 @@ const FirebaseService = {
       const siteDoc = await sitesRef.doc(siteId).get();
       
       if (!siteDoc.exists) {
-        console.log(`❌ [getSiteWithPole] Site non trouvé avec l'ID: ${siteId}`);
+        // Log réduit pour éviter la verbosité
         return null;
       }
 
@@ -1625,7 +2105,7 @@ const FirebaseService = {
       
       console.log(`✅ [getSessionById] Session trouvée:`, {
         id: sessionResult.id,
-        userId: sessionResult.userId,
+        uid: sessionResult.uid,
         tourneeId: sessionResult.tourneeId,
         vehiculeId: sessionResult.vehiculeId,
         poleId: sessionResult.poleId
@@ -1650,7 +2130,7 @@ const FirebaseService = {
       const siteDoc = await sitesRef.doc(siteId).get();
       
       if (!siteDoc.exists) {
-        console.log(`Site non trouvé avec l'ID: ${siteId}`);
+        // Log réduit pour éviter la verbosité
         return null;
       }
 
@@ -1726,7 +2206,7 @@ const FirebaseService = {
         ? `${userProfile.prenom} ${userProfile.nom}` 
         : user.email;
       
-      const selaId = await FirebaseService.getUserSelas();
+      const selaId = await FirebaseService.getUserSelasId();
       
       // Formatage des données de la Big-Sacoche pour Firestore
       const formattedBigSacoche = {
@@ -1803,125 +2283,125 @@ const FirebaseService = {
     }
   },
 
-  // Fonction pour récupérer une tournée avec ses sites et leur statut de visite
+  // Fonction OPTIMISÉE pour récupérer une tournée avec ses sites et leur statut de visite
   getTourneeWithSites: async (tourneeId, sessionId) => {
     try {
-      console.log(`Récupération de la tournée ${tourneeId} avec sites pour la session ${sessionId}`);
+      console.log(`🚀 [getTourneeWithSites] Chargement optimisé tournée ${tourneeId}`);
+      const startTime = Date.now();
       
-      // Récupérer les détails de la tournée
-      const tourneeDoc = await getDoc(doc(db, 'tournees', tourneeId));
+      // OPTIMISATION 1: Requêtes parallèles pour tournée et session
+      const [tourneeDoc, sessionDoc] = await Promise.all([
+        getDoc(doc(db, 'tournees', tourneeId)),
+        sessionId ? getDoc(doc(db, 'sessions', sessionId)) : Promise.resolve(null)
+      ]);
+      
       if (!tourneeDoc.exists()) {
         throw new Error('Tournée non trouvée');
       }
       
       const tourneeData = tourneeDoc.data();
       
-      // Récupérer les sites de la tournée
-      let sitesWithStatus = [];
-      if (tourneeData.sites && Array.isArray(tourneeData.sites)) {
-        console.log(`[getTourneeWithSites] Traitement de ${tourneeData.sites.length} sites pour la tournée`);
-        
-        // Pour chaque site de la tournée, récupérer ses détails et vérifier s'il a été visité
-        sitesWithStatus = await Promise.all(
-          tourneeData.sites.map(async (siteRef, index) => {
-            try {
-              // Si c'est un objet avec id, utiliser directement l'id
-              const siteId = siteRef.id || siteRef;
-              console.log(`[getTourneeWithSites] Traitement du site ${index + 1}: ${siteId}`);
-              
-              // Récupérer les détails du site
-              const siteDoc = await getDoc(doc(db, 'sites', siteId));
-              const siteData = siteDoc.exists() ? siteDoc.data() : {};
-              
-              if (siteDoc.exists()) {
-                console.log(`[getTourneeWithSites] Site ${siteId} trouvé:`, {
-                  nom: siteData.nom || siteData.name,
-                  adresse: siteData.adresse || siteData.address,
-                  ville: siteData.ville || siteData.city,
-                  roadbook: siteData.roadbook ? 'PRÉSENT' : 'ABSENT',
-                  roadbookKeys: siteData.roadbook ? Object.keys(siteData.roadbook) : 'N/A'
-                });
-              } else {
-                console.warn(`[getTourneeWithSites] Site ${siteId} non trouvé dans la collection sites`);
-              }
-              
-              // Vérifier si le site a été visité dans cette session
-              let visited = false;
-              if (sessionId) {
-                try {
-                  // Récupérer les données de session pour vérifier les visites
-                  const sessionDoc = await getDoc(doc(db, 'sessions', sessionId));
-                  if (sessionDoc.exists()) {
-                    const sessionData = sessionDoc.data();
-                    const visitedSiteIdentifiers = sessionData.visitedSiteIdentifiers || [];
-                    
-                    // Vérifier si ce site (avec cet index) a été visité
-                    const uniqueVisitId = `${siteId}_${index}`;
-                    visited = visitedSiteIdentifiers.includes(uniqueVisitId);
-                    
-                    console.log(`[getTourneeWithSites] Site ${siteId} (index ${index}): visité = ${visited}`);
-                  }
-                } catch (sessionError) {
-                  console.warn(`[getTourneeWithSites] Erreur lors de la vérification des visites pour le site ${siteId}:`, sessionError);
-                  visited = false;
-                }
-              }
-              
-              const siteWithStatus = {
-                id: siteId,
-                nom: siteData.nom || siteData.name || `Site ${index + 1}`,
-                name: siteData.nom || siteData.name || `Site ${index + 1}`, // Alias pour compatibilité
-                adresse: siteData.adresse || siteData.address || '',
-                address: siteData.adresse || siteData.address || '', // Alias pour compatibilité
-                ville: siteData.ville || siteData.city || '',
-                city: siteData.ville || siteData.city || '', // Alias pour compatibilité
-                ordre: siteRef.ordre || index + 1,
-                heureArrivee: siteRef.heureArrivee,
-                visited: visited,
-                uniqueDisplayId: `${siteId}_${index}`, // Pour le système de suivi local
-                roadbook: siteData.roadbook || null // Ajouter les données roadbook
-              };
-              
-              console.log(`[getTourneeWithSites] Site formaté:`, siteWithStatus);
-              return siteWithStatus;
-              
-            } catch (error) {
-              console.warn(`Erreur lors de la récupération du site ${siteRef.id || siteRef}:`, error);
-              return {
-                id: siteRef.id || siteRef,
-                nom: `Site ${index + 1}`,
-                adresse: '',
-                ville: '',
-                ordre: siteRef.ordre || index + 1,
-                heureArrivee: siteRef.heureArrivee,
-                visited: false,
-                uniqueDisplayId: `${siteRef.id || siteRef}_${index}`
-              };
-            }
-          })
-        );
-      } else {
-        console.warn('[getTourneeWithSites] Aucun site trouvé dans tourneeData.sites');
+      // Récupérer les sites visités de la session (une seule fois)
+      const visitedSiteIdentifiers = sessionDoc?.exists() 
+        ? (sessionDoc.data().visitedSiteIdentifiers || [])
+        : [];
+      
+      // OPTIMISATION 2: Vérifier s'il y a des sites à traiter
+      if (!tourneeData?.sites?.length) {
+        console.log(`⚡ [getTourneeWithSites] Aucun site dans la tournée`);
+        return { ...tourneeData, sitesWithStatus: [], sitesCount: 0 };
       }
       
-      const result = {
-        id: tourneeDoc.id,
-        nom: tourneeData.nom,
-        sites: tourneeData.sites,
-        sitesWithStatus: sitesWithStatus,
-        ...tourneeData
-      };
+      // OPTIMISATION 3: Extraire les IDs uniques des sites
+      const siteIds = [...new Set(tourneeData.sites.map(site => site.id))];
+      console.log(`🔍 [getTourneeWithSites] Chargement ${siteIds.length} sites uniques`);
       
-      console.log(`[getTourneeWithSites] Résultat final:`, {
-        id: result.id,
-        nom: result.nom,
-        sitesCount: result.sitesWithStatus.length,
-        sampleSites: result.sitesWithStatus.slice(0, 2) // Montrer 2 premiers sites
+      // OPTIMISATION 4: Requêtes parallèles pour tous les sites
+      const sitePromises = siteIds.map(siteId => 
+        getDoc(doc(db, 'sites', siteId)).catch(error => {
+          console.warn(`⚠️ Site ${siteId} non accessible:`, error.message);
+          return null;
+        })
+      );
+      
+      const siteDocs = await Promise.all(sitePromises);
+      
+      // OPTIMISATION 5: Créer un Map pour accès O(1)
+      const sitesMap = new Map();
+      siteDocs.forEach((siteDoc, index) => {
+        if (siteDoc?.exists()) {
+          sitesMap.set(siteIds[index], siteDoc.data());
+        }
       });
       
-      return result;
+      // OPTIMISATION 6: Construction rapide des sites avec statut
+      const sitesWithStatus = tourneeData.sites.map((site, index) => {
+        const siteData = sitesMap.get(site.id);
+        
+        if (!siteData) {
+          console.warn(`⚠️ Site ${site.id} introuvable, utilisation données par défaut`);
+          return {
+            id: site.id,
+            nom: 'Site introuvable',
+            name: 'Site introuvable',
+            adresse: 'Adresse non disponible',
+            address: 'Adresse non disponible',
+            ville: '',
+            city: '',
+            codePostal: '',
+            zipCode: '',
+            telephone: null,
+            phone: null,
+            tel: null,
+            visited: false,
+            ordre: site.ordre || index + 1,
+            heureArrivee: site.heureArrivee && site.heureArrivee.toDate ? site.heureArrivee.toDate() : site.heureArrivee,
+            uniqueDisplayId: `${site.id}_${index}`,
+            roadbook: 'ABSENT',
+            roadbookKeys: 'N/A',
+            code: `SITE_${site.id}`
+          };
+        }
+        
+        // Vérification visite optimisée (sans requête)
+        const uniqueVisitId = `${site.id}_${index}`;
+        const visited = visitedSiteIdentifiers.includes(uniqueVisitId);
+        
+        return {
+          id: site.id,
+          nom: siteData.nom || siteData.name || 'Site sans nom',
+          name: siteData.nom || siteData.name || 'Site sans nom',
+          adresse: siteData.adresse || siteData.address || 'Adresse non spécifiée',
+          address: siteData.adresse || siteData.address || 'Adresse non spécifiée',
+          ville: siteData.ville || siteData.city || '',
+          city: siteData.ville || siteData.city || '',
+          codePostal: siteData.codePostal || siteData.zipCode || '',
+          zipCode: siteData.codePostal || siteData.zipCode || '',
+          telephone: siteData.telephone || siteData.phone || siteData.tel || null,
+          phone: siteData.telephone || siteData.phone || siteData.tel || null,
+          tel: siteData.telephone || siteData.phone || siteData.tel || null,
+          visited: visited,
+          ordre: site.ordre || index + 1,
+          heureArrivee: site.heureArrivee && site.heureArrivee.toDate ? site.heureArrivee.toDate() : site.heureArrivee,
+          uniqueDisplayId: uniqueVisitId,
+          roadbook: siteData.roadbook || 'ABSENT',
+          roadbookKeys: siteData.roadbookKeys || 'N/A',
+          code: `SITE_${siteData.nom || siteData.name || 'Site sans nom'}`
+        };
+      });
+      
+      const loadTime = Date.now() - startTime;
+      console.log(`⚡ [getTourneeWithSites] Chargement terminé en ${loadTime}ms - ${sitesWithStatus.length} sites`);
+      
+      return {
+        ...tourneeData,
+        sitesWithStatus: sitesWithStatus,
+        sitesCount: sitesWithStatus.length,
+        visitedSites: sitesWithStatus.filter(site => site.visited).length
+      };
+      
     } catch (error) {
-      console.error('Erreur lors de la récupération de la tournée avec sites:', error);
+      console.error('❌ [getTourneeWithSites] Erreur chargement:', error.message);
       throw error;
     }
   },
@@ -1932,7 +2412,7 @@ const FirebaseService = {
       console.log(`Récupération des scans en cours pour la tournée ${tourneeId}`);
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       
       const scansCollection = collection(db, 'passages');
       let q;
@@ -1975,7 +2455,7 @@ const FirebaseService = {
       console.log('Récupération de tous les scans disponibles');
       
       // Récupérer le selasId associé à l'utilisateur
-      const selasId = await FirebaseService.getUserSelas();
+      const selasId = await FirebaseService.getUserSelasId();
       
       const scansCollection = collection(db, 'passages');
       let q;
@@ -1995,7 +2475,7 @@ const FirebaseService = {
         ...doc.data()
       }));
       
-      console.log(`${allScans.length} scans trouvés au total`);
+      // Log supprimé pour réduire la verbosité
       return allScans;
     } catch (error) {
       console.error('Erreur lors de la récupération de tous les scans:', error);
@@ -2087,7 +2567,245 @@ const FirebaseService = {
       console.error('[markSiteVisitedInSession] Erreur lors du marquage du site comme visité:', error);
       return false;
     }
-  }
+  },
+
+  // Fonction pour uploader une image vers Supabase Storage (remplace Firebase Storage)
+  uploadImageAsync: async (localUri, vehiculeImmat) => {
+    try {
+      if (!localUri) {
+        throw new Error('URI de l\'image manquante');
+      }
+
+      console.log(`[uploadImageAsync] Début upload image vers Supabase...`);
+      console.log(`[uploadImageAsync] URI: ${localUri.substring(0, 50)}...`);
+      console.log(`[uploadImageAsync] Immatriculation véhicule: ${vehiculeImmat || 'non définie'}`);
+
+      // Test de connectivité avec Supabase avant l'upload (optionnel)
+      try {
+        const connectionTest = await SupabaseService.testConnection();
+        if (connectionTest.success && connectionTest.hasVehicleChecksBucket) {
+          console.log(`[uploadImageAsync] ✅ Connectivité Supabase OK, bucket vehicle-checks accessible`);
+        } else {
+          console.warn(`[uploadImageAsync] ⚠️ Problème de connectivité Supabase: ${connectionTest.error || 'Bucket non trouvé'}`);
+          console.log(`[uploadImageAsync] Tentative d'upload direct malgré les avertissements...`);
+        }
+      } catch (connectionError) {
+        console.warn(`[uploadImageAsync] ⚠️ Erreur de connectivité Supabase:`, connectionError);
+        console.log(`[uploadImageAsync] Tentative d'upload direct malgré les erreurs...`);
+      }
+
+      // Upload vers Supabase Storage - Bucket vehicle-checks pour les photos de vérification mobile
+      // Utiliser l'immatriculation du véhicule comme identifiant unique
+      const cleanImmat = vehiculeImmat.replace(/[^a-zA-Z0-9]/g, '_'); // Nettoyer l'immatriculation pour le nom de fichier
+      
+      const result = await SupabaseService.uploadImageFromUri(
+        localUri, 
+        'vehicle-checks', // bucket dédié aux photos de vérification mobile
+        cleanImmat // utiliser l'immatriculation comme dossier
+      );
+      
+      console.log(`[uploadImageAsync] ✅ Upload réussi, URL: ${result.url}`);
+      return result.url;
+      
+    } catch (error) {
+      console.error(`[uploadImageAsync] Erreur Supabase:`, error);
+      console.log(`[uploadImageAsync] Type d'erreur: ${error.name}, Message: ${error.message}`);
+      
+      // Pas de fallback Firebase - Supabase uniquement
+      throw new Error(`Upload Supabase échoué: ${error.message}`);
+    }
+  },
+
+
+  // Nouvelle fonction pour ajouter UN SEUL passage (gère le mode hors-ligne)
+  addPassage: async (passageData, isConnected) => {
+    console.log(`[firebaseService] addPassage pour colis: ${passageData.idColis}`);
+    if (!isConnected) {
+      console.log('Mode hors-ligne, ajout du passage à la queue.');
+      // Créez un format compatible avec ce que votre queue attend
+      // await offlineQueueService.addToQueue([passageData]); 
+      return { success: true, message: 'Passage mis en queue (hors-ligne).' };
+    }
+    
+    try {
+      const passageCollection = collection(db, 'passages');
+      await addDoc(passageCollection, {
+        ...passageData,
+        createdAt: new Date(), // Ajoute une date de création pour le tri
+      });
+      console.log(`✅ Passage ${passageData.idColis} ajouté avec succès à Firestore.`);
+      return { success: true };
+    } catch (error) {
+      console.error(`🚨 Erreur lors de l'ajout du passage ${passageData.idColis}:`, error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Nouvelle fonction pour METTRE À JOUR un passage lors d'une 'sortie'
+  updatePassageOnSortie: async (idColis, updateData, isConnected) => {
+    console.log(`[firebaseService] updatePassageOnSortie pour colis: ${idColis}`);
+    if (!isConnected) {
+      console.log('Mode hors-ligne, ajout de la mise à jour à la queue.');
+      // Votre service de queue doit savoir comment gérer une mise à jour.
+      // C'est une simplification. Vous devrez peut-être adapter offlineQueueService.
+      const updateAction = {
+        type: 'update',
+        collection: 'passages',
+        idColis: idColis, // Clé pour trouver le document
+        data: updateData,
+      };
+      // await offlineQueueService.addToQueue([updateAction]);
+      return { success: true, message: 'Mise à jour mise en queue (hors-ligne).' };
+    }
+
+    try {
+      // 1. Trouver le document du passage qui est 'en-cours'
+      const passagesRef = collection(db, 'passages');
+      const q = query(passagesRef, where('idColis', '==', idColis), where('status', '==', 'en-cours'));
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        console.warn(`⚠️ Aucun passage 'en-cours' trouvé pour l'ID colis: ${idColis}. Impossible de mettre à jour.`);
+        // Envisagez de créer un nouveau passage ici comme fallback si nécessaire
+        return { success: false, error: 'Document non trouvé' };
+      }
+      
+      // 2. Mettre à jour le premier document trouvé
+      const passageDoc = querySnapshot.docs[0];
+      await updateDoc(doc(db, 'passages', passageDoc.id), {
+          ...updateData,
+          updatedAt: new Date(), // Ajoute une date de mise à jour
+      });
+      
+      console.log(`✅ Passage ${idColis} (ID doc: ${passageDoc.id}) mis à jour avec succès.`);
+      return { success: true };
+
+    } catch (error) {
+      console.error(`🚨 Erreur lors de la mise à jour du passage ${idColis}:`, error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Récupérer les sites d'un pôle
+  getSitesByPole: async (poleId) => {
+    try {
+      console.log(`🌐 [getSitesByPole] Chargement des sites pour le pôle ${poleId}...`);
+      
+      // D'abord, récupérer le nom du pôle
+      let poleName = null;
+      try {
+        const poleDoc = await getDoc(doc(db, 'poles', poleId));
+        if (poleDoc.exists()) {
+          poleName = poleDoc.data().nom;
+          console.log(`📋 [getSitesByPole] Nom du pôle trouvé: ${poleName}`);
+        } else {
+          console.warn(`⚠️ [getSitesByPole] Pôle avec ID ${poleId} non trouvé`);
+        }
+      } catch (poleError) {
+        console.warn(`⚠️ [getSitesByPole] Impossible de récupérer le nom du pôle:`, poleError);
+      }
+      
+      const sitesCollection = collection(db, 'sites');
+      let sitesSnapshot;
+      
+      // Essayer d'abord avec poleId
+      if (poleId) {
+        console.log(`🔍 [getSitesByPole] Tentative de recherche par poleId: ${poleId}`);
+        const sitesQueryById = query(sitesCollection, where('poleId', '==', poleId));
+        sitesSnapshot = await getDocs(sitesQueryById);
+        console.log(`🔍 [getSitesByPole] Recherche par poleId: ${sitesSnapshot.size} résultats`);
+      }
+      
+      // Si aucun résultat avec poleId, essayer avec le nom du pôle
+      if (!sitesSnapshot || sitesSnapshot.empty) {
+        if (poleName) {
+          console.log(`🔍 [getSitesByPole] Tentative de recherche par nom de pôle: ${poleName}`);
+          const sitesQueryByName = query(sitesCollection, where('pole', '==', poleName));
+          sitesSnapshot = await getDocs(sitesQueryByName);
+          console.log(`🔍 [getSitesByPole] Recherche par nom de pôle (${poleName}): ${sitesSnapshot.size} résultats`);
+        }
+      }
+      
+      // Si toujours aucun résultat, essayer une recherche plus large
+      if (!sitesSnapshot || sitesSnapshot.empty) {
+        console.log(`🔍 [getSitesByPole] Aucun site trouvé, récupération de tous les sites pour debug...`);
+        sitesSnapshot = await getDocs(sitesCollection);
+        console.log(`🔍 [getSitesByPole] Total des sites dans la base: ${sitesSnapshot.size}`);
+        
+        // Afficher la structure des premiers sites pour debug
+        if (!sitesSnapshot.empty) {
+          const firstSite = sitesSnapshot.docs[0].data();
+          console.log(`🔍 [getSitesByPole] Structure du premier site:`, firstSite);
+          
+          // Vérifier s'il y a des sites avec des champs poleId ou pole
+          const sitesWithPoleInfo = sitesSnapshot.docs.filter(doc => {
+            const data = doc.data();
+            return data.poleId || data.pole;
+          });
+          console.log(`🔍 [getSitesByPole] Sites avec info pôle: ${sitesWithPoleInfo.length}`);
+          
+          if (sitesWithPoleInfo.length > 0) {
+            console.log(`🔍 [getSitesByPole] Exemples de sites avec info pôle:`, 
+              sitesWithPoleInfo.slice(0, 2).map(doc => ({
+                id: doc.id,
+                nom: doc.data().nom,
+                poleId: doc.data().poleId,
+                pole: doc.data().pole
+              }))
+            );
+          }
+        }
+      }
+      
+      if (!sitesSnapshot || sitesSnapshot.empty) {
+        console.log(`📝 [getSitesByPole] Aucun site trouvé pour le pôle ${poleId}`);
+        return [];
+      }
+      
+      const sites = sitesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      console.log(`✅ [getSitesByPole] ${sites.length} sites chargés pour le pôle ${poleId}`);
+      return sites;
+    } catch (error) {
+      console.error(`❌ [getSitesByPole] Erreur lors du chargement des sites:`, error);
+      throw error;
+    }
+  },
+
+  // Sauvegarder l'état de la tournée
+  saveTourneeProgress: async (tourneeId, progressData) => {
+    if (!tourneeId) {
+      console.error('❌ [saveTourneeProgress] ID de tournée manquant');
+      return { success: false, error: 'ID de tournée manquant' };
+    }
+
+    try {
+      const tourneeDoc = await getDoc(doc(db, 'tournees', tourneeId));
+      if (!tourneeDoc.exists()) {
+        console.error('❌ [saveTourneeProgress] Tournée non trouvée:', tourneeId);
+        return { success: false, error: 'Tournée non trouvée' };
+      }
+
+      const tourneeData = tourneeDoc.data();
+      const updatedTourneeData = {
+        ...tourneeData,
+        ...progressData,
+        lastUpdated: serverTimestamp()
+      };
+
+      await updateDoc(doc(db, 'tournees', tourneeId), updatedTourneeData);
+      console.log(`✅ [saveTourneeProgress] État de la tournée ${tourneeId} sauvegardé avec succès`);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ [saveTourneeProgress] Erreur lors de la sauvegarde:', error);
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 export default FirebaseService; 
+export { db, auth, storage }; 

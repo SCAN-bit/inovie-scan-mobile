@@ -5,19 +5,40 @@ import { View, Text, StyleSheet } from 'react-native';
 
 // Configuration pour les icônes et couleurs selon le statut et le type
 const statusConfig = {
+  // Statuts standards
   livre: {
-    icon: '✅', // Ou utilisez Icon: <Icon name="check-circle" size={24} color="#4CAF50" />
+    icon: '✅',
     color: '#4CAF50', // Vert
     label: 'Livré',
   },
+  'livre': { // avec accent
+    icon: '✅',
+    color: '#4CAF50',
+    label: 'Livré',
+  },
   'en-cours': {
-    icon: '🚚', // Ou utilisez Icon: <Icon name="truck-delivery" size={24} color="#FF9800" />
+    icon: '🔄',
     color: '#FF9800', // Orange
     label: 'En cours',
   },
+  'en cours': {
+    icon: '🔄',
+    color: '#FF9800',
+    label: 'En cours',
+  },
+  'pas de colis': {
+    icon: '📭',
+    color: '#9C27B0', // Violet
+    label: 'Pas de colis',
+  },
+  'visite-terminee': {
+    icon: '🏁',
+    color: '#2196F3', // Bleu
+    label: 'Visite terminée',
+  },
   // Statut par défaut ou inconnu
   default: {
-    icon: '❓', // Ou utilisez Icon: <Icon name="help-circle" size={24} color="#9E9E9E" />
+    icon: '❓',
     color: '#9E9E9E',
     label: 'Inconnu',
   },
@@ -44,34 +65,85 @@ const typeConfig = {
 
 const ScanHistoryItem = ({ item }) => {
   // --- DEBUG LOG --- 
-  console.log('[ScanHistoryItem] Rendering item:', JSON.stringify(item, null, 2));
+  console.log('[ScanHistoryItem] Données reçues:', JSON.stringify({
+    idColis: item.idColis,
+    code: item.code,
+    status: item.status,
+    type: item.type,
+    operationType: item.operationType,
+    timeStamp: item.timeStamp,
+    site: item.site,
+    siteName: item.siteName,
+    siteDetails: item.siteDetails ? 'Oui' : 'Non'
+  }, null, 2));
   // --- FIN DEBUG LOG ---
   
-  // --- Gestion du statut accentié ---
-  // Définir typeKey en début pour qu'il soit accessible partout
-  const typeKey = (item.type || '').toLowerCase();
+  // --- Gestion du type et du statut ---
+  const currentType = item.type || item.operationType || 'entree'; 
+  const typeKey = currentType.toLowerCase();
 
-  // Normaliser le statut: enlever les accents puis en minuscules
-  const rawStatus = (item.status || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Supprime les diacritiques
-    .toLowerCase();
-  let statusInfo = statusConfig[rawStatus];
+  // Récupération et normalisation du statut
+  const rawStatus = (item.status || '').toString().toLowerCase().trim();
+  console.log(`[ScanHistoryItem] Statut brut: "${rawStatus}", Type brut: "${typeKey}"`);
 
-  // Si le statut n'est pas reconnu après normalisation, fallback selon le type
+  // Détermination du statut en fonction de plusieurs critères
+  let statusInfo;
+
+  // 1. Si le statut est défini et reconnu directement
+  if (rawStatus && statusConfig[rawStatus]) {
+    statusInfo = statusConfig[rawStatus];
+  } 
+  // 2. Vérification sans tenir compte des tirets/espaces/diacritiques
+  else if (rawStatus) {
+    const normalizedStatus = rawStatus
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f-\s]/g, '') // Supprime diacritiques, tirets et espaces
+      .toLowerCase();
+    
+    const matchingStatus = Object.keys(statusConfig).find(key => 
+      key.replace(/[\s-]/g, '') === normalizedStatus
+    );
+    
+    if (matchingStatus) {
+      statusInfo = statusConfig[matchingStatus];
+    }
+  }
+
+  // 3. Si toujours pas de statut, vérifier les conditions spéciales 'pas de colis'
   if (!statusInfo) {
-    if (typeKey === 'sortie') {
-      statusInfo = statusConfig.livre;
-    } else if (typeKey === 'entree') {
+    console.log('[DEBUG] Vérification des conditions - typeKey: ${typeKey}, operationType: ${item.operationType}, status: ${item.status}');
+    
+    if (typeKey === 'visite_sans_colis' || 
+        item.operationType === 'visite_sans_colis' || 
+        !item.idColis || 
+        item.status === 'visite-terminee' || 
+        item.status === 'pas_de_colis' ||
+        item.status === 'Pas de colis' ||
+        (item.statut && item.statut.toLowerCase() === 'pas de colis')) {
+      console.log('[DEBUG] Statut défini comme "Pas de colis"');
+      statusInfo = statusConfig['pas de colis'];
+    }
+  }
+
+  // 4. Si toujours pas, déduire du type d'opération
+  if (!statusInfo) {
+    console.log('[DEBUG] Déduction du statut à partir du type');
+    if (typeKey === 'entree' || typeKey === 'prise en charge') {
       statusInfo = statusConfig['en-cours'];
+    } else if (typeKey === 'sortie' || typeKey === 'depot') {
+      statusInfo = statusConfig.livre;
     } else {
+      console.warn(`[ScanHistoryItem] Aucun statut reconnu pour: status="${rawStatus}", type="${typeKey}"`);
       statusInfo = statusConfig.default;
     }
   }
-  
-  // Utiliser 'entree' comme type par défaut si non défini
-  const currentType = item.type || 'entree'; 
-  const typeInfo = typeConfig[currentType] || typeConfig.default;
+
+  // Gestion du type
+  const typeInfo = typeConfig[typeKey] || typeConfig.default;
+
+  if (!typeConfig[typeKey]) {
+    console.warn(`[ScanHistoryItem] Type non reconnu: "${typeKey}"`);
+  }
 
   return (
     <View style={styles.card}>

@@ -86,13 +86,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'inovie.scan.mobile'
+    namespace "SCAN.mobile"
     defaultConfig {
-        applicationId 'inovie.scan.mobile'
+        applicationId 'SCAN.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        versionCode 38
+        versionName "1.0.5"
     }
     signingConfigs {
         debug {

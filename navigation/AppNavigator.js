@@ -13,11 +13,12 @@ import CheckVehiculeScreen from '../screens/CheckVehiculeScreen';
 import ScanScreen from '../screens/ScanScreen';
 import BigSacocheScreen from '../screens/BigSacocheScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import PersonnelAdminScreen from '../screens/PersonnelAdminScreen';
 
 const Stack = createStackNavigator();
 
-// Couleur bleue correspondant au logo Inovie
-const INOVIE_BLUE = '#1a4d94'; // Adapté à partir de votre logo
+// Couleur bleue de l'application SCAN
+const SCAN_BLUE = '#1a4d94';
 
 export default function AppNavigator({ navigationRef }) { // Accepter navigationRef comme prop
   // Fonction pour la déconnexion
@@ -125,13 +126,45 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
     try {
       const userToken = await AsyncStorage.getItem('userToken');
       if (userToken && navigationRef.current) {
-        // Si un token existe, l'utilisateur est probablement connecté.
-        // On le redirige vers l'écran principal de l'application après le login.
-        console.log('[AppNavigator] Token trouvé, redirection vers Tournee.');
-        navigationRef.current.reset({
-          index: 0,
-          routes: [{ name: 'Tournee' }],
-        });
+        // Si un token existe, vérifier le rôle de l'utilisateur
+        try {
+          const userDataString = await AsyncStorage.getItem('user_data');
+          if (userDataString) {
+            const userData = JSON.parse(userDataString);
+            const userRole = userData.role;
+            
+            console.log('[AppNavigator] Token trouvé, rôle utilisateur:', userRole);
+            
+            // Rediriger selon le rôle
+            if (userRole === 'HORS COURSIER' || userRole === 'Hors Coursier') {
+              console.log('[AppNavigator] Redirection HORS COURSIER vers PersonnelAdmin');
+              navigationRef.current.reset({
+                index: 0,
+                routes: [{ name: 'PersonnelAdmin' }],
+              });
+            } else {
+              console.log('[AppNavigator] Redirection vers Tournee pour les autres rôles');
+              navigationRef.current.reset({
+                index: 0,
+                routes: [{ name: 'Tournee' }],
+              });
+            }
+          } else {
+            // Pas de données utilisateur, redirection par défaut vers Tournee
+            console.log('[AppNavigator] Pas de données utilisateur, redirection par défaut vers Tournee');
+            navigationRef.current.reset({
+              index: 0,
+              routes: [{ name: 'Tournee' }],
+            });
+          }
+        } catch (userDataError) {
+          console.error('[AppNavigator] Erreur lors de la lecture des données utilisateur:', userDataError);
+          // En cas d'erreur, redirection par défaut vers Tournee
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'Tournee' }],
+          });
+        }
       } else {
         // Si aucun token n'est trouvé, l'utilisateur reste sur l'écran de Login (initialRouteName).
         console.log('[AppNavigator] Aucun token trouvé, l\'utilisateur reste sur Login.');
@@ -147,12 +180,19 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
       <Stack.Navigator 
         initialRouteName="Login"
         screenOptions={{
+          headerStatusBarHeight: 0, // Réduire l'espace de la status bar
           headerStyle: {
-            backgroundColor: INOVIE_BLUE,
+            backgroundColor: SCAN_BLUE,
+            elevation: 4, // Ombre pour Android
+            shadowOpacity: 0.3, // Ombre pour iOS
           },
           headerTintColor: '#fff',
           headerTitleStyle: {
             fontWeight: 'bold',
+            fontSize: 16,
+          },
+          headerTitleContainerStyle: {
+            paddingVertical: 8, // Réduire le padding vertical
           }
         }}
       >
@@ -168,41 +208,42 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
           name="Tournee" 
           component={TourneeScreen} 
           options={({ navigation }) => ({ 
-            title: 'Sélection de tournée',
-            headerLeft: () => null,  // Empêche de revenir à l'écran de login
-            headerRight: createLogoutButton(navigation)
+            headerShown: false, // En-tête personnalisé
           })} 
         />
         <Stack.Screen 
           name="CheckVehicule" 
           component={CheckVehiculeScreen} 
           options={({ navigation }) => ({
-            title: 'Vérification du véhicule',
-            headerRight: createLogoutButton(navigation)
+            headerShown: false, // En-tête personnalisé
           })}
         />
         <Stack.Screen 
           name="Scan" 
           component={ScanScreen} 
           options={({ navigation }) => ({ 
-            title: 'Scan des contenants',
-            headerRight: createScanHeaderButtons(navigation)
+            headerShown: false, // En-tête personnalisé
           })} 
         />
         <Stack.Screen 
           name="BigSacoche" 
           component={BigSacocheScreen} 
           options={({ navigation }) => ({ 
-            title: 'Créer une Big-Sacoche',
-            headerRight: createLogoutButton(navigation)
+            headerShown: false, // En-tête personnalisé
+          })} 
+        />
+                <Stack.Screen 
+          name="Settings" 
+          component={SettingsScreen} 
+          options={({ navigation }) => ({
+            headerShown: false, // En-tête personnalisé
           })} 
         />
         <Stack.Screen 
-          name="Settings" 
-          component={SettingsScreen} 
-          options={({ navigation }) => ({ 
-            title: 'Paramètres',
-            headerRight: createLogoutButton(navigation)
+          name="PersonnelAdmin" 
+          component={PersonnelAdminScreen} 
+          options={({ navigation }) => ({
+            headerShown: false, // En-tête personnalisé
           })} 
         />
       </Stack.Navigator>
