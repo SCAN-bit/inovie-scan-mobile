@@ -61,16 +61,15 @@ if errorlevel 1 (
 
 echo ✓ Branche principale configuree
 
-REM Ajouter le remote GitHub
+REM Ajouter le remote GitHub (ou le mettre à jour s'il existe)
 echo Configuration du remote GitHub...
-git remote add origin https://github.com/SCAN-bit/inovie-scan-mobile.git
+git remote add origin https://github.com/SCAN-bit/inovie-scan-mobile.git 2>nul
 if errorlevel 1 (
-    echo ERREUR: Impossible d'ajouter le remote
-    pause
-    exit /b 1
+    echo Remote existe deja, mise a jour...
+    git remote set-url origin https://github.com/SCAN-bit/inovie-scan-mobile.git
 )
 
-echo ✓ Remote GitHub ajoute
+echo ✓ Remote GitHub configure
 
 echo.
 echo ========================================
