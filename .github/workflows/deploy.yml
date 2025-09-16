@@ -29,6 +29,9 @@ jobs:
           chmod +x gradlew
           # Force Gradle 8.7
           sed -i 's/gradle-8.5-all.zip/gradle-8.7-all.zip/g' gradle/wrapper/gradle-wrapper.properties
+          # Force Kotlin 1.9.25
+          echo "kotlin.version=1.9.25" >> gradle.properties
+          echo "android.suppressKotlinVersionCompatibilityCheck=true" >> gradle.properties
         
       - name: Cache Gradle dependencies
         uses: actions/cache@v3

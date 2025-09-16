@@ -1,4 +1,4 @@
-@echo off
+o@echo off
 setlocal enabledelayedexpansion
 
 echo ========================================
@@ -162,6 +162,35 @@ if "%update_type%"=="1" (
 )
 
 :continue_process
+
+echo.
+echo ========================================
+echo   TEST LOCAL RAPIDE
+echo ========================================
+echo.
+echo Test de compilation rapide (2-3 minutes)...
+echo.
+
+REM Test de compilation rapide
+cd android
+echo Test Gradle...
+gradlew.bat assembleDebug --no-daemon --quiet
+if errorlevel 1 (
+    echo.
+    echo ❌ ERREUR: Le test local a echoue !
+    echo Le build GitHub echouera aussi.
+    echo.
+    echo Voulez-vous continuer quand meme ? (o/N):
+    set /p continue_anyway=""
+    if /i not "!continue_anyway!"=="o" (
+        echo Annulation du processus.
+        pause
+        exit /b 1
+    )
+) else (
+    echo ✅ Test local reussi !
+)
+cd ..
 
 echo.
 echo ========================================
