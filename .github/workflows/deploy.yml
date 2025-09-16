@@ -30,7 +30,7 @@ jobs:
           # Force Gradle 8.7
           sed -i 's/gradle-8.5-all.zip/gradle-8.7-all.zip/g' gradle/wrapper/gradle-wrapper.properties
           # Force compileSdkVersion 35
-          sed -i 's/compileSdkVersion = 34/compileSdkVersion = 35/g' build.gradle
+          sed -i "s/compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')/compileSdkVersion = 35/g" build.gradle
         
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
