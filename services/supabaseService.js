@@ -38,14 +38,14 @@ const SupabaseService = {
   // Authentification
   login: async (email, password) => {
     try {
-      console.log('Tentative de connexion avec Supabase:', email);
+      // Tentative de connexion avec Supabase
       
       // Fermer toute session existante avant la connexion
       try {
         await SupabaseService.closeCurrentSession();
-        console.log('Session précédente fermée automatiquement');
+        // Session précédente fermée automatiquement
       } catch (sessionError) {
-        console.log('Pas de session active à fermer ou erreur:', sessionError);
+        // Pas de session active à fermer
       }
       
       // Tentative de connexion avec Supabase
@@ -59,10 +59,7 @@ const SupabaseService = {
         throw error;
       }
       
-      console.log('Connexion réussie avec Supabase:', {
-        email: data.user.email,
-        id: data.user.id
-      });
+      // Connexion réussie avec Supabase
       
       // Stocker les informations utilisateur
       try {
@@ -71,7 +68,7 @@ const SupabaseService = {
           email: data.user.email,
           uid: data.user.id
         }));
-        console.log('Informations utilisateur stockées avec succès');
+        // Informations utilisateur stockées avec succès
       } catch (storageError) {
         console.error('Erreur lors du stockage des informations utilisateur:', storageError);
       }
@@ -88,7 +85,7 @@ const SupabaseService = {
       await supabase.auth.signOut();
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       await AsyncStorage.removeItem(USER_DATA_KEY);
-      console.log('Déconnexion réussie');
+      // Déconnexion réussie
     } catch (error) {
       console.error('Erreur de déconnexion:', error);
       throw error;
@@ -559,10 +556,10 @@ const SupabaseService = {
         return { success: false, error: error.message };
       }
       
-      console.log(`✅ ${data.length} passages créés avec succès`);
+      console.log(`${data.length} passages créés avec succès`);
       return { success: true, created: data.length, updated: 0 };
     } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi des scans:', error);
+      console.error('Erreur lors de l\'envoi des scans:', error);
       return { success: false, error: error.message };
     }
   },
@@ -700,7 +697,7 @@ const SupabaseService = {
         if (!quickTest.ok) {
           console.warn('[Supabase] Test de connectivité échoué, tentative d\'upload direct...');
         } else {
-          console.log('[Supabase] ✅ Test de connectivité OK');
+          console.log('[Supabase] Test de connectivité OK');
         }
       } catch (connectionError) {
         console.warn('[Supabase] Test de connectivité échoué, tentative d\'upload direct:', connectionError.message);
@@ -832,7 +829,7 @@ const SupabaseService = {
             throw new Error(`Upload REST échoué: ${response.status} ${errorText}`);
           }
           
-          console.log(`[Supabase] ✅ Upload réussi via API REST vers ${bucketName}`);
+          console.log(`[Supabase] Upload réussi via API REST vers ${bucketName}`);
           
           // Récupérer l'URL publique
           const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucketName}/${fileName}`;
@@ -867,7 +864,7 @@ const SupabaseService = {
                 console.error('[Supabase] Erreur upload fallback SDK:', fallbackError);
                 throw new Error(`Upload échoué sur tous les buckets: ${uploadError.message}`);
               } else {
-                console.log('[Supabase] ✅ Upload réussi sur le bucket fallback "documents"');
+                console.log('[Supabase] Upload réussi sur le bucket fallback "documents"');
                 
                 // Récupérer l'URL publique du bucket fallback
                 const { data: fallbackUrlData } = supabase.storage
@@ -1120,7 +1117,7 @@ const SupabaseService = {
           console.log(`[Supabase] Erreur lecture bucket ${bucketName}:`, listError.message);
           return { success: false, error: listError.message, operation: 'read' };
         } else {
-          console.log(`[Supabase] ✅ Lecture bucket ${bucketName} OK`);
+          console.log(`[Supabase] Lecture bucket ${bucketName} OK`);
           return { success: true, operation: 'read', files: files?.length || 0 };
         }
       } catch (readError) {
@@ -1157,7 +1154,7 @@ const SupabaseService = {
           throw new Error(`Erreur réseau: ${response.status} ${response.statusText}`);
         }
         
-        console.log('[Supabase] ✅ Connectivité réseau OK');
+        console.log('[Supabase] Connectivité réseau OK');
         
         // Test spécifique de l'API Storage
         console.log('[Supabase] Test de l\'API Storage...');
@@ -1175,7 +1172,7 @@ const SupabaseService = {
           throw new Error(`Erreur API Storage: ${storageResponse.status} ${storageResponse.statusText}`);
         }
         
-        console.log('[Supabase] ✅ API Storage accessible');
+        console.log('[Supabase] API Storage accessible');
         
       } catch (networkError) {
         console.error('[Supabase] Erreur réseau:', networkError);

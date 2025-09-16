@@ -27,14 +27,14 @@ class SupabaseKeepAlive {
       this.lastPing = new Date();
       
       if (response.ok) {
-        console.log('🔄 [Keep-Alive] Supabase actif');
+        // Supabase actif
         return true;
       } else {
-        console.log('⚠️ [Keep-Alive] Supabase répond mais avec erreur');
+        // Supabase répond mais avec erreur
         return false;
       }
     } catch (error) {
-      console.log('❌ [Keep-Alive] Supabase inaccessible:', error.message);
+      // Supabase inaccessible
       return false;
     }
   }
@@ -45,7 +45,7 @@ class SupabaseKeepAlive {
       return;
     }
 
-    console.log('🚀 [Keep-Alive] Démarrage automatique Supabase...');
+    // Démarrage automatique Supabase
     this.isRunning = true;
 
     // Ping immédiat
@@ -56,7 +56,7 @@ class SupabaseKeepAlive {
       this.pingSupabase();
     }, this.PING_INTERVAL);
 
-    console.log(`📅 [Keep-Alive] Ping toutes les ${this.PING_INTERVAL / (60 * 60 * 1000)}h`);
+    // Ping toutes les heures
   }
 
   // Arrêter le keep-alive
@@ -65,7 +65,7 @@ class SupabaseKeepAlive {
       return;
     }
 
-    console.log('⏹️ [Keep-Alive] Arrêt...');
+    // Arrêt du keep-alive
     this.isRunning = false;
 
     if (this.pingInterval) {

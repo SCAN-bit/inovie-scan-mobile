@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, Platform, ScrollView } from 'react-native';
@@ -7,6 +7,7 @@ import * as KeepAwake from 'expo-keep-awake';
 import { AppState } from 'react-native';
 import FirebaseService from './services/firebaseService';
 import AppUpdateService from './services/AppUpdateService';
+import UpdateAlert from './components/UpdateAlert';
 import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
 
 // Solution pour l'erreur activateKeepAwake
@@ -26,18 +27,37 @@ if (Platform.OS === 'web') {
     // Essayer de charger le fichier CSS pour le web
     require('./web-styles.css');
   } catch (e) {
-    console.log('Chargement de CSS web ignoré sur les plateformes natives');
+    // Chargement de CSS web ignoré sur les plateformes natives
   }
 }
 
 export default function App() {
+  const [showUpdateAlert, setShowUpdateAlert] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState(null);
+
   // Initialisation des services de mise à jour
   useEffect(() => {
-    console.log('🚀 [App] Initialisation des systèmes de mise à jour');
+    // Initialisation des systèmes de mise à jour
     
-    // Vérifier les mises à jour App Distribution au démarrage
-    setTimeout(() => {
-      AppUpdateService.checkForUpdatesAutomatic();
+    // Vérifier les mises à jour GitHub au démarrage
+    setTimeout(async () => {
+      try {
+        // Vérification automatique des mises à jour
+        await AppUpdateService.checkForUpdatesAutomatic();
+        
+        // Vérifier s'il y a une mise à jour en attente d'affichage
+        const hasUpdate = await AppUpdateService.hasPendingUpdate();
+        if (hasUpdate) {
+          const info = await AppUpdateService.getCachedUpdateInfo();
+          setUpdateInfo(info);
+          setShowUpdateAlert(true);
+          // Mise à jour disponible détectée
+        } else {
+          // Aucune mise à jour disponible
+        }
+      } catch (error) {
+        console.error('[App] Erreur lors de la vérification automatique:', error);
+      }
     }, 3000); // Attendre 3 secondes après le démarrage
   }, []);
 
@@ -50,13 +70,13 @@ export default function App() {
       
       // Fonction pour traiter les changements d'état de l'application
       const handleAppStateChange = (nextAppState) => {
-        console.log('App state changed to:', nextAppState);
+        // App state changed
         
         // Si l'application passe en arrière-plan ou est inactive
         if (nextAppState === 'background' || nextAppState === 'inactive') {
           // Planifier la déconnexion après un délai (ex: 30 minutes sur web = 1800000 ms)
           appStateTimeout = setTimeout(() => {
-            console.log('Session expirée - déconnexion automatique (WEB)');
+            // Session expirée - déconnexion automatique (WEB)
             // Déconnexion et fermeture de session
             FirebaseService.closeCurrentSession()
               .then(() => FirebaseService.logout())
@@ -87,7 +107,7 @@ export default function App() {
       };
     } else {
       // Sur mobile : AUCUNE déconnexion automatique
-      console.log('Déconnexion automatique DÉSACTIVÉE sur mobile');
+      // Déconnexion automatique DÉSACTIVÉE sur mobile
       
       // Mais on vérifie les mises à jour quand l'app devient active
       const handleAppStateChange = (nextAppState) => {
@@ -130,12 +150,33 @@ export default function App() {
     );
   }
 
+  // Fonctions de gestion de l'alerte de mise à jour
+  const handleUpdateClose = async () => {
+    setShowUpdateAlert(false);
+    await AppUpdateService.markUpdateAsSeen();
+  };
+
+  const handleUpdateDownload = async () => {
+    if (updateInfo) {
+      await AppUpdateService.downloadAndInstallUpdate(updateInfo);
+      setShowUpdateAlert(false);
+      await AppUpdateService.markUpdateAsSeen();
+    }
+  };
+
   // Version mobile standard
   return (
     <SafeAreaProvider>
       <View style={styles.container} className="main-container">
         <StatusBar style="auto" />
         <AppNavigator />
+        
+        {/* Alerte de mise à jour */}
+        <UpdateAlert
+          visible={showUpdateAlert}
+          onClose={handleUpdateClose}
+          onDownload={handleUpdateDownload}
+        />
       </View>
     </SafeAreaProvider>
   );

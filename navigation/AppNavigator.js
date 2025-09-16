@@ -133,17 +133,17 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
             const userData = JSON.parse(userDataString);
             const userRole = userData.role;
             
-            console.log('[AppNavigator] Token trouvé, rôle utilisateur:', userRole);
+            // Token trouvé, rôle utilisateur vérifié
             
             // Rediriger selon le rôle
             if (userRole === 'HORS COURSIER' || userRole === 'Hors Coursier') {
-              console.log('[AppNavigator] Redirection HORS COURSIER vers PersonnelAdmin');
+              // Redirection HORS COURSIER vers PersonnelAdmin
               navigationRef.current.reset({
                 index: 0,
                 routes: [{ name: 'PersonnelAdmin' }],
               });
             } else {
-              console.log('[AppNavigator] Redirection vers Tournee pour les autres rôles');
+              // Redirection vers Tournee pour les autres rôles
               navigationRef.current.reset({
                 index: 0,
                 routes: [{ name: 'Tournee' }],
@@ -151,7 +151,7 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
             }
           } else {
             // Pas de données utilisateur, redirection par défaut vers Tournee
-            console.log('[AppNavigator] Pas de données utilisateur, redirection par défaut vers Tournee');
+            // Pas de données utilisateur, redirection par défaut vers Tournee
             navigationRef.current.reset({
               index: 0,
               routes: [{ name: 'Tournee' }],
@@ -167,7 +167,7 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
         }
       } else {
         // Si aucun token n'est trouvé, l'utilisateur reste sur l'écran de Login (initialRouteName).
-        console.log('[AppNavigator] Aucun token trouvé, l\'utilisateur reste sur Login.');
+        // Aucun token trouvé, l'utilisateur reste sur Login
       }
     } catch (error) {
       console.error('[AppNavigator] Erreur lors de la vérification du token au démarrage:', error);

@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import FirebaseService from '../services/firebaseService';
 import AppUpdateService from '../services/AppUpdateService';
 import CustomHeader from '../components/CustomHeader';
+import VersionDisplay from '../components/VersionDisplay';
+import DownloadProgress from '../components/DownloadProgress';
 import { wp, hp, fp, sp } from '../utils/responsiveUtils';
 
 export default function SettingsScreen({ navigation }) {
@@ -15,6 +17,8 @@ export default function SettingsScreen({ navigation }) {
   const [enableAutoUpdate, setEnableAutoUpdate] = useState(true);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
 
   // Charger les préférences au démarrage
   useEffect(() => {
@@ -76,7 +80,7 @@ export default function SettingsScreen({ navigation }) {
   // OPTIMISATION: Déconnexion pour l'en-tête (sans confirmation)
   const handleHeaderLogout = async () => {
     try {
-      console.log('🚪 [SettingsScreen] Déconnexion depuis l\'en-tête');
+      // Déconnexion depuis l'en-tête
       
       await FirebaseService.closeCurrentSession();
       await FirebaseService.logout();
@@ -86,7 +90,7 @@ export default function SettingsScreen({ navigation }) {
         routes: [{ name: 'Login' }],
       });
     } catch (error) {
-      console.error('❌ [SettingsScreen] Erreur déconnexion:', error);
+      console.error('[SettingsScreen] Erreur déconnexion:', error);
       Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
     }
   };
@@ -141,8 +145,13 @@ export default function SettingsScreen({ navigation }) {
   const handleCheckForUpdates = async () => {
     try {
       setCheckingUpdates(true);
-      const updateInfo = await AppUpdateService.checkForUpdates(true);
+      // Vérification forcée des mises à jour
+      
+      // Utiliser la nouvelle fonction forceCheckForUpdates pour ignorer le cache
+      const updateInfo = await AppUpdateService.forceCheckForUpdates(true);
       setUpdateInfo(updateInfo);
+      
+      // Résultat vérification récupéré
       
       if (updateInfo.available) {
         Alert.alert(
@@ -152,31 +161,59 @@ export default function SettingsScreen({ navigation }) {
             { text: 'Plus tard', style: 'cancel' },
             { 
               text: 'Télécharger', 
-              onPress: () => AppUpdateService.downloadAndInstallUpdate(updateInfo)
+              onPress: () => handleDownloadUpdate(updateInfo)
             }
           ]
         );
       }
     } catch (error) {
-      console.error('Erreur lors de la vérification:', error);
+      console.error('[SettingsScreen] Erreur lors de la vérification:', error);
       Alert.alert('Erreur', 'Impossible de vérifier les mises à jour.');
     } finally {
       setCheckingUpdates(false);
     }
   };
 
+  // Fonction pour télécharger la mise à jour avec indicateur de progression
+  const handleDownloadUpdate = async (updateInfo) => {
+    try {
+      setDownloading(true);
+      setDownloadProgress(0);
+      
+      const downloadUrl = await AppUpdateService.getDirectDownloadUrl();
+      
+      const success = await AppUpdateService.downloadApkAndInstall(
+        downloadUrl,
+        (progress) => {
+          setDownloadProgress(progress);
+        }
+      );
+      
+      if (success) {
+        setUpdateInfo({ ...updateInfo, available: false });
+      }
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
+      Alert.alert('Erreur', 'Impossible de télécharger la mise à jour.');
+    } finally {
+      setDownloading(false);
+      setDownloadProgress(0);
+    }
+  };
+
   // Fonction pour vider le cache des mises à jour
   const handleClearUpdateCache = async () => {
     try {
+      // Vidage du cache des mises à jour
       await AppUpdateService.clearUpdateCache();
       setUpdateInfo({ available: false, lastCheck: null });
       Alert.alert(
         'Cache vidé',
-        'Le cache des mises à jour a été vidé avec succès.',
+        'Le cache des mises à jour a été vidé avec succès.\n\nVous pouvez maintenant vérifier les mises à jour pour obtenir les dernières informations.',
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error('Erreur lors du vidage du cache:', error);
+      console.error('[SettingsScreen] Erreur lors du vidage du cache:', error);
       Alert.alert('Erreur', 'Impossible de vider le cache des mises à jour.');
     }
   };
@@ -351,10 +388,20 @@ export default function SettingsScreen({ navigation }) {
       {/* Section À propos */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>À propos</Text>
-        <Text style={styles.versionText}>Version 1.0.0</Text>
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionLabel}>Version: </Text>
+          <VersionDisplay textStyle={styles.versionText} />
+        </View>
         <Text style={styles.copyrightText}>© 2024 Tous droits réservés.</Text>
       </View>
     </ScrollView>
+    
+    {/* Indicateur de téléchargement */}
+    <DownloadProgress 
+      visible={downloading}
+      progress={downloadProgress}
+      status="Téléchargement de la mise à jour..."
+    />
     </View>
   );
 }
@@ -470,6 +517,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   versionText: {
+    fontSize: fp(14),
+    color: '#666',
+  },
+  versionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: hp(1),
+  },
+  versionLabel: {
     fontSize: fp(14),
     color: '#666',
   },

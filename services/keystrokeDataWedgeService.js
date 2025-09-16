@@ -134,7 +134,7 @@ class KeystrokeDataWedgeService {
   // Envoyer une commande à DataWedge
   async sendCommand(command, parameter) {
     try {
-      console.log(`[KeystrokeDataWedgeService] Commande: ${command}`, parameter);
+      // Commande envoyée
       
       const broadcastExtras = {};
       broadcastExtras[command] = parameter;

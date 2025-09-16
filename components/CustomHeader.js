@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, StatusBar, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import VersionDisplay from './VersionDisplay';
 
 const SCAN_BLUE = '#1a4d94';
 
@@ -10,7 +11,8 @@ export default function CustomHeader({
   showBackButton = true, 
   showLogoutButton = true,
   additionalButtons = [],
-  handleLogout 
+  handleLogout,
+  showVersion = true
 }) {
   return (
     <>
@@ -32,6 +34,13 @@ export default function CustomHeader({
         
         {/* Titre supprimé - espace vide à la place */}
         <View style={styles.titleSpace} />
+        
+        {/* Version */}
+        {showVersion && (
+          <View style={styles.versionContainer}>
+            <VersionDisplay textStyle={styles.versionText} />
+          </View>
+        )}
         
         {/* Boutons additionnels + déconnexion */}
         <View style={styles.headerButtons}>
@@ -74,6 +83,16 @@ const styles = StyleSheet.create({
   },
   titleSpace: {
     flex: 1,
+  },
+  versionContainer: {
+    position: 'absolute',
+    right: 60,
+    top: 8,
+  },
+  versionText: {
+    color: '#fff',
+    fontSize: 10,
+    opacity: 0.8,
   },
   headerButtons: {
     flexDirection: 'row',

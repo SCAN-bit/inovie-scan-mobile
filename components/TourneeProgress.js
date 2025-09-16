@@ -39,11 +39,11 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
           Linking.openURL(url);
         } else {
           // Fallback sur l'URL web pour iOS si l'app maps n'est pas dispo
-          console.warn('iOS maps app not available, falling back to web URL for navigation.');
+          // iOS maps app not available, falling back to web URL
           Linking.openURL(webUrl).catch(err => console.error("Couldn't load page on iOS", err));
         }
       }).catch(err => {
-        console.error('Error checking maps app support on iOS, falling back to web URL:', err);
+        // Error checking maps app support on iOS, falling back to web URL
         Linking.openURL(webUrl).catch(webErr => console.error("Couldn't load page on iOS fallback", webErr));
       });
     } else if (Platform.OS === 'android') {
@@ -54,17 +54,17 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
           Linking.openURL(url);
         } else {
           // Fallback sur l'URL web pour Android si geo: n'est pas géré
-          console.warn('Android geo: scheme not supported, falling back to web URL for navigation.');
+          // Android geo: scheme not supported, falling back to web URL
           Linking.openURL(webUrl).catch(err => console.error("Couldn't load page on Android", err));
         }
       }).catch(err => {
-        console.error('Error checking geo support on Android, falling back to web URL:', err);
+        // Error checking geo support on Android, falling back to web URL
         Linking.openURL(webUrl).catch(webErr => console.error("Couldn't load page on Android fallback", webErr));
       });
     } else {
       // Pour toutes les autres plateformes (y compris 'web' si Platform.OS le retourne, ou undefined)
       // ouvrir directement l'URL web.
-      console.log('Platform is not iOS or Android, opening web URL for navigation:', webUrl);
+      // Platform is not iOS or Android, opening web URL for navigation
       Linking.openURL(webUrl).catch(err => console.error("Couldn't load page on Web/Other", err));
     }
     // END MODIFICATION
@@ -101,7 +101,7 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
   // Fonction OPTIMISÉE pour charger les détails de la tournée
   const loadTourneeDetails = async (forceReload = false) => {
     const startTime = Date.now();
-    console.log(`🚀 [TourneeProgress] loadTourneeDetails - Force: ${forceReload}`);
+    console.log(`[TourneeProgress] loadTourneeDetails - Force: ${forceReload}`);
     
     // CACHE: Vérifier si on peut utiliser les données en cache
     const cache = cacheRef.current;
@@ -115,15 +115,47 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
       && cacheAge < maxCacheAge;
     
     if (canUseCache) {
-      console.log(`⚡ [TourneeProgress] Cache utilisé (age: ${Math.round(cacheAge/1000)}s)`);
+      console.log(`[TourneeProgress] Cache utilisé (age: ${Math.round(cacheAge/1000)}s)`);
       setTourneeDetails(cache.data);
       setError(null);
       setLoading(false);
       return;
     }
     
+    // OPTIMISATION: Vérifier le cache AsyncStorage avec durée réduite
+    if (!forceReload) {
+      try {
+        const cacheKey = `tourneeDetails_${tourneeId}_${sessionId}`;
+        const cachedData = await AsyncStorage.getItem(cacheKey);
+        const cacheTimestamp = await AsyncStorage.getItem(`${cacheKey}_timestamp`);
+        const maxAgeSetting = await AsyncStorage.getItem(`${cacheKey}_maxAge`);
+        const maxAge = maxAgeSetting ? parseInt(maxAgeSetting) : 15000; // 15 secondes par défaut
+        const now = Date.now();
+        const asyncCacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
+        
+        if (cachedData && asyncCacheAge < maxAge) {
+          console.log(`[TourneeProgress] Cache AsyncStorage utilisé (age: ${Math.round(asyncCacheAge/1000)}s)`);
+          const parsedData = JSON.parse(cachedData);
+          setTourneeDetails(parsedData);
+          setError(null);
+          setLoading(false);
+          
+          // Mettre à jour le cache en mémoire aussi
+          cacheRef.current = {
+            data: parsedData,
+            timestamp: now,
+            tourneeId: tourneeId,
+            sessionId: sessionId
+          };
+          return;
+        }
+      } catch (cacheError) {
+        console.warn('[TourneeProgress] Erreur cache AsyncStorage:', cacheError);
+      }
+    }
+    
     if (forceReload) {
-      console.log('🔄 [TourneeProgress] forceReload: nettoyage cache et AsyncStorage');
+      console.log('[TourneeProgress] forceReload: nettoyage cache et AsyncStorage');
       
       // Réinitialiser le cache
       cacheRef.current = {
@@ -172,21 +204,33 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
       }
       
       // CACHE: Sauvegarder les nouvelles données
+      const now = Date.now();
       cacheRef.current = {
         data: details,
-        timestamp: Date.now(),
+        timestamp: now,
         tourneeId: tourneeId,
         sessionId: sessionId
       };
+      
+      // OPTIMISATION: Mettre en cache AsyncStorage avec durée réduite
+      try {
+        const cacheKey = `tourneeDetails_${tourneeId}_${sessionId}`;
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(details));
+        await AsyncStorage.setItem(`${cacheKey}_timestamp`, now.toString());
+        // Cache plus court pour données plus fraîches
+        await AsyncStorage.setItem(`${cacheKey}_maxAge`, '15000'); // 15 secondes
+      } catch (cacheError) {
+        console.warn('[TourneeProgress] Erreur mise en cache AsyncStorage:', cacheError);
+      }
       
       setTourneeDetails(details);
       setError(null);
       
       const loadTime = Date.now() - startTime;
-      console.log(`⚡ [TourneeProgress] Chargement terminé en ${loadTime}ms - ${details.sitesCount} sites`);
+      console.log(`[TourneeProgress] Chargement terminé en ${loadTime}ms - ${details.sitesCount} sites`);
       
     } catch (err) {
-      console.error('❌ [TourneeProgress] Erreur chargement:', err.message);
+      console.error('[TourneeProgress] Erreur chargement:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -204,7 +248,7 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
   useEffect(() => {
     // Ne charger que si on a un tourneeId valide et qu'on n'a pas déjà les bonnes données
     if (tourneeId && (!tourneeDetails || tourneeDetails.id !== tourneeId)) {
-      console.log(`🔄 [TourneeProgress] Rechargement nécessaire pour tournée ${tourneeId}`);
+      console.log(`[TourneeProgress] Rechargement nécessaire pour tournée ${tourneeId}`);
       loadTourneeDetails(false);
     }
   }, [tourneeId, sessionId]);
@@ -368,11 +412,11 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
     });
     
     if (site.roadbook && Object.keys(site.roadbook).length > 0) {
-      console.log("✅ [TourneeProgress] Affichage du roadbook pour le site:", site.nom || site.name, site.roadbook);
+      console.log("[TourneeProgress] Affichage du roadbook pour le site:", site.nom || site.name, site.roadbook);
       setSelectedSiteRoadbook(site.roadbook);
       setRoadbookModalVisible(true);
     } else {
-      console.log("❌ [TourneeProgress] Pas de données de roadbook pour le site:", site.nom || site.name);
+      console.log("[TourneeProgress] Pas de données de roadbook pour le site:", site.nom || site.name);
       // Optionnel: afficher un message à l'utilisateur
       alert("Aucune information roadbook disponible pour ce site.");
     }
@@ -404,6 +448,9 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
       <View style={styles.container}>
         <Text style={styles.title}>Suivi de tournée</Text>
         <Text style={styles.emptyText}>Aucune information disponible</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => loadTourneeDetails(true)}>
+          <Text style={styles.retryButtonText}>Recharger</Text>
+        </TouchableOpacity>
       </View>
     );
   }

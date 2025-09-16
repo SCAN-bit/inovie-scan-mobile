@@ -50,7 +50,7 @@ class ZebraDataWedgeService {
       return true;
       
     } catch (error) {
-      console.error('[ZebraDataWedge] ❌ Erreur d\'initialisation:', error);
+      console.error('[ZebraDataWedge] Erreur d\'initialisation:', error);
       return false;
     }
   }
@@ -88,7 +88,7 @@ class ZebraDataWedgeService {
       // Log supprimé pour nettoyer la console
       
     } catch (error) {
-      console.error('[ZebraDataWedge] ❌ Erreur enregistrement receiver:', error);
+      console.error('[ZebraDataWedge] Erreur enregistrement receiver:', error);
     }
   }
 
@@ -96,8 +96,7 @@ class ZebraDataWedgeService {
   handleBroadcastIntent(intent) {
     if (this.diagnosticMode || true) { // Toujours logger pour l'instant
       // Log supprimé pour nettoyer la console
-      console.log('  Action:', intent.action);
-      console.log('  Extras:', JSON.stringify(intent.extras, null, 2));
+      // Action et extras reçus
     }
 
     // Analyser tous les types de données possibles
@@ -114,7 +113,7 @@ class ZebraDataWedgeService {
           console.error('[ZebraDataWedge] Erreur dans le callback:', error);
         }
       } else {
-        console.warn('[ZebraDataWedge] ⚠️ Scan reçu mais aucun callback défini');
+        console.warn('[ZebraDataWedge] Scan reçu mais aucun callback défini');
       }
     }
   }
@@ -211,7 +210,7 @@ class ZebraDataWedgeService {
       // Log supprimé pour nettoyer la console
       
     } catch (error) {
-      console.error('[ZebraDataWedge] ❌ Erreur création profil:', error);
+      console.error('[ZebraDataWedge] Erreur création profil:', error);
       throw error;
     }
   }
@@ -222,14 +221,14 @@ class ZebraDataWedgeService {
       await this.sendCommand('com.symbol.datawedge.api.SWITCH_TO_PROFILE', this.profileName);
       // Log supprimé pour nettoyer la console
     } catch (error) {
-      console.error('[ZebraDataWedge] ❌ Erreur activation profil:', error);
+      console.error('[ZebraDataWedge] Erreur activation profil:', error);
     }
   }
 
   // Envoyer une commande DataWedge
   async sendCommand(command, parameter) {
     try {
-      console.log(`[ZebraDataWedge] 📤 Commande: ${command}`, parameter);
+      // Commande envoyée
       
       const broadcastExtras = {};
       broadcastExtras[command] = parameter;
@@ -241,14 +240,14 @@ class ZebraDataWedgeService {
       });
       
     } catch (error) {
-      console.error(`[ZebraDataWedge] ❌ Erreur commande ${command}:`, error);
+      console.error(`[ZebraDataWedge] Erreur commande ${command}:`, error);
       throw error;
     }
   }
 
   // Test complet de diagnostic
   async runFullDiagnostic() {
-    console.log('\n[ZebraDataWedge] 🔬 === DIAGNOSTIC COMPLET ZEBRA ===');
+    // DIAGNOSTIC COMPLET ZEBRA
     
     try {
       // Test 1: Vérifier la version de DataWedge
@@ -277,7 +276,7 @@ class ZebraDataWedgeService {
       // Log supprimé pour nettoyer la console
       
     } catch (error) {
-      console.error('[ZebraDataWedge] ❌ Erreur diagnostic:', error);
+      console.error('[ZebraDataWedge] Erreur diagnostic:', error);
     }
   }
 

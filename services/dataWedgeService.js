@@ -17,7 +17,7 @@ class DataWedgeService {
   async initialize() {
     if (this.initialized) return;
 
-    console.log('[DataWedgeService] Initialisation...');
+    // Initialisation DataWedge
     
     try {
       // 1. Enregistrer les broadcast receivers (toujours nécessaire)
@@ -27,20 +27,20 @@ class DataWedgeService {
       const isConfigured = await this.isProfileConfigured();
       
       if (!isConfigured) {
-        console.log('[DataWedgeService] 🔧 Première installation - Configuration complète...');
+        // Première installation - Configuration complète
         await this.resetProfile();
         await this.configureDataWedgeProfile();
         await this.markProfileAsConfigured();
-        console.log('[DataWedgeService] ✅ Configuration sauvegardée pour les prochains lancements');
+        // Configuration sauvegardée pour les prochains lancements
       } else {
-        console.log('[DataWedgeService] ⚡ Profil déjà configuré - Activation rapide...');
+        // Profil déjà configuré - Activation rapide
       }
       
       // 3. Activer le profil existant (rapide)
       await this.forceActivateProfile();
       
       this.initialized = true;
-      console.log('[DataWedgeService] Initialisé avec succès');
+      // Initialisé avec succès
     } catch (error) {
       console.error('[DataWedgeService] Erreur d\'initialisation:', error);
       throw error;
@@ -49,7 +49,7 @@ class DataWedgeService {
 
   // Activation optimisée du profil DataWedge
   async forceActivateProfile() {
-    console.log('[DataWedgeService] ⚡ Activation rapide du profil...');
+    // Activation rapide du profil
     
     try {
       // Activation simple et rapide - le profil existe déjà
@@ -60,7 +60,7 @@ class DataWedgeService {
       await this.sendCommand('com.symbol.datawedge.api.SCANNER_INPUT_PLUGIN', 'ENABLE_PLUGIN');
       await this.delay(100); // Délai réduit
       
-      console.log('[DataWedgeService] ✅ Profil activé rapidement');
+      // Profil activé rapidement
     } catch (error) {
       console.error('[DataWedgeService] Erreur lors de l\'activation:', error);
     }
@@ -131,8 +131,8 @@ class DataWedgeService {
     console.log('[DataWedgeService] Configuration CORRIGÉE du profil DataWedge...');
 
     try {
-      // 🚀 OPTIMISATION: Configuration groupée pour réduire les délais
-      console.log('[DataWedgeService] ⚡ Configuration optimisée en cours...');
+      // OPTIMISATION: Configuration groupée pour réduire les délais
+      console.log('[DataWedgeService] Configuration optimisée en cours...');
       
       // 1. Créer le profil
       await this.sendCommand('com.symbol.datawedge.api.CREATE_PROFILE', this.profileName);
@@ -180,7 +180,7 @@ class DataWedgeService {
       await this.sendCommand('com.symbol.datawedge.api.SET_CONFIG', completeConfig);
       await this.delay(800); // Configuration plus rapide
 
-      console.log('[DataWedgeService] ✅ Configuration groupée terminée - gain de temps significatif');
+      console.log('[DataWedgeService] Configuration groupée terminée - gain de temps significatif');
 
     } catch (error) {
       console.error('[DataWedgeService] Erreur lors de la configuration:', error);

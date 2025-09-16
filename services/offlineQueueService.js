@@ -41,14 +41,14 @@ class OfflineQueueService {
       existingQueue.push(queueItem);
       await AsyncStorage.setItem(this.queueKey, JSON.stringify(existingQueue));
       
-      console.log(`[OfflineQueue] ✅ ${scansData.length} scan(s) ajouté(s) à la queue hors-ligne`);
+      // Scans ajoutés à la queue hors-ligne
       
       // Notifier les listeners
       this.notifyListeners('queued', { count: scansData.length, queueSize: existingQueue.length });
       
       return queueItem.id;
     } catch (error) {
-      console.error('[OfflineQueue] ❌ Erreur ajout queue:', error);
+      console.error('[OfflineQueue] Erreur ajout queue:', error);
       throw error;
     }
   }
@@ -87,7 +87,7 @@ class OfflineQueueService {
         return;
       }
 
-      console.log(`[OfflineQueue] 📤 Traitement de ${pendingItems.length} élément(s) en attente`);
+      // Traitement des éléments en attente
       
       let successCount = 0;
       let failCount = 0;
@@ -101,8 +101,8 @@ class OfflineQueueService {
             break;
           }
 
-          console.log(`[OfflineQueue] 📤 Envoi de ${item.data.length} scan(s)...`);
-          const result = await firebaseService.addScans(item.data);
+          // Envoi des scans
+          const result = await firebaseService.addPassages(item.data);
           
           if (result.success) {
             // Marquer comme réussi
@@ -110,14 +110,14 @@ class OfflineQueueService {
             item.completedAt = Date.now();
             successCount++;
             
-            console.log(`[OfflineQueue] ✅ Envoi réussi: ${item.data.length} scan(s)`);
+            console.log(`[OfflineQueue] Envoi réussi: ${item.data.length} scan(s)`);
             this.notifyListeners('sent', { count: item.data.length });
           } else {
             throw new Error(result.error || 'Échec envoi');
           }
           
         } catch (error) {
-          console.error(`[OfflineQueue] ❌ Échec envoi item ${item.id}:`, error.message);
+          console.error(`[OfflineQueue] Échec envoi item ${item.id}:`, error.message);
           
           item.retryCount = (item.retryCount || 0) + 1;
           item.lastError = error.message;
@@ -126,7 +126,7 @@ class OfflineQueueService {
           // Abandon après 3 tentatives
           if (item.retryCount >= 3) {
             item.status = 'failed';
-            console.error(`[OfflineQueue] ⚠️ Abandon après 3 tentatives: ${item.id}`);
+            console.error(`[OfflineQueue] Abandon après 3 tentatives: ${item.id}`);
           }
           
           failCount++;
@@ -139,7 +139,7 @@ class OfflineQueueService {
       // Nettoyer les éléments traités (garder seulement pending et failed récents)
       await this.cleanupQueue();
       
-      console.log(`[OfflineQueue] ✅ Traitement terminé: ${successCount} réussis, ${failCount} échecs`);
+      console.log(`[OfflineQueue] Traitement terminé: ${successCount} réussis, ${failCount} échecs`);
       
       this.notifyListeners('processed', { 
         success: successCount, 
@@ -148,7 +148,7 @@ class OfflineQueueService {
       });
       
     } catch (error) {
-      console.error('[OfflineQueue] ❌ Erreur traitement queue:', error);
+      console.error('[OfflineQueue] Erreur traitement queue:', error);
     } finally {
       this.isProcessing = false;
     }

@@ -22,7 +22,7 @@ const PhoneSearchService = {
       const siteCity = ville || city || '';
       
       if (!siteName && !siteAddress) {
-        console.log('[PhoneSearch] Pas assez d\'informations pour rechercher le numéro');
+        // Pas assez d'informations pour rechercher le numéro
         return null;
       }
       
@@ -31,11 +31,11 @@ const PhoneSearchService = {
       
       // Vérifier le cache
       if (PhoneSearchService.phoneCache.has(cacheKey)) {
-        console.log('[PhoneSearch] Numéro trouvé dans le cache');
+        // Numéro trouvé dans le cache
         return PhoneSearchService.phoneCache.get(cacheKey);
       }
       
-      console.log(`[PhoneSearch] Recherche du numéro pour: ${siteName}, ${siteAddress}, ${siteCity}`);
+      // Recherche du numéro
       
       // Essayer plusieurs méthodes de recherche
       let phoneNumber = null;
@@ -62,9 +62,9 @@ const PhoneSearchService = {
       PhoneSearchService.phoneCache.set(cacheKey, phoneNumber);
       
       if (phoneNumber) {
-        console.log(`[PhoneSearch] ✅ Numéro trouvé: ${phoneNumber}`);
+        // Numéro trouvé
       } else {
-        console.log('[PhoneSearch] ❌ Aucun numéro trouvé');
+        // Aucun numéro trouvé
       }
       
       return phoneNumber;
@@ -84,7 +84,7 @@ const PhoneSearchService = {
       const query = encodeURIComponent(`${siteName} ${siteAddress} ${siteCity}`);
       const searchUrl = `https://www.google.com/maps/search/${query}`;
       
-      console.log(`[PhoneSearch] Recherche Google Maps: ${searchUrl}`);
+      // Recherche Google Maps
       
       // Note: Dans une vraie implémentation, on utiliserait une API de scraping
       // ou une API Google Places pour récupérer les données
@@ -107,7 +107,7 @@ const PhoneSearchService = {
       const query = encodeURIComponent(`${siteName} ${siteCity}`);
       const searchUrl = `https://www.pagesjaunes.fr/recherche?quoiqui=${query}&ou=${siteCity}`;
       
-      console.log(`[PhoneSearch] Recherche Pages Jaunes: ${searchUrl}`);
+      // Recherche Pages Jaunes
       
       // Simulation d'une recherche
       return await PhoneSearchService.simulatePhoneSearch(siteName, siteAddress, siteCity, 'pagesjaunes');
@@ -126,7 +126,7 @@ const PhoneSearchService = {
       const query = encodeURIComponent(`"${siteName}" téléphone ${siteAddress} ${siteCity}`);
       const searchUrl = `https://www.google.com/search?q=${query}`;
       
-      console.log(`[PhoneSearch] Recherche web: ${searchUrl}`);
+      // Recherche web
       
       // Simulation d'une recherche
       return await PhoneSearchService.simulatePhoneSearch(siteName, siteAddress, siteCity, 'web');
@@ -166,14 +166,14 @@ const PhoneSearchService = {
       const GOOGLE_PLACES_API_KEY = 'YOUR_GOOGLE_PLACES_API_KEY';
       
       if (GOOGLE_PLACES_API_KEY === 'YOUR_GOOGLE_PLACES_API_KEY') {
-        console.log('[PhoneSearch] Clé API Google Places non configurée, utilisation de la simulation');
+        // Clé API Google Places non configurée, utilisation de la simulation
         return await PhoneSearchService.simulatePhoneSearch(siteName, siteAddress, siteCity, 'google-places');
       }
       
       const query = encodeURIComponent(`${siteName} ${siteAddress} ${siteCity}`);
       const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${GOOGLE_PLACES_API_KEY}`;
       
-      console.log(`[PhoneSearch] Recherche Google Places API: ${url}`);
+      // Recherche Google Places API
       
       const response = await fetch(url);
       const data = await response.json();
@@ -207,7 +207,7 @@ const PhoneSearchService = {
   openPhoneApp: (phoneNumber) => {
     try {
       if (!phoneNumber) {
-        console.log('[PhoneSearch] Aucun numéro à appeler');
+        // Aucun numéro à appeler
         return;
       }
       
@@ -215,7 +215,7 @@ const PhoneSearchService = {
       const cleanNumber = phoneNumber.replace(/[\s\-\.]/g, '');
       const phoneUrl = `tel:${cleanNumber}`;
       
-      console.log(`[PhoneSearch] Ouverture de l'app téléphone: ${phoneUrl}`);
+      // Ouverture de l'app téléphone
       
       Linking.openURL(phoneUrl).catch(error => {
         console.error('[PhoneSearch] Erreur ouverture app téléphone:', error);

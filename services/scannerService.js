@@ -20,7 +20,7 @@ class ScannerService {
   addScanListener(listener) {
     if (typeof listener === 'function') {
       this.scanListeners.push(listener);
-      console.log('ScannerService: Listener ajouté');
+      // Listener ajouté
     }
   }
 
@@ -32,7 +32,7 @@ class ScannerService {
     const index = this.scanListeners.indexOf(listener);
     if (index > -1) {
       this.scanListeners.splice(index, 1);
-      console.log('ScannerService: Listener supprimé');
+      // Listener supprimé
     }
   }
 
@@ -56,7 +56,7 @@ class ScannerService {
    */
   async initialize() {
     try {
-      console.log('ScannerService: Initialisation...');
+      // Initialisation du scanner
       return true;
     } catch (error) {
       console.error('Erreur lors de l\'initialisation du scanner:', error);
@@ -76,7 +76,7 @@ class ScannerService {
       }
 
       this.isScanning = true;
-      console.log('ScannerService: Démarrage du scan...');
+      // Démarrage du scan
 
       // Ici, vous intégreriez une vraie bibliothèque de scan comme expo-camera ou react-native-camera
       // Pour l'instant, c'est un placeholder qui simule un scan
@@ -103,7 +103,7 @@ class ScannerService {
    */
   stopScan() {
     this.isScanning = false;
-    console.log('ScannerService: Scan arrêté');
+    // Scan arrêté
   }
 
   /**
@@ -131,7 +131,7 @@ class ScannerService {
       // Notifier les listeners
       this.notifyListeners(scanResult);
 
-      console.log('Code traité:', scanResult);
+      // Code traité
       return {
         success: true,
         data: scanResult
@@ -186,7 +186,7 @@ class ScannerService {
    */
   clearHistory() {
     this.scanHistory = [];
-    console.log('ScannerService: Historique effacé');
+    // Historique effacé
   }
 
   /**

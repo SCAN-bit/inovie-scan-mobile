@@ -64,19 +64,7 @@ const typeConfig = {
 };
 
 const ScanHistoryItem = ({ item }) => {
-  // --- DEBUG LOG --- 
-  console.log('[ScanHistoryItem] Données reçues:', JSON.stringify({
-    idColis: item.idColis,
-    code: item.code,
-    status: item.status,
-    type: item.type,
-    operationType: item.operationType,
-    timeStamp: item.timeStamp,
-    site: item.site,
-    siteName: item.siteName,
-    siteDetails: item.siteDetails ? 'Oui' : 'Non'
-  }, null, 2));
-  // --- FIN DEBUG LOG ---
+  // Données reçues pour traitement
   
   // --- Gestion du type et du statut ---
   const currentType = item.type || item.operationType || 'entree'; 
@@ -84,7 +72,7 @@ const ScanHistoryItem = ({ item }) => {
 
   // Récupération et normalisation du statut
   const rawStatus = (item.status || '').toString().toLowerCase().trim();
-  console.log(`[ScanHistoryItem] Statut brut: "${rawStatus}", Type brut: "${typeKey}"`);
+  // Statut et type récupérés
 
   // Détermination du statut en fonction de plusieurs critères
   let statusInfo;
@@ -111,7 +99,7 @@ const ScanHistoryItem = ({ item }) => {
 
   // 3. Si toujours pas de statut, vérifier les conditions spéciales 'pas de colis'
   if (!statusInfo) {
-    console.log('[DEBUG] Vérification des conditions - typeKey: ${typeKey}, operationType: ${item.operationType}, status: ${item.status}');
+    // Vérification des conditions
     
     if (typeKey === 'visite_sans_colis' || 
         item.operationType === 'visite_sans_colis' || 
@@ -120,20 +108,20 @@ const ScanHistoryItem = ({ item }) => {
         item.status === 'pas_de_colis' ||
         item.status === 'Pas de colis' ||
         (item.statut && item.statut.toLowerCase() === 'pas de colis')) {
-      console.log('[DEBUG] Statut défini comme "Pas de colis"');
+      // Statut défini comme "Pas de colis"
       statusInfo = statusConfig['pas de colis'];
     }
   }
 
   // 4. Si toujours pas, déduire du type d'opération
   if (!statusInfo) {
-    console.log('[DEBUG] Déduction du statut à partir du type');
+    // Déduction du statut à partir du type
     if (typeKey === 'entree' || typeKey === 'prise en charge') {
       statusInfo = statusConfig['en-cours'];
     } else if (typeKey === 'sortie' || typeKey === 'depot') {
       statusInfo = statusConfig.livre;
     } else {
-      console.warn(`[ScanHistoryItem] Aucun statut reconnu pour: status="${rawStatus}", type="${typeKey}"`);
+      // Aucun statut reconnu
       statusInfo = statusConfig.default;
     }
   }
@@ -142,7 +130,7 @@ const ScanHistoryItem = ({ item }) => {
   const typeInfo = typeConfig[typeKey] || typeConfig.default;
 
   if (!typeConfig[typeKey]) {
-    console.warn(`[ScanHistoryItem] Type non reconnu: "${typeKey}"`);
+    // Type non reconnu
   }
 
   return (

@@ -18,9 +18,11 @@ import { Ionicons } from '@expo/vector-icons';
 import apiService from '../services/ApiService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomView from '../components/CustomView';
+import VersionDisplay from '../components/VersionDisplay';
 import CustomPicker from '../components/CustomPicker';
 import Toast from '../components/Toast';
 import firebaseService from '../services/firebaseService';
+import AppUpdateService from '../services/AppUpdateService';
 import { wp, hp, fp, sp, getResponsiveContainerStyles, getResponsiveButtonStyles, getResponsiveInputStyles, isSmallScreen } from '../utils/responsiveUtils';
 
 // CustomView importé mais nous utilisons View de React Native pour la responsivité
@@ -35,12 +37,30 @@ export default function LoginScreen({ navigation, route }) { // Added route
   const [initialChecking, setInitialChecking] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
   
   // État pour les toasts
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
+  };
+
+  // Fonction pour vérifier les mises à jour
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true);
+    try {
+      const updateInfo = await AppUpdateService.checkForUpdates(true);
+      if (updateInfo.available) {
+        showToast('Mise à jour disponible !', 'success');
+        // Proposer le téléchargement
+        await AppUpdateService.downloadAndInstallUpdate(updateInfo);
+      }
+    } catch (error) {
+      showToast('Erreur lors de la vérification des mises à jour', 'error');
+    } finally {
+      setCheckingUpdates(false);
+    }
   };
   
   // États pour le sélecteur de SELAS
@@ -69,7 +89,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
         setSelasList(selas || []);
         setSelasError(null);
       } catch (error) {
-        console.error('❌ [LoginScreen] Erreur chargement SELAS:', error);
+        console.error('[LoginScreen] Erreur chargement SELAS:', error);
         setSelasError('Impossible de charger la liste des SELAS.');
         setSelasList([]);
       } finally {
@@ -121,7 +141,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
       if (result.success) {
         if (selectedSelasId) {
           await AsyncStorage.setItem('user_selas_id', selectedSelasId);
-          console.log(`Selas ID ${selectedSelasId} sauvegardé dans AsyncStorage.`);
+          // Selas ID sauvegardé dans AsyncStorage
         } else if (selasList.length > 0) {
           showToast('Erreur interne: aucune SELAS sélectionnée.', 'error');
           setLoading(false);
@@ -130,17 +150,16 @@ export default function LoginScreen({ navigation, route }) { // Added route
         
         // Vérifier le rôle de l'utilisateur pour la redirection
         const userRole = result.user?.role || result.userData?.role;
-        console.log('🔍 [LoginScreen] Rôle utilisateur détecté:', userRole);
-        console.log('🔍 [LoginScreen] result.user:', result.user);
-        console.log('🔍 [LoginScreen] result.userData:', result.userData);
+        // Rôle utilisateur détecté
+        // Données utilisateur récupérées
         
         // Accepter les deux variantes du rôle
         if (userRole === 'HORS COURSIER' || userRole === 'Hors Coursier') {
-          console.log('✅ [LoginScreen] Redirection HORS COURSIER vers PersonnelAdmin');
+          // Redirection HORS COURSIER vers PersonnelAdmin
           // Rediriger vers l'écran Personnel Administratif
           navigation.replace('PersonnelAdmin');
         } else {
-          console.log('✅ [LoginScreen] Redirection vers Tournee pour le rôle:', userRole);
+          // Redirection vers Tournee pour le rôle
           // Rediriger vers l'écran normal des tournées
           navigation.replace('Tournee');
         }
@@ -351,7 +370,21 @@ export default function LoginScreen({ navigation, route }) { // Added route
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.version}>Version 1.0.0</Text>
+            <TouchableOpacity 
+              style={[styles.checkUpdateButton, checkingUpdates && styles.checkUpdateButtonDisabled]}
+              onPress={handleCheckUpdates}
+              disabled={checkingUpdates}
+            >
+              {checkingUpdates ? (
+                <ActivityIndicator size="small" color="#9ca3af" />
+              ) : (
+                <Ionicons name="refresh" size={12} color="#9ca3af" />
+              )}
+              <Text style={styles.checkUpdateButtonText}>
+                {checkingUpdates ? 'Vérification...' : 'Vérifier les mises à jour'}
+              </Text>
+            </TouchableOpacity>
+            <VersionDisplay textStyle={styles.version} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -517,6 +550,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: hp(15),
     paddingBottom: hp(10),
+  },
+  checkUpdateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: sp(4),
+    paddingHorizontal: sp(8),
+    marginBottom: sp(4),
+    borderRadius: sp(12),
+    backgroundColor: 'transparent',
+  },
+  checkUpdateButtonDisabled: {
+    opacity: 0.4,
+  },
+  checkUpdateButtonText: {
+    marginLeft: sp(3),
+    color: '#9ca3af',
+    fontSize: fp(10),
+    fontWeight: '400',
   },
   version: {
     color: '#9ca3af',

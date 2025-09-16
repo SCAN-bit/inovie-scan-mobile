@@ -111,13 +111,31 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       Alert.alert("Attention", "Les dimensions de l'image ne sont pas encore chargées. Veuillez réessayer de marquer le défaut.");
       return;
     }
+    
+    // Convertir les coordonnées vers le format web (400x240)
+    const webWidth = 400;
+    const webHeight = 240;
+    
+    // Calculer le ratio de conversion
+    const ratioX = webWidth / imageLayout.width;
+    const ratioY = webHeight / imageLayout.height;
+    
+    // Convertir les coordonnées vers le format web
+    const webX = Math.round(locationX * ratioX);
+    const webY = Math.round(locationY * ratioY);
+    
     const newDefect = {
       id: Date.now().toString(),
-      x: locationX,
-      y: locationY,
-      imageWidthAtClick: imageLayout.width, // Sauvegarder la largeur de l'image au moment du clic
-      imageHeightAtClick: imageLayout.height, // Sauvegarder la hauteur de l'image au moment du clic
+      x: webX, // Coordonnée convertie vers le format web (400x240)
+      y: webY, // Coordonnée convertie vers le format web (400x240)
+      imageWidthAtClick: imageLayout.width,
+      imageHeightAtClick: imageLayout.height,
+      platform: Platform.OS, // Ajouter la plateforme pour le debug
+      originalX: locationX, // Coordonnée originale mobile
+      originalY: locationY, // Coordonnée originale mobile
     };
+    
+    // Coordonnées converties pour web
     setDefects([...defects, newDefect]);
   };
 
@@ -176,7 +194,7 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       }
 
       // OPTIMISATION 1: Upload parallèle des photos
-      console.log('🚀 [CheckVehiculeScreen] Upload optimisé de', photos.length, 'photos');
+      // Upload optimisé des photos
       const startUpload = Date.now();
       
       const uploadedPhotoUrls = [];
@@ -187,12 +205,11 @@ export default function CheckVehiculeScreen({ navigation, route }) {
           try {
             // Utiliser l'immatriculation du véhicule comme identifiant unique
             const vehiculeImmat = vehicule.immatriculation || vehicule.registrationNumber || 'unknown_vehicule';
-            console.log(`🚀 [CheckVehiculeScreen] Upload photo ${i + 1} pour véhicule: ${vehiculeImmat}`);
-            console.log(`🚀 [CheckVehiculeScreen] Véhicule complet:`, vehicule);
+            // Upload photo pour véhicule
             const downloadURL = await FirebaseService.uploadImageAsync(localUri, vehiculeImmat);
             return { success: true, url: downloadURL, index: i };
           } catch (uploadError) {
-            console.error(`❌ [CheckVehiculeScreen] Erreur upload photo ${i + 1}:`, uploadError);
+            console.error(`[CheckVehiculeScreen] Erreur upload photo ${i + 1}:`, uploadError);
             return { success: false, error: uploadError, index: i };
           }
         });
@@ -210,7 +227,7 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         });
 
         const uploadTime = Date.now() - startUpload;
-        console.log(`⚡ [CheckVehiculeScreen] Upload terminé en ${uploadTime}ms`);
+        // Upload terminé
 
         if (failedUploads.length > 0) {
           Alert.alert("Erreur d'upload partielle", 
@@ -219,16 +236,21 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       }
       
       // 2. Créer l'objet de données de vérification avec les URLs des photos
-      console.log('🔍 [CheckVehiculeScreen] Données véhicule pour checkData:', {
-        vehiculeId: vehicule.id,
-        vehiculeIdType: typeof vehicule.id,
-        immatriculation: vehicule.immatriculation || vehicule.registrationNumber,
-        immatriculationType: typeof (vehicule.immatriculation || vehicule.registrationNumber),
-        vehiculeComplet: vehicule
-      });
+      // console.log('[CheckVehiculeScreen] Données véhicule pour checkData:', {
+      //   vehiculeId: vehicule.id,
+      //   vehiculeIdType: typeof vehicule.id,
+      //   immatriculation: vehicule.immatriculation || vehicule.registrationNumber,
+      //   immatriculationType: typeof (vehicule.immatriculation || vehicule.registrationNumber),
+      //   vehiculeComplet: vehicule
+      // });
 
+      // Créer une date unique pour ce check avec une précision en millisecondes
+      const now = new Date();
+      const uniqueTimestamp = now.getTime() + Math.random() * 1000; // Ajouter des millisecondes aléatoires
+      const uniqueDate = new Date(uniqueTimestamp).toISOString();
+      
       const checkData = {
-        date: new Date().toISOString(),
+        date: uniqueDate,
         vehiculeId: vehicule.id,
         immatriculation: vehicule.immatriculation || vehicule.registrationNumber,
         selasId: selasId,
@@ -252,7 +274,7 @@ export default function CheckVehiculeScreen({ navigation, route }) {
         vehicleSchemaName: 'car-diagram.png'
       };
 
-      console.log('🔍 [CheckVehiculeScreen] checkData final:', {
+      console.log('[CheckVehiculeScreen] checkData final:', {
         vehiculeId: checkData.vehiculeId,
         immatriculation: checkData.immatriculation,
         photosCount: checkData.photos.length,
@@ -270,18 +292,26 @@ export default function CheckVehiculeScreen({ navigation, route }) {
       const savedSession = await FirebaseService.saveSessionData(updatedSessionData);
 
       // 3. Sauvegarder également dans la collection vehicleChecks pour le suivi
-      if (uploadedPhotoUrls.length > 0 || defects.length > 0 || notes.trim()) {
+      // CORRECTION : Sauvegarder TOUS les checks (même les checks vides)
+      // Un check doit être sauvegardé même sans contenu pour le suivi complet
+      const hasContent = true; // Toujours sauvegarder dans vehicleChecks
+      
+      if (hasContent) {
         try {
-          console.log('🔍 [CheckVehiculeScreen] Données à sauvegarder dans vehicleChecks:');
-          console.log('🔍 [CheckVehiculeScreen] - vehiculeId:', checkData.vehiculeId);
-          console.log('🔍 [CheckVehiculeScreen] - immatriculation:', checkData.immatriculation);
-          console.log('🔍 [CheckVehiculeScreen] - photos count:', checkData.photos.length);
-          console.log('🔍 [CheckVehiculeScreen] - selasId:', selasId);
-          console.log('🔍 [CheckVehiculeScreen] - Platform:', Platform.OS);
+          console.log('[CheckVehiculeScreen] Données à sauvegarder dans vehicleChecks:');
+          console.log('[CheckVehiculeScreen] - vehiculeId:', checkData.vehiculeId);
+          console.log('[CheckVehiculeScreen] - immatriculation:', checkData.immatriculation);
+          console.log('[CheckVehiculeScreen] - photos count:', checkData.photos.length);
+          console.log('[CheckVehiculeScreen] - defects count:', checkData.defects.length);
+          console.log('[CheckVehiculeScreen] - notes:', checkData.notes);
+          console.log('[CheckVehiculeScreen] - kilometrage:', checkData.kilometrage);
+          console.log('[CheckVehiculeScreen] - washCompleted:', checkData.washInfo.washCompleted);
+          console.log('[CheckVehiculeScreen] - selasId:', selasId);
+          console.log('[CheckVehiculeScreen] - Platform:', Platform.OS);
           
           // Vérification spécifique pour mobile
           if (Platform.OS !== 'web') {
-            console.log('📱 [CheckVehiculeScreen] Mode mobile détecté - vérifications supplémentaires');
+            console.log('[CheckVehiculeScreen] Mode mobile détecté - vérifications supplémentaires');
             
             // Vérifier que vehiculeId n'est pas null/undefined
             if (!checkData.vehiculeId) {
@@ -294,7 +324,11 @@ export default function CheckVehiculeScreen({ navigation, route }) {
             }
           }
           
-          const vehicleCheckResult = await FirebaseService.saveVehicleCheck(checkData, null, selasId);
+          // Récupérer l'utilisateur actuel pour l'uid
+          const userData = await FirebaseService.getCurrentUser();
+          const currentUid = userData ? userData.uid : null;
+          
+          const vehicleCheckResult = await FirebaseService.saveVehicleCheck(checkData, currentUid, selasId);
           console.log('✅ [CheckVehiculeScreen] Données sauvegardées dans vehicleChecks:', vehicleCheckResult.id);
           
           // Afficher un toast de succès sur mobile
@@ -457,15 +491,32 @@ export default function CheckVehiculeScreen({ navigation, route }) {
             )}
             
             {/* Afficher les défauts */}
-            {defects.map(defect => (
-              <TouchableOpacity
-                key={defect.id}
-                style={[styles.defectMark, { left: defect.x - 10, top: defect.y - 10 }]}
-                onPress={() => removeDefect(defect.id)}
-              >
-                <Text style={styles.defectX}>✕</Text>
-              </TouchableOpacity>
-            ))}
+            {defects.map(defect => {
+              // Convertir les coordonnées web vers les coordonnées mobiles pour l'affichage
+              const webWidth = 400;
+              const webHeight = 240;
+              const ratioX = imageLayout.width / webWidth;
+              const ratioY = imageLayout.height / webHeight;
+              
+              // Convertir les coordonnées web vers mobile pour l'affichage
+              const displayX = defect.x * ratioX;
+              const displayY = defect.y * ratioY;
+              
+              const markStyle = {
+                left: Math.max(0, Math.min(displayX - 10, imageLayout.width - 20)), // Limiter dans les bounds
+                top: Math.max(0, Math.min(displayY - 10, imageLayout.height - 20)), // Limiter dans les bounds
+              };
+              
+              return (
+                <TouchableOpacity
+                  key={defect.id}
+                  style={[styles.defectMark, markStyle]}
+                  onPress={() => removeDefect(defect.id)}
+                >
+                  <Text style={styles.defectX}>✕</Text>
+                </TouchableOpacity>
+              );
+            })}
           </TouchableOpacity>
         </View>
         
@@ -740,8 +791,8 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   carDiagram: {
-    width: width * 0.8,
-    height: width * 0.8 * 0.5, // Ratio aspect approx.
+    width: Platform.OS === 'web' ? 400 : width * 0.9, // Taille fixe sur web, responsive sur mobile
+    height: Platform.OS === 'web' ? 240 : width * 0.9 * 0.6, // Ratio 5:3 cohérent
     backgroundColor: '#f0f0f0', // Fond si l'image ne charge pas
     borderRadius: 8,
     justifyContent: 'center', // Pour le placeholder

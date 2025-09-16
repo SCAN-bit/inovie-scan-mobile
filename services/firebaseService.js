@@ -62,28 +62,23 @@ const FirebaseService = {
   // Authentification
   login: async (email, password) => {
     try {
-      console.log('Tentative de connexion avec:', email);
+      // Tentative de connexion
       
       // Vérifier d'abord si le compte est valide
       const auth = getAuth();
-      console.log('Authentification initialisée');
+      // Authentification initialisée
       
       // Fermer toute session existante avant la connexion
       try {
         await FirebaseService.closeCurrentSession();
-        console.log('Session précédente fermée automatiquement');
+        // Session précédente fermée automatiquement
       } catch (sessionError) {
-        console.log('Pas de session active à fermer ou erreur:', sessionError);
+        // Pas de session active à fermer
       }
       
       // Tentative de connexion
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Connexion réussie, objet credential:', JSON.stringify({
-        email: userCredential.user.email,
-        uid: userCredential.user.uid,
-        isAnonymous: userCredential.user.isAnonymous,
-        emailVerified: userCredential.user.emailVerified
-      }));
+      // Connexion réussie
       
       const user = userCredential.user;
       
@@ -96,9 +91,9 @@ const FirebaseService = {
         
         if (!userSnapshot.empty) {
           userData = userSnapshot.docs[0].data();
-          console.log('Données utilisateur récupérées depuis Firestore:', userData);
+          // Données utilisateur récupérées depuis Firestore
         } else {
-          console.log('Aucun utilisateur trouvé dans Firestore pour cet email');
+          // Aucun utilisateur trouvé dans Firestore
         }
       } catch (firestoreError) {
         console.error('Erreur lors de la récupération des données utilisateur depuis Firestore:', firestoreError);
@@ -113,17 +108,13 @@ const FirebaseService = {
           role: userData?.role || 'Utilisateur',
           ...userData
         }));
-        console.log('Informations utilisateur stockées avec succès');
+        // Informations utilisateur stockées avec succès
       } catch (storageError) {
         console.error('Erreur lors du stockage des informations utilisateur:', storageError);
       }
       
       // Retourner l'utilisateur avec ses données Firestore
-      console.log('🔍 [firebaseService.login] Retour des données:', {
-        user: user,
-        userData: userData,
-        userDataRole: userData?.role
-      });
+      // Retour des données de connexion
       
       return {
         user: user,
@@ -351,7 +342,7 @@ const FirebaseService = {
       // D'abord vérifier si le selasId est stocké localement
       const selasId = await AsyncStorage.getItem('user_selas_id');
       if (selasId) {
-        console.log('SELAS ID récupéré du stockage local:', selasId);
+        // console.log('SELAS ID récupéré du stockage local:', selasId);
         return selasId;
       }
       
@@ -366,7 +357,7 @@ const FirebaseService = {
         const selasId = userProfileDoc.data().selasId;
         // Stocker pour utilisation future
         await AsyncStorage.setItem('user_selas_id', selasId);
-        console.log('SELAS ID récupéré du profil et stocké localement:', selasId);
+        // console.log('SELAS ID récupéré du profil et stocké localement:', selasId);
         return selasId;
       }
       
@@ -501,7 +492,7 @@ const FirebaseService = {
         return { success: false, error: 'Utilisateur non connecté' };
       }
       
-      // 🚀 OPTIMISATION: Récupération parallèle des données nécessaires
+      // OPTIMISATION: Récupération parallèle des données nécessaires
       const [userProfile, selaId, sessionData] = await Promise.all([
         FirebaseService.getUserProfile(),
         FirebaseService.getUserSelasId(),  
@@ -512,9 +503,9 @@ const FirebaseService = {
           ? userProfile.nom 
           : user.email;
       
-      console.log('✅ Données récupérées en parallèle - Session:', sessionData ? 'Oui' : 'Non');
+      console.log('Données récupérées en parallèle - Session:', sessionData ? 'Oui' : 'Non');
       
-      // 🚀 OPTIMISATION: Pré-récupération des données communes pour éviter les appels répétés
+      // OPTIMISATION: Pré-récupération des données communes pour éviter les appels répétés
       let poleDetails = null;
       let vehiculeDetails = null;
       let siteDetails = null;
@@ -523,16 +514,16 @@ const FirebaseService = {
       const siteId = sessionData?.tournee?.siteDepart || scansArray[0]?.site || scansArray[0]?.siteDepart;
       if (siteId && !scansArray[0]?.poleId) {
         try {
-          console.log('🔍 Récupération des détails du site avec pôle:', siteId);
+          console.log('Récupération des détails du site avec pôle:', siteId);
           siteDetails = await FirebaseService.getSiteWithPole(siteId);
           if (siteDetails?.pole) {
             poleDetails = siteDetails.pole;
-            console.log('✅ Détails du pôle récupérés depuis le site:', poleDetails?.nom);
+            console.log('Détails du pôle récupérés depuis le site:', poleDetails?.nom);
           } else {
-            console.log('⚠️ Aucun pôle trouvé pour ce site');
+            console.log('Aucun pôle trouvé pour ce site');
           }
         } catch (error) {
-          console.warn('❌ Erreur récupération site/pôle:', error.message);
+          console.warn('Erreur récupération site/pôle:', error.message);
         }
       }
       
@@ -540,20 +531,20 @@ const FirebaseService = {
       if (!poleDetails && sessionData?.poleId && !scansArray[0]?.poleId) {
         try {
           poleDetails = await FirebaseService.getPoleById(sessionData.poleId);
-          console.log('✅ Détails du pôle récupérés depuis la session:', poleDetails?.nom);
+          console.log('Détails du pôle récupérés depuis la session:', poleDetails?.nom);
         } catch (error) {
-          console.warn('❌ Erreur récupération pôle depuis session:', error.message);
+          console.warn('Erreur récupération pôle depuis session:', error.message);
         }
       }
       
-      // 🆕 FALLBACK ULTIME: Utiliser le pôle de l'utilisateur connecté si aucun pôle trouvé
-      console.log('🔍 [FALLBACK DEBUG] Profil utilisateur:', JSON.stringify(userProfile, null, 2));
-      console.log('🔍 [FALLBACK DEBUG] poleDetails avant fallback:', poleDetails);
-      console.log('🔍 [FALLBACK DEBUG] Aucun scan n\'a de poleId:', !scansArray.some(scan => scan.poleId));
+      // FALLBACK ULTIME: Utiliser le pôle de l'utilisateur connecté si aucun pôle trouvé
+      console.log('[FALLBACK DEBUG] Profil utilisateur:', JSON.stringify(userProfile, null, 2));
+      console.log('[FALLBACK DEBUG] poleDetails avant fallback:', poleDetails);
+      console.log('[FALLBACK DEBUG] Aucun scan n\'a de poleId:', !scansArray.some(scan => scan.poleId));
       
       if (!poleDetails && !scansArray.some(scan => scan.poleId)) {
         try {
-          console.log('🔄 [FALLBACK] Aucun pôle trouvé, recherche du pôle "CENTRE" par défaut...');
+          console.log('[FALLBACK] Aucun pôle trouvé, recherche du pôle "CENTRE" par défaut...');
           
           // Chercher directement le pôle "CENTRE" comme fallback universel
           const polesQuery = query(collection(db, 'poles'), where('nom', '==', 'CENTRE'));
@@ -562,9 +553,9 @@ const FirebaseService = {
           if (!polesSnapshot.empty) {
             const poleDoc = polesSnapshot.docs[0];
             poleDetails = { id: poleDoc.id, ...poleDoc.data() };
-            console.log('✅ [FALLBACK] Pôle CENTRE trouvé par défaut:', poleDetails?.nom, 'ID:', poleDetails?.id);
+            console.log('[FALLBACK] Pôle CENTRE trouvé par défaut:', poleDetails?.nom, 'ID:', poleDetails?.id);
           } else {
-            console.warn('❌ [FALLBACK] Pôle CENTRE non trouvé, essai avec profil utilisateur...');
+            console.warn('[FALLBACK] Pôle CENTRE non trouvé, essai avec profil utilisateur...');
             
             // Si CENTRE n'existe pas, essayer avec le profil utilisateur
             if (userProfile?.pole) {
@@ -574,37 +565,37 @@ const FirebaseService = {
                 if (!userPolesSnapshot.empty) {
                   const userPoleDoc = userPolesSnapshot.docs[0];
                   poleDetails = { id: userPoleDoc.id, ...userPoleDoc.data() };
-                  console.log('✅ [FALLBACK] Pôle utilisateur trouvé:', poleDetails?.nom);
+                  console.log('[FALLBACK] Pôle utilisateur trouvé:', poleDetails?.nom);
                 }
               } else if (typeof userProfile.pole === 'object' && userProfile.pole.id) {
                 poleDetails = userProfile.pole;
-                console.log('✅ [FALLBACK] Pôle utilisateur objet utilisé:', poleDetails?.nom);
+                console.log('[FALLBACK] Pôle utilisateur objet utilisé:', poleDetails?.nom);
               }
             }
           }
         } catch (error) {
-          console.warn('❌ [FALLBACK] Erreur récupération pôle fallback:', error.message);
+          console.warn('[FALLBACK] Erreur récupération pôle fallback:', error.message);
         }
       }
       
-      console.log('🏁 [FALLBACK DEBUG] poleDetails final:', poleDetails);
+      console.log('[FALLBACK DEBUG] poleDetails final:', poleDetails);
       
       // Récupérer les détails du véhicule une seule fois si nécessaire
       const vehiculeId = sessionData?.vehicule?.id || scansArray[0]?.vehiculeId;
       let vehiculeName = sessionData?.vehicule?.immatriculation || scansArray[0]?.vehicule;
       
-      // 🔧 AMÉLIORATION : Toujours essayer de récupérer le véhicule si on a un ID
+      // AMÉLIORATION : Toujours essayer de récupérer le véhicule si on a un ID
       if (vehiculeId) {
         try {
           vehiculeDetails = await FirebaseService.getVehiculeById(vehiculeId);
           vehiculeName = vehiculeDetails?.immatriculation || vehiculeName || '';
-          console.log('✅ Détails du véhicule récupérés:', vehiculeName);
+          console.log('Détails du véhicule récupérés:', vehiculeName);
         } catch (error) {
-          console.warn('❌ Erreur récupération véhicule:', error.message);
+          console.warn('Erreur récupération véhicule:', error.message);
         }
       }
       
-      // 🔧 AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
+      // AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
       const tourneeId = sessionData?.tournee?.id || scansArray[0]?.tourneeId;
       let tourneeName = sessionData?.tournee?.nom || scansArray[0]?.tournee;
       
@@ -612,9 +603,9 @@ const FirebaseService = {
         try {
           const tourneeDetails = await FirebaseService.getTourneeById(tourneeId);
           tourneeName = tourneeDetails?.nom || '';
-          console.log('✅ Détails de la tournée récupérés:', tourneeName);
+          console.log('Détails de la tournée récupérés:', tourneeName);
         } catch (error) {
-          console.warn('❌ Erreur récupération tournée:', error.message);
+          console.warn('Erreur récupération tournée:', error.message);
         }
       }
 
@@ -624,7 +615,7 @@ const FirebaseService = {
         const poleId = scan.poleId || poleDetails?.id || sessionData?.poleId || sessionData?.pole?.id || '';
         const poleName = scan.poleName || poleDetails?.nom || sessionData?.pole?.nom || scan.pole || '';
         
-        console.log(`🏷️ [addScans] Pôle pour ${scan.idColis}: ID=${poleId}, Nom=${poleName}`);
+        console.log(`[addScans] Pôle pour ${scan.idColis}: ID=${poleId}, Nom=${poleName}`);
         
         const finalVehiculeId = scan.vehiculeId || vehiculeId || '';
         const finalVehiculeName = scan.vehicule || vehiculeName || '';
@@ -662,16 +653,31 @@ const FirebaseService = {
           vehiculeId: finalVehiculeId,
           immatriculation: finalVehiculeName,
           
-          // Sites - correspondance exacte
-          site: siteName,
-          siteDepart: siteName,
-          siteDepartName: scan.siteDepartName || siteName, // Utiliser siteName si siteDepartName est vide
-          siteDépart: siteName,
+          // Sites - correspondance exacte selon le type d'opération
+          site: scan.site || siteName,
+          siteDepart: scan.siteDepart || siteName,
+          siteDepartName: scan.siteDepartName || scan.site || siteName,
+          siteDépart: scan.siteDepart || siteName,
           
-          // 🔧 CORRECTION : Ne définir siteFin que pour les sorties
+          // CORRECTION : Informations spécifiques selon le type d'opération
           ...(scan.operationType === 'sortie' ? {
-            siteFin: scan.siteFin || scan.siteActuel || scan.site || '', // Site où on livre (pas le site de départ)
-            siteFinName: scan.siteFinName || scan.siteActuelName || ''
+            // Pour les sorties (arrivée) : site de destination et livraison
+            siteFin: scan.siteFin || scan.siteActuel || scan.site || '',
+            siteFinName: scan.siteFinName || scan.siteActuelName || '',
+            dateHeureFin: scan.scanDate || new Date().toISOString(),
+            dateArrivee: scan.scanDate ? new Date(scan.scanDate).toLocaleDateString() : new Date().toLocaleDateString(),
+            heureArrivee: scan.scanDate ? new Date(scan.scanDate).toLocaleTimeString('fr-FR') : new Date().toLocaleTimeString('fr-FR')
+          } : scan.operationType === 'entree' ? {
+            // Pour les entrées (prise en charge) : site de départ
+            siteDepart: scan.siteDepart || scan.site || siteName,
+            siteDepartName: scan.siteDepartName || scan.site || siteName,
+            site: scan.site || siteName
+          } : scan.operationType === 'visite_sans_colis' ? {
+            // Pour les visites sans colis : site visité
+            siteVisite: scan.siteVisite || scan.site || siteName,
+            siteVisiteName: scan.siteVisiteName || scan.site || siteName,
+            site: scan.site || siteName,
+            dateVisite: scan.scanDate || new Date().toISOString()
           } : {}),
           
           // Pôle - correspondance exacte
@@ -689,7 +695,10 @@ const FirebaseService = {
           statut: scan.operationType === 'sortie' ? 'Livré' : 
                   scan.operationType === 'visite_sans_colis' ? 'Pas de colis' : 'En cours',
           status: scan.operationType === 'sortie' ? 'livré' : 
-                  scan.operationType === 'visite_sans_colis' ? 'pas_de_colis' : 'en-cours'
+                  scan.operationType === 'visite_sans_colis' ? 'pas_de_colis' : 'en-cours',
+          
+          // Ajouter le type d'opération pour la cohérence
+          operationType: scan.operationType || 'entree'
         };
 
         // Ajouter le champ 'code' seulement s'il n'est pas undefined
@@ -736,28 +745,37 @@ const FirebaseService = {
       const idColisList = formattedScans.map(scan => scan.idColis);
       const selasId = formattedScans[0]?.selasId; // Supposer même SELAS pour tous les scans
 
-      // Requête groupée pour vérifier les passages existants
+      // Requête groupée pour vérifier les passages existants - traiter par lots de 10
       let existingPassagesMap = new Map();
       if (idColisList.length > 0 && selasId) {
         try {
-          const passagesQuery = query(
-            collection(db, 'passages'), 
-            where('idColis', 'in', idColisList.slice(0, 10)), // Firestore limite à 10 éléments dans 'in'
-            where('selasId', '==', selasId)
-          );
-          const existingPassages = await getDocs(passagesQuery);
+          // Traiter par lots de 10 pour respecter la limite Firestore
+          for (let i = 0; i < idColisList.length; i += 10) {
+            const batch = idColisList.slice(i, i + 10);
+            const passagesQuery = query(
+              collection(db, 'passages'), 
+              where('idColis', 'in', batch),
+              where('selasId', '==', selasId)
+            );
+            const existingPassages = await getDocs(passagesQuery);
+            
+            existingPassages.forEach(doc => {
+              existingPassagesMap.set(doc.data().idColis, { id: doc.id, data: doc.data() });
+            });
+          }
           
-          existingPassages.forEach(doc => {
-            existingPassagesMap.set(doc.data().idColis, { id: doc.id, data: doc.data() });
-          });
-          
-          console.log(`🔍 Vérification groupée: ${existingPassagesMap.size} passages existants trouvés`);
+          console.log(`Vérification groupée: ${existingPassagesMap.size} passages existants trouvés sur ${idColisList.length} colis`);
         } catch (error) {
-          console.warn('❌ Erreur requête groupée, fallback mode individuel:', error.message);
+          console.warn('Erreur requête groupée, fallback mode individuel:', error.message);
         }
       }
 
       // Traitement des scans avec logique de mise à jour conditionnelle
+      // Gérer les batches multiples pour éviter la limite de 500 opérations
+      const BATCH_SIZE = 400; // Limite sûre pour Firestore
+      let currentBatch = writeBatch(db);
+      let batchOperationCount = 0;
+      
       for (const formattedScan of formattedScans) {
         try {
           const existingPassage = existingPassagesMap.get(formattedScan.idColis);
@@ -821,20 +839,36 @@ const FirebaseService = {
               delete updateData.statut; // Éviter les doublons
             }
             
-            batch.update(doc(db, 'passages', existingPassage.id), updateData);
+            currentBatch.update(doc(db, 'passages', existingPassage.id), updateData);
             updatedCount++;
           } else {
             // Création d'un nouveau passage
             const newScanRef = doc(collection(db, 'passages'));
-            batch.set(newScanRef, formattedScan);
+            currentBatch.set(newScanRef, formattedScan);
             createdCount++;
           }
+          
+          batchOperationCount++;
+          
+          // Si on atteint la limite du batch, l'envoyer et en créer un nouveau
+          if (batchOperationCount >= BATCH_SIZE) {
+            await currentBatch.commit();
+            console.log(`✅ Batch de ${batchOperationCount} opérations envoyé`);
+            currentBatch = writeBatch(db);
+            batchOperationCount = 0;
+          }
+          
         } catch (error) {
           console.error(`❌ Erreur traitement ${formattedScan.idColis}:`, error.message);
         }
       }
       
-      await batch.commit();
+      // Envoyer le dernier batch s'il contient des opérations
+      if (batchOperationCount > 0) {
+        await currentBatch.commit();
+        console.log(`✅ Dernier batch de ${batchOperationCount} opérations envoyé`);
+      }
+      
       console.log(`✅ Traitement terminé: ${createdCount} passages créés, ${updatedCount} passages mis à jour`);
       return { success: true, created: createdCount, updated: updatedCount };
     } catch (error) {
@@ -1406,10 +1440,8 @@ const FirebaseService = {
       // Nettoyer récursivement toutes les valeurs undefined
       const sessionInfo = FirebaseService.cleanUndefinedValues(rawSessionInfo);
       
-      // Si on a des données de vérification de véhicule, les sauvegarder dans une collection dédiée
-      if (sessionData.vehiculeCheck) {
-        await FirebaseService.saveVehicleCheck(sessionData.vehiculeCheck, userData.uid, selasId);
-      }
+      // Note: Les checks de véhicules sont maintenant sauvegardés directement dans CheckVehiculeScreen.js
+      // pour éviter les doublons
       
       // Sauvegarder la session dans Firebase
       const docRef = await addDoc(collection(db, 'sessions'), sessionInfo);
@@ -1453,169 +1485,48 @@ const FirebaseService = {
   // Nouvelle fonction pour sauvegarder spécifiquement les checks de véhicules
   saveVehicleCheck: async (vehiculeCheckData, uid, selasId) => {
     try {
-      console.log(`[saveVehicleCheck] Début sauvegarde pour véhicule: ${vehiculeCheckData.vehiculeId}`);
-      console.log(`[saveVehicleCheck] Données reçues:`, {
+      // STRUCTURE SIMPLE : 1 document = 1 check
+      const finalDate = vehiculeCheckData.date || new Date().toISOString();
+      
+      const checkData = {
+        // Infos véhicule
         vehiculeId: vehiculeCheckData.vehiculeId,
         immatriculation: vehiculeCheckData.immatriculation,
-        photosCount: vehiculeCheckData.photos?.length || 0,
-        defectsCount: vehiculeCheckData.defects?.length || 0,
-        notes: vehiculeCheckData.notes,
-        selasId: selasId
-      });
-      
-      // Vérifier si un document existe déjà pour ce véhicule
-      let existingCheckDoc = null;
-      try {
-        const existingCheckQuery = query(
-          collection(db, 'vehicleChecks'),
-          where('vehiculeId', '==', vehiculeCheckData.vehiculeId),
-          limit(1)
-        );
         
-        const existingCheckSnapshot = await getDocs(existingCheckQuery);
-        if (!existingCheckSnapshot.empty) {
-          existingCheckDoc = existingCheckSnapshot.docs[0];
-          console.log(`[saveVehicleCheck] Document existant trouvé: ${existingCheckDoc.id}`);
-        } else {
-          console.log(`[saveVehicleCheck] Aucun document existant trouvé pour vehiculeId: ${vehiculeCheckData.vehiculeId}`);
-        }
-      } catch (queryError) {
-        console.warn('[saveVehicleCheck] Erreur lors de la recherche du document existant:', queryError);
-      }
-
-      // Préparer les nouvelles données
-      const newCheckEntry = {
-        checkId: `check_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        date: vehiculeCheckData.date || new Date().toISOString(),
+        // Infos utilisateur
+        uid: uid,
+        selasId: selasId,
+        
+        // Données du check
         checkType: vehiculeCheckData.checkType || 'debut_tournee',
         kilometrage: vehiculeCheckData.kilometrage || null,
-        defects: vehiculeCheckData.defects || [],
-        photos: vehiculeCheckData.photos || [],
         notes: vehiculeCheckData.notes || '',
-        washInfo: {
-          washCompleted: vehiculeCheckData.washInfo?.washCompleted || false,
-          washTypes: vehiculeCheckData.washInfo?.washTypes || []
-        },
+        photos: vehiculeCheckData.photos || [],
+        defects: vehiculeCheckData.defects || [],
+        washInfo: vehiculeCheckData.washInfo || {},
         managerAlertRequested: vehiculeCheckData.managerAlertRequested || false,
-        createdAt: serverTimestamp()
+        
+        // Date simple - utiliser Date JavaScript au lieu de serverTimestamp
+        createdAt: finalDate,
+        checkDate: finalDate
       };
+      
+      // NETTOYER LES VALEURS UNDEFINED pour Firestore
+      const cleanedCheckData = FirebaseService.cleanUndefinedValues(checkData);
+      console.log(`[saveVehicleCheck] Données nettoyées:`, cleanedCheckData);
 
-      if (existingCheckDoc) {
-        // Mettre à jour le document existant
-        console.log('[saveVehicleCheck] Mise à jour du document existant');
-        
-        const existingData = existingCheckDoc.data();
-        const updatedData = {
-          // Garder les informations de base
-          uid: uid || existingData.uid,
-          selasId: selasId || existingData.selasId,
-          vehiculeId: vehiculeCheckData.vehiculeId || existingData.vehiculeId,
-          immatriculation: vehiculeCheckData.immatriculation || existingData.immatriculation,
-          vehicleSchemaName: vehiculeCheckData.vehicleSchemaName || existingData.vehicleSchemaName || 'car-diagram.png',
-          
-          // Mettre à jour les informations actuelles
-          lastCheckDate: newCheckEntry.date,
-          lastCheckType: newCheckEntry.checkType,
-          lastKilometrage: newCheckEntry.kilometrage,
-          lastCheckId: newCheckEntry.checkId,
-          
-          // Ajouter le nouveau check à l'historique
-          checkHistory: [
-            newCheckEntry,
-            ...(existingData.checkHistory || [])
-          ],
-          
-          // Mettre à jour les photos (toutes les photos de tous les checks)
-          allPhotos: [
-            ...(newCheckEntry.photos || []),
-            ...(existingData.allPhotos || [])
-          ],
-          
-          // Mettre à jour les défauts (tous les défauts de tous les checks)
-          allDefects: [
-            ...(newCheckEntry.defects || []),
-            ...(existingData.allDefects || [])
-          ],
-          
-          // Mettre à jour le timestamp
-          updatedAt: serverTimestamp(),
-          
-          // Garder la date de création originale
-          createdAt: existingData.createdAt
-        };
-
-        // Nettoyer les données
-        const cleanUpdatedData = FirebaseService.cleanUndefinedValues(updatedData);
-        
-        // Mettre à jour le document
-        await updateDoc(doc(db, 'vehicleChecks', existingCheckDoc.id), cleanUpdatedData);
-        
-        console.log(`[saveVehicleCheck] Document mis à jour: ${existingCheckDoc.id}`);
-        
-        return {
-          id: existingCheckDoc.id,
-          ...cleanUpdatedData
-        };
-        
-      } else {
-        // Créer un nouveau document
-        console.log('[saveVehicleCheck] Création d\'un nouveau document');
-        console.log('[saveVehicleCheck] Données du nouveau check:', {
-          photosCount: newCheckEntry.photos?.length || 0,
-          defectsCount: newCheckEntry.defects?.length || 0,
-          checkType: newCheckEntry.checkType,
-          kilometrage: newCheckEntry.kilometrage
-        });
-        
-        const newCheckData = {
-          uid: uid || null,
-          selasId: selasId || null,
-          vehiculeId: vehiculeCheckData.vehiculeId || null,
-          immatriculation: vehiculeCheckData.immatriculation || null,
-          vehicleSchemaName: vehiculeCheckData.vehicleSchemaName || 'car-diagram.png',
-          
-          // Informations du premier check
-          lastCheckDate: newCheckEntry.date,
-          lastCheckType: newCheckEntry.checkType,
-          lastKilometrage: newCheckEntry.kilometrage,
-          lastCheckId: newCheckEntry.checkId,
-          
-          // Historique des checks
-          checkHistory: [newCheckEntry],
-          
-          // Toutes les photos
-          allPhotos: newCheckEntry.photos || [],
-          
-          // Tous les défauts
-          allDefects: newCheckEntry.defects || [],
-          
-          // Timestamps
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-
-        // Nettoyer les données
-        const cleanNewData = FirebaseService.cleanUndefinedValues(newCheckData);
-        console.log('[saveVehicleCheck] Données nettoyées pour création:', {
-          vehiculeId: cleanNewData.vehiculeId,
-          immatriculation: cleanNewData.immatriculation,
-          allPhotosCount: cleanNewData.allPhotos?.length || 0,
-          allDefectsCount: cleanNewData.allDefects?.length || 0
-        });
-        
-        // Créer le document
-        const docRef = await addDoc(collection(db, 'vehicleChecks'), cleanNewData);
-        
-        console.log(`[saveVehicleCheck] Nouveau document créé: ${docRef.id}`);
-        
-        return {
-          id: docRef.id,
-          ...cleanNewData
-        };
-      }
+      // Créer le nouveau document
+      const docRef = await addDoc(collection(db, 'vehicleChecks'), cleanedCheckData);
+      
+      console.log(`[saveVehicleCheck] ✅ Check sauvegardé: ${docRef.id}`);
+      
+      return {
+        id: docRef.id,
+        ...checkData
+      };
       
     } catch (error) {
-      console.error('[saveVehicleCheck] Erreur lors de la sauvegarde du check véhicule:', error);
+      console.error('[saveVehicleCheck] ❌ Erreur:', error);
       throw error;
     }
   },
@@ -2683,6 +2594,107 @@ const FirebaseService = {
 
     } catch (error) {
       console.error(`🚨 Erreur lors de la mise à jour du passage ${idColis}:`, error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 🚀 NOUVELLE FONCTION OPTIMISÉE: Mise à jour en batch pour plusieurs colis
+  updatePassagesOnSortieBatch: async (colisList, updateData, isConnected) => {
+    console.log(`🚀 [updatePassagesOnSortieBatch] Mise à jour optimisée de ${colisList.length} colis`);
+    
+    if (!isConnected) {
+      console.log('Mode hors-ligne, ajout des mises à jour à la queue.');
+      return { success: true, message: 'Mises à jour mises en queue (hors-ligne).' };
+    }
+
+    try {
+      const startTime = Date.now();
+      
+      // OPTIMISATION 1: Traiter par lots de 10 pour respecter la limite Firestore 'in'
+      const passagesMap = new Map();
+      const BATCH_SIZE = 10; // Limite Firestore pour les requêtes 'in'
+      
+      for (let i = 0; i < colisList.length; i += BATCH_SIZE) {
+        const batch = colisList.slice(i, i + BATCH_SIZE);
+        console.log(`🔍 [updatePassagesOnSortieBatch] Traitement du lot ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(colisList.length/BATCH_SIZE)} (${batch.length} colis)`);
+        
+        const passagesRef = collection(db, 'passages');
+        const q = query(
+          passagesRef, 
+          where('idColis', 'in', batch), 
+          where('status', '==', 'en-cours')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        // Ajouter les résultats au Map
+        querySnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          passagesMap.set(data.idColis, { id: doc.id, data });
+        });
+      }
+      
+      if (passagesMap.size === 0) {
+        console.warn(`⚠️ Aucun passage 'en-cours' trouvé pour les colis: ${colisList.join(', ')}`);
+        return { success: false, error: 'Aucun document trouvé' };
+      }
+      
+      console.log(`🔍 [updatePassagesOnSortieBatch] ${passagesMap.size} passages trouvés sur ${colisList.length} colis demandés`);
+      
+      // OPTIMISATION 3: Utiliser writeBatch pour les mises à jour (par lots de 400)
+      const updatePromises = [];
+      const UPDATE_BATCH_SIZE = 400; // Limite sûre pour Firestore
+      let currentBatch = writeBatch(db);
+      let batchOperationCount = 0;
+      
+      for (const idColis of colisList) {
+        const passageInfo = passagesMap.get(idColis);
+        if (passageInfo) {
+          const docRef = doc(db, 'passages', passageInfo.id);
+          currentBatch.update(docRef, {
+            ...updateData,
+            updatedAt: new Date(),
+          });
+          console.log(`📝 [updatePassagesOnSortieBatch] Mise à jour colis ${idColis}:`, {
+            status: updateData.status,
+            siteFin: updateData.siteFin,
+            dateHeureFin: updateData.dateHeureFin
+          });
+          updatePromises.push({ idColis, docId: passageInfo.id });
+          batchOperationCount++;
+          
+          // Si on atteint la limite du batch, l'envoyer et en créer un nouveau
+          if (batchOperationCount >= UPDATE_BATCH_SIZE) {
+            await currentBatch.commit();
+            console.log(`✅ Batch de ${batchOperationCount} mises à jour envoyé`);
+            currentBatch = writeBatch(db);
+            batchOperationCount = 0;
+          }
+        } else {
+          console.warn(`⚠️ Passage non trouvé pour le colis: ${idColis}`);
+        }
+      }
+      
+      // OPTIMISATION 4: Exécuter le dernier batch s'il contient des opérations
+      if (batchOperationCount > 0) {
+        await currentBatch.commit();
+        console.log(`✅ Dernier batch de ${batchOperationCount} mises à jour envoyé`);
+      }
+      
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      console.log(`✅ [updatePassagesOnSortieBatch] ${updatePromises.length}/${colisList.length} passages mis à jour en ${duration}ms`);
+      
+      return { 
+        success: true, 
+        updatedCount: updatePromises.length,
+        duration: duration,
+        updatedColis: updatePromises.map(p => p.idColis)
+      };
+
+    } catch (error) {
+      console.error(`🚨 Erreur lors de la mise à jour en batch:`, error);
       return { success: false, error: error.message };
     }
   },

@@ -13,6 +13,7 @@ import {
   SafeAreaView, // Ajout pour la modale
   StatusBar, // Ajout pour la barre de statut
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomPicker from '../components/CustomPicker';
 import Toast from '../components/Toast';
 import FirebaseService from '../services/firebaseService';
@@ -54,7 +55,7 @@ const View = CustomView;
 };
 
 export default function TourneeScreen({ navigation, route }) {
-  const { preSelectedTournee, preSelectedPole, changeVehicleMode, resetSelection } = route.params || {};
+  const { preSelectedTournee, preSelectedPole, changeVehicleMode, resetSelection, sessionData } = route.params || {};
   
   const [tournees, setTournees] = useState([]);
   const [vehicules, setVehicules] = useState([]);
@@ -81,27 +82,85 @@ export default function TourneeScreen({ navigation, route }) {
   useEffect(() => {
     const fetchDataOptimized = async () => {
       const startTime = Date.now();
-      // console.log('🚀 [TourneeScreen] Chargement initial optimisé');
+      // Chargement initial optimisé
       
       try {
         setIsLoading(true);
         setError(null);
 
-        // OPTIMISATION 1: Toutes les requêtes en parallèle
-        const [polesData, tourneesData, vehiculesData] = await Promise.all([
-          FirebaseService.getPoles(),
-          FirebaseService.getTournees(),
-          FirebaseService.getVehicules()
+        // OPTIMISATION 1: Vérifier le cache d'abord avec cache plus long pour appareils lents
+        const cacheKey = 'tourneeScreen_data';
+        const cachedData = await AsyncStorage.getItem(cacheKey);
+        const cacheTimestamp = await AsyncStorage.getItem(`${cacheKey}_timestamp`);
+        const now = Date.now();
+        const cacheAge = cacheTimestamp ? now - parseInt(cacheTimestamp) : Infinity;
+        const maxCacheAge = 120000; // 2 minutes pour appareils lents comme Zebra TC26
+        
+        if (cachedData && cacheAge < maxCacheAge) {
+          // Utilisation du cache
+          const { poles, tournees, vehicules } = JSON.parse(cachedData);
+          setPoles(poles || []);
+          allDataCache.current = { tournees: tournees || [], vehicules: vehicules || [] };
+          
+          if (preSelectedPole) {
+            const tourneesFiltered = (tournees || []).filter(t => {
+              return t.poleId === preSelectedPole.id || t.pole === preSelectedPole.id || t.pole === preSelectedPole.nom;
+            });
+            const vehiculesFiltered = (vehicules || []).filter(v => {
+              return v.poleId === preSelectedPole.id || v.pole === preSelectedPole.id || v.pole === preSelectedPole.nom;
+            });
+            
+            setTournees(tourneesFiltered);
+            setVehicules(vehiculesFiltered);
+            setVehiculesFiltres(vehiculesFiltered);
+            setSelectedPole(preSelectedPole);
+          } else {
+            setTournees(tournees || []);
+            setVehicules(vehicules || []);
+            setVehiculesFiltres(vehicules || []);
+          }
+          
+          setIsLoading(false);
+          return;
+        }
+
+        // OPTIMISATION 2: Requêtes avec timeout pour appareils lents
+        // Chargement des données avec timeout
+        
+        const polesPromise = FirebaseService.getPoles();
+        const tourneesPromise = FirebaseService.getTournees();
+        const vehiculesPromise = FirebaseService.getVehicules();
+        
+        // Timeout de 10 secondes pour chaque requête
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout chargement données')), 10000)
+        );
+        
+        const [polesData, tourneesData, vehiculesData] = await Promise.race([
+          Promise.all([polesPromise, tourneesPromise, vehiculesPromise]),
+          timeoutPromise
         ]);
 
         setPoles(polesData || []);
 
-        // OPTIMISATION 2: Sauvegarder dans le cache ET afficher les données
+        // OPTIMISATION 3: Sauvegarder dans le cache ET afficher les données
         allDataCache.current = { tournees: tourneesData || [], vehicules: vehiculesData || [] };
-        // console.log(`💾 [TourneeScreen] Cache mis à jour: ${tourneesData?.length || 0} tournées, ${vehiculesData?.length || 0} véhicules`);
+        
+        // Mettre en cache les données
+        try {
+          const dataToCache = {
+            poles: polesData || [],
+            tournees: tourneesData || [],
+            vehicules: vehiculesData || []
+          };
+          await AsyncStorage.setItem(cacheKey, JSON.stringify(dataToCache));
+          await AsyncStorage.setItem(`${cacheKey}_timestamp`, now.toString());
+        } catch (cacheError) {
+          console.warn('Erreur lors de la mise en cache:', cacheError);
+        }
 
         if (preSelectedPole) {
-          // console.log(`🎯 [TourneeScreen] Filtrage pour pôle: ${preSelectedPole.id}`);
+          // Filtrage pour pôle
           
           // Filtrer localement avec la nouvelle logique
           const tourneesFiltered = (tourneesData || []).filter(t => {
@@ -116,7 +175,7 @@ export default function TourneeScreen({ navigation, route }) {
           setVehiculesFiltres(vehiculesFiltered);
           setSelectedPole(preSelectedPole);
           
-          // console.log(`🎯 [TourneeScreen] Pré-filtrage: ${tourneesFiltered.length} tournées, ${vehiculesFiltered.length} véhicules`);
+          // Pré-filtrage terminé
         } else {
           // Mode normal : toutes les données
           setTournees(tourneesData || []);
@@ -130,9 +189,27 @@ export default function TourneeScreen({ navigation, route }) {
         // console.log(`⚡ [TourneeScreen] Chargement terminé en ${loadTime}ms`);
         
       } catch (error) {
-        console.error('❌ [TourneeScreen] Erreur chargement:', error);
-        setError("Impossible de charger les données. Veuillez vérifier votre connexion.");
-        showToast('Impossible de récupérer les données.', 'error');
+        if (error.message === 'Timeout chargement données') {
+          console.warn('[TourneeScreen] Timeout chargement - utilisation des données en cache si disponibles');
+          // Essayer d'utiliser les données en cache même si elles sont anciennes
+          const oldCacheData = await AsyncStorage.getItem(cacheKey);
+          if (oldCacheData) {
+            console.log('[TourneeScreen] Utilisation du cache ancien en cas de timeout');
+            const { poles, tournees, vehicules } = JSON.parse(oldCacheData);
+            setPoles(poles || []);
+            setTournees(tournees || []);
+            setVehicules(vehicules || []);
+            setVehiculesFiltres(vehicules || []);
+            showToast('Données chargées depuis le cache (connexion lente)', 'warning');
+          } else {
+            setError("Connexion lente. Veuillez réessayer.");
+            showToast('Connexion lente détectée', 'warning');
+          }
+        } else {
+          console.error('[TourneeScreen] Erreur chargement:', error);
+          setError("Impossible de charger les données. Veuillez vérifier votre connexion.");
+          showToast('Impossible de récupérer les données.', 'error');
+        }
       } finally {
         setIsLoading(false);
       }

@@ -35,9 +35,9 @@ const LoginForm = ({ onLogin, loading }) => {
         'current_session_id'
       ];
       
-      console.log('Réinitialisation du stockage local...');
+      // Réinitialisation du stockage local
       await AsyncStorage.multiRemove(keysToRemove);
-      console.log('Stockage local réinitialisé avec succès');
+      // Stockage local réinitialisé avec succès
       
       Alert.alert(
         'Stockage réinitialisé',
