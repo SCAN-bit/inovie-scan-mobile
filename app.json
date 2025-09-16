@@ -1,4 +1,4 @@
-{
+﻿{
     "expo":  {
                  "plugins":  [
                                  [
@@ -15,25 +15,30 @@
                              ],
                  "name":  "SCAN",
                  "slug":  "snack-2c79588e-2732-4f6a-a4f4-5ed4e39cd83b",
-                 "version":  "1.0.5",
+                 "version":  "1.0.6",
                  "orientation":  "portrait",
                  "icon":  "./assets/icon-SCAN.png",
                  "userInterfaceStyle":  "light",
-                 "newArchEnabled":  true,
+                 "newArchEnabled":  false,
                  "splash":  {
                                 "image":  "./assets/logo-SCAN.png",
                                 "resizeMode":  "contain",
                                 "backgroundColor":  "#ffffff"
                             },
                  "ios":  {
-                             "supportsTablet":  true
+                             "supportsTablet":  true,
+                             "runtimeVersion":  {
+                                                    "policy":  "appVersion"
+                                                }
                          },
                  "android":  {
+                                 "versionCode":  88,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/icon-SCAN.png",
                                                       "backgroundColor":  "#ffffff"
                                                   },
-                                 "package":  "SCAN.mobile"
+                                 "package":  "SCAN.mobile",
+                                 "runtimeVersion":  "1.0.0"
                              },
                  "web":  {
                              "favicon":  "./assets/favicon.png"
@@ -47,8 +52,14 @@
                                "EXPO_PUBLIC_FIREBASE_APP_ID":  "1:566648702832:web:1564201ed1a93b056531b5",
                                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID":  "G-1TLM7ELK3M",
                                "EXPO_PUBLIC_FIREBASE_DATABASE_URL":  "https://scan-70156.firebasedatabase.app",
-                               "EXPO_PUBLIC_TEST_VARIABLE":  "VALEUR_DE_TEST_VISIBLE"
+                               "EXPO_PUBLIC_TEST_VARIABLE":  "VALEUR_DE_TEST_VISIBLE",
+                               "eas":  {
+                                           "projectId":  "592ef983-c883-4603-af84-e29d5fe6ae3e"
+                                       }
                            },
-                 "owner":  "micka1031"
+                 "owner":  "micka1031",
+                 "updates":  {
+                                 "url":  "https://u.expo.dev/592ef983-c883-4603-af84-e29d5fe6ae3e"
+                             }
              }
 }
