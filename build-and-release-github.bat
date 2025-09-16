@@ -165,7 +165,142 @@ if "%update_type%"=="1" (
 
 echo.
 echo ========================================
-echo   TEST LOCAL RAPIDE
+echo   TEST DE COMPATIBILITE DES VERSIONS
+echo ========================================
+echo.
+
+REM Test de compatibilité des versions
+echo 🔍 Verification des versions...
+echo.
+
+REM Vérifier Node.js
+echo Node.js version:
+node --version
+if errorlevel 1 (
+    echo ❌ Node.js non trouve !
+    pause
+    exit /b 1
+)
+
+REM Vérifier npm
+echo npm version:
+npm --version
+if errorlevel 1 (
+    echo ❌ npm non trouve !
+    pause
+    exit /b 1
+)
+
+REM Vérifier Java
+echo Java version:
+java -version
+if errorlevel 1 (
+    echo ❌ Java non trouve !
+    pause
+    exit /b 1
+)
+
+echo.
+echo 🔍 Verification des dependances critiques...
+echo.
+
+REM Vérifier React Native
+echo React Native version:
+npm list react-native --depth=0
+if errorlevel 1 (
+    echo ❌ React Native non trouve !
+    pause
+    exit /b 1
+)
+
+REM Vérifier Expo
+echo Expo version:
+npm list expo --depth=0
+if errorlevel 1 (
+    echo ❌ Expo non trouve !
+    pause
+    exit /b 1
+)
+
+echo.
+echo 🔍 Verification des fichiers de configuration...
+echo.
+
+REM Vérifier app.json
+if not exist "app.json" (
+    echo ❌ app.json manquant !
+    pause
+    exit /b 1
+)
+
+REM Vérifier package.json
+if not exist "package.json" (
+    echo ❌ package.json manquant !
+    pause
+    exit /b 1
+)
+
+REM Vérifier android/build.gradle
+if not exist "android\build.gradle" (
+    echo ❌ android\build.gradle manquant !
+    pause
+    exit /b 1
+)
+
+REM Vérifier android/gradle.properties
+if not exist "android\gradle.properties" (
+    echo ❌ android\gradle.properties manquant !
+    pause
+    exit /b 1
+)
+
+echo ✅ Toutes les verifications de base sont OK !
+echo.
+
+echo 🔍 Verification des versions dans les fichiers de configuration...
+echo.
+
+REM Vérifier les versions dans app.json
+echo Version dans app.json:
+powershell -Command "(Get-Content app.json | ConvertFrom-Json).expo.version"
+if errorlevel 1 (
+    echo ❌ Impossible de lire la version dans app.json !
+    pause
+    exit /b 1
+)
+
+REM Vérifier les versions dans package.json
+echo React Native version dans package.json:
+powershell -Command "(Get-Content package.json | ConvertFrom-Json).dependencies.'react-native'"
+if errorlevel 1 (
+    echo ❌ Impossible de lire React Native dans package.json !
+    pause
+    exit /b 1
+)
+
+REM Vérifier compileSdkVersion dans android/build.gradle
+echo compileSdkVersion dans android/build.gradle:
+findstr "compileSdkVersion" android\build.gradle
+if errorlevel 1 (
+    echo ❌ compileSdkVersion non trouve dans android/build.gradle !
+    pause
+    exit /b 1
+)
+
+REM Vérifier kotlin.version dans android/gradle.properties
+echo kotlin.version dans android/gradle.properties:
+findstr "kotlin.version" android\gradle.properties
+if errorlevel 1 (
+    echo ❌ kotlin.version non trouve dans android/gradle.properties !
+    pause
+    exit /b 1
+)
+
+echo ✅ Toutes les verifications de configuration sont OK !
+echo.
+
+echo ========================================
+echo   TEST DE COMPILATION RAPIDE
 echo ========================================
 echo.
 echo Test de compilation rapide (2-3 minutes)...
