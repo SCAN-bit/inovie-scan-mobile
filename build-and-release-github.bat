@@ -13,15 +13,17 @@ if not exist "node_modules" (
     echo.
 )
 
-REM Lire la version actuelle depuis app.json avec PowerShell
+REM Lire la version et le build actuels depuis app.json avec PowerShell
 for /f "delims=" %%i in ('powershell -Command "(Get-Content app.json | ConvertFrom-Json).expo.version"') do set "current_version=%%i"
+for /f "delims=" %%i in ('powershell -Command "(Get-Content app.json | ConvertFrom-Json).expo.android.versionCode"') do set "current_build=%%i"
 
 REM Demander le type de mise a jour
 echo Choisissez le type de mise a jour :
-echo   [1] NOUVELLE VERSION (ex: !current_version! vers 1.0.7)
-echo   [2] MEME VERSION, NOUVEAU BUILD (ex: !current_version! build 14 vers !current_version! build 15)
+echo   [1] NOUVELLE VERSION (ex: !current_version! build !current_build! vers 1.0.7 build 1)
+echo   [2] MEME VERSION, NOUVEAU BUILD (ex: !current_version! build !current_build! vers !current_version! build !current_build!+1)
+echo   [3] NOUVELLE VERSION ET BUILD PERSONNALISES (ex: !current_version! build !current_build! vers 1.0.7 build 2)
 echo.
-set /p update_type="Votre choix (1 ou 2): "
+set /p update_type="Votre choix (1, 2 ou 3): "
 
 if "%update_type%"=="1" (
     set /p new_version="Entrez la nouvelle version (ex: 1.0.6): "
@@ -96,6 +98,63 @@ if "%update_type%"=="1" (
     echo Version !new_version! ecrite dans version.txt (nouveau build)
     goto :continue_process
     
+) else if "%update_type%"=="3" (
+    echo.
+    echo ========================================
+    echo   VERSION ET BUILD PERSONNALISES
+    echo ========================================
+    
+    set /p new_version="Entrez la nouvelle version (ex: 1.0.7): "
+    if "!new_version!"=="" (
+        echo Erreur: Vous devez entrer une version.
+        pause
+        exit /b 1
+    )
+    
+    set /p new_build="Entrez le numero de build (ex: 2): "
+    if "!new_build!"=="" (
+        echo Erreur: Vous devez entrer un numero de build.
+        pause
+        exit /b 1
+    )
+    
+    REM Mettre a jour la version dans app.json
+    echo Mise a jour de la version dans app.json...
+    powershell -Command "$json = Get-Content 'app.json' | ConvertFrom-Json; $json.expo.version = '!new_version!'; $json | ConvertTo-Json -Depth 10 | Set-Content 'app.json' -Encoding UTF8"
+    if errorlevel 1 (
+        echo Erreur lors de la mise a jour de app.json !
+        pause
+        exit /b 1
+    )
+    echo Version mise a jour vers !new_version! dans app.json
+    
+    REM Mettre a jour le build number dans build.gradle
+    echo Mise a jour du build number dans build.gradle...
+    powershell -Command "(Get-Content 'android\app\build.gradle') -replace 'versionCode\s+\d+', 'versionCode !new_build!' | Set-Content 'android\app\build.gradle'"
+    if errorlevel 1 (
+        echo Erreur lors de la mise a jour du build number !
+        pause
+        exit /b 1
+    )
+    echo Build number mis a jour vers !new_build! dans build.gradle
+    
+    REM Mettre a jour le build number dans app.json
+    echo Mise a jour du build number dans app.json...
+    powershell -Command "$json = Get-Content 'app.json' | ConvertFrom-Json; $json.expo.android.versionCode = !new_build!; $json | ConvertTo-Json -Depth 10 | Set-Content 'app.json' -Encoding UTF8"
+    if errorlevel 1 (
+        echo Erreur lors de la mise a jour du build number dans app.json !
+        pause
+        exit /b 1
+    )
+    echo Build number mis a jour vers !new_build! dans app.json
+    
+    set "version_info=nouvelle version !new_version! avec build !new_build!"
+    
+    REM Mettre a jour version.txt
+    echo !new_version! > version.txt
+    echo Version !new_version! ecrite dans version.txt
+    goto :continue_process
+    
 ) else (
     echo Choix invalide !
     pause
@@ -118,6 +177,13 @@ echo ========================================
 echo   PUSH VERS GITHUB
 echo ========================================
 echo Version: !new_version!
+if "%update_type%"=="2" (
+    echo Build: !build_number!
+) else if "%update_type%"=="3" (
+    echo Build: !new_build!
+) else (
+    echo Build: 1
+)
 echo Notes: %release_notes%
 echo.
 
