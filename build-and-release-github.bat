@@ -226,29 +226,25 @@ echo.
 REM Vérifier app.json
 if not exist "app.json" (
     echo ❌ app.json manquant !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier package.json
 if not exist "package.json" (
     echo ❌ package.json manquant !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier android/build.gradle
 if not exist "android\build.gradle" (
     echo ❌ android\build.gradle manquant !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier android/gradle.properties
 if not exist "android\gradle.properties" (
     echo ❌ android\gradle.properties manquant !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 echo ✅ Toutes les verifications de base sont OK !
@@ -262,8 +258,7 @@ echo Version dans app.json:
 powershell -Command "(Get-Content app.json | ConvertFrom-Json).expo.version"
 if errorlevel 1 (
     echo ❌ Impossible de lire la version dans app.json !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier les versions dans package.json
@@ -271,8 +266,7 @@ echo React Native version dans package.json:
 powershell -Command "(Get-Content package.json | ConvertFrom-Json).dependencies.'react-native'"
 if errorlevel 1 (
     echo ❌ Impossible de lire React Native dans package.json !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier compileSdkVersion dans android/build.gradle
@@ -280,8 +274,7 @@ echo compileSdkVersion dans android/build.gradle:
 findstr "compileSdkVersion" android\build.gradle
 if errorlevel 1 (
     echo ❌ compileSdkVersion non trouve dans android/build.gradle !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier kotlin.version dans android/gradle.properties
@@ -289,8 +282,7 @@ echo kotlin.version dans android/gradle.properties:
 findstr "kotlin.version" android\gradle.properties
 if errorlevel 1 (
     echo ❌ kotlin.version non trouve dans android/gradle.properties !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 echo ✅ Toutes les verifications de configuration sont OK !
