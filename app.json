@@ -15,7 +15,7 @@
                              ],
                  "name":  "SCAN",
                  "slug":  "snack-2c79588e-2732-4f6a-a4f4-5ed4e39cd83b",
-                 "version":  "1.0.6",
+                 "version":  "1.0.7",
                  "orientation":  "portrait",
                  "icon":  "./assets/icon-SCAN.png",
                  "userInterfaceStyle":  "light",
@@ -32,7 +32,7 @@
                                                 }
                          },
                  "android":  {
-                                 "versionCode":  88,
+                                 "versionCode":  89,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/icon-SCAN.png",
                                                       "backgroundColor":  "#ffffff"
@@ -63,4 +63,3 @@
                              }
              }
 }
-
