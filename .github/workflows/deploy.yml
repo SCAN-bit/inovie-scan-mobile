@@ -1,0 +1,67 @@
+# GitHub Actions - Build et Release APK Mobile
+name: 🚀 Build & Release APK
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'version.txt'  # Se déclenche seulement si version.txt change
+
+jobs:
+  # 📱 Build & Release APK (automatique)
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+        
+      - name: Install Node.js dependencies
+        run: |
+          npm install
+          
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          
+      - name: Get version from file
+        id: version
+        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+        
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: "Version ${{ steps.version.outputs.version }}"
+          body: |
+            🚀 Nouvelle version automatique
+            
+            📱 **APK Android :** Téléchargez directement
+            
+            ### Changements :
+            - Voir commits récents pour les détails
+            
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
