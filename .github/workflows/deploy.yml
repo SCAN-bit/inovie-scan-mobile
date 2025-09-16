@@ -4,8 +4,7 @@ name: 🚀 Build & Release APK
 on:
   push:
     branches: [ main ]
-    paths: 
-      - 'version.txt'  # Se déclenche seulement si version.txt change
+    # Se déclenche sur tous les pushes vers main
 
 jobs:
   # 📱 Build & Release APK (automatique)
