@@ -27,7 +27,8 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew wrapper --gradle-version 8.7
+          # Force Gradle 8.7
+          sed -i 's/gradle-8.5-all.zip/gradle-8.7-all.zip/g' gradle/wrapper/gradle-wrapper.properties
         
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
