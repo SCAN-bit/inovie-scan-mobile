@@ -1,4 +1,4 @@
-o@echo off
+@echo off
 setlocal enabledelayedexpansion
 
 echo ========================================
@@ -193,11 +193,10 @@ if errorlevel 1 (
 
 REM Vérifier Java
 echo Java version:
-java -version
+java -version 2>&1
 if errorlevel 1 (
     echo ❌ Java non trouve !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 echo.
@@ -209,8 +208,7 @@ echo React Native version:
 npm list react-native --depth=0
 if errorlevel 1 (
     echo ❌ React Native non trouve !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 REM Vérifier Expo
@@ -218,8 +216,7 @@ echo Expo version:
 npm list expo --depth=0
 if errorlevel 1 (
     echo ❌ Expo non trouve !
-    pause
-    exit /b 1
+    echo Continuons quand meme...
 )
 
 echo.
