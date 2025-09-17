@@ -257,6 +257,13 @@ jobs:
           echo "Copie des bibliothèques React Native..."
           find node_modules/react-native -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
           
+          # Copier manuellement depuis les sources React Native
+          echo "Copie manuelle des bibliothèques React Native..."
+          cp node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk android/app/src/main/jniLibs/ 2>/dev/null || echo "JSC libs not found in node_modules"
+          
+          # Copier les bibliothèques depuis les sources
+          find node_modules/react-native/ReactAndroid -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
+          
           # Vérifier ce qui a été copié
           echo "Bibliothèques copiées:"
           ls -la android/app/src/main/jniLibs/arm64-v8a/ || echo "Aucune bibliothèque trouvée"
