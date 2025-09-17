@@ -58,8 +58,7 @@ react {
     //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
     // hermesFlags = ["-O", "-output-source-map"]
 
-    /* Autolinking */
-    autolinkLibrariesWithApp()
+    /* Autolinking - géré par Expo */
 }
 
 /**
@@ -91,8 +90,8 @@ android {
         applicationId 'SCAN.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "1.0.7"
+        versionCode 40
+        versionName "1.0.8"
     }
     signingConfigs {
         debug {

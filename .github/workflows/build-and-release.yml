@@ -1,0 +1,150 @@
+name: Build APK and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Type de mise à jour'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+        - 'build'
+        - 'version'
+      new_version:
+        description: 'Nouvelle version (si type=version)'
+        required: false
+        type: string
+      release_notes:
+        description: 'Notes de release'
+        required: false
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Make gradlew executable
+      run: chmod +x ./android/gradlew
+      
+    - name: Increment build number
+      if: ${{ github.event.inputs.version_type == 'build' }}
+      run: |
+        # Incrémenter le build number
+        cd android/app
+        current_code=$(grep "versionCode" build.gradle | sed 's/.*versionCode //')
+        new_code=$((current_code + 1))
+        sed -i "s/versionCode $current_code/versionCode $new_code/" build.gradle
+        echo "Build number incrémenté: $current_code -> $new_code"
+        
+    - name: Update version
+      if: ${{ github.event.inputs.version_type == 'version' }}
+      run: |
+        if [ -n "${{ github.event.inputs.new_version }}" ]; then
+          # Mettre à jour la version dans app.json
+          npm install -g jq
+          jq --arg version "${{ github.event.inputs.new_version }}" '.expo.version = $version' app.json > app.json.tmp && mv app.json.tmp app.json
+          
+          # Mettre à jour la version dans build.gradle
+          cd android/app
+          sed -i "s/versionName \".*\"/versionName \"${{ github.event.inputs.new_version }}\"/" build.gradle
+          echo "Version mise à jour vers ${{ github.event.inputs.new_version }}"
+        fi
+        
+    - name: Build APK
+      run: |
+        cd android
+        ./gradlew assembleRelease --no-daemon
+        
+    - name: Get version info
+      id: version
+      run: |
+        # Lire la version depuis app.json
+        version=$(grep '"version"' app.json | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+        
+        # Lire le build number depuis build.gradle
+        build=$(grep "versionCode" android/app/build.gradle | sed 's/.*versionCode //')
+        
+        echo "version=$version" >> $GITHUB_OUTPUT
+        echo "build=$build" >> $GITHUB_OUTPUT
+        echo "apk_name=inovie-scan-v$version-$build.apk" >> $GITHUB_OUTPUT
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-file
+        path: android/app/build/outputs/apk/release/app-release.apk
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Version ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})
+        body: |
+          ## Version ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})
+          
+          ${{ github.event.inputs.release_notes || 'Build automatique via GitHub Actions' }}
+          
+          ### Téléchargement
+          - Téléchargez l'APK ci-dessous
+          - Installez-le sur votre appareil Android
+          - Les mises à jour OTA seront disponibles dans l'application
+          
+          ### Changelog
+          - Build automatique
+          - Version: ${{ steps.version.outputs.version }}
+          - Build: ${{ steps.version.outputs.build }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: android/app/build/outputs/apk/release/app-release.apk
+        asset_name: ${{ steps.version.outputs.apk_name }}
+        asset_content_type: application/vnd.android.package-archive
+        
+    - name: Success message
+      run: |
+        echo "✅ Build terminé avec succès !"
+        echo "📱 APK: ${{ steps.version.outputs.apk_name }}"
+        echo "🏷️ Tag: v${{ steps.version.outputs.version }}"
+        echo "🔗 Release: ${{ steps.create_release.outputs.html_url }}"

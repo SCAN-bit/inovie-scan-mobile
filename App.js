@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, Platform, ScrollView } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './navigation/AppNavigator';
 import * as KeepAwake from 'expo-keep-awake';
 import { AppState } from 'react-native';
@@ -10,30 +11,32 @@ import AppUpdateService from './services/AppUpdateService';
 import UpdateAlert from './components/UpdateAlert';
 import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
 
-// Solution pour l'erreur activateKeepAwake
-if (KeepAwake.activateKeepAwake && !KeepAwake._overridden) {
-  const originalActivate = KeepAwake.activateKeepAwake;
-  KeepAwake.activateKeepAwake = function() {
-    // Silencieusement utiliser la nouvelle méthode à la place
-    return KeepAwake.activateKeepAwakeAsync();
-  };
-  KeepAwake._overridden = true;
+// Solution pour l'erreur activateKeepAwake - Version web compatible
+if (Platform.OS !== 'web' && KeepAwake.activateKeepAwake) {
+  try {
+    const originalActivate = KeepAwake.activateKeepAwake;
+    KeepAwake.activateKeepAwake = function() {
+      // Silencieusement utiliser la nouvelle méthode à la place
+      return KeepAwake.activateKeepAwakeAsync();
+    };
+  } catch (e) {
+    // Ignorer les erreurs sur web
+  }
 }
 
 // Conditionnellement charger les styles web si nous sommes sur le web
 if (Platform.OS === 'web') {
-  // Cette ligne sera ignorée sur les plateformes natives mais fonctionnera sur le web
   try {
-    // Essayer de charger le fichier CSS pour le web
     require('./web-styles.css');
   } catch (e) {
-    // Chargement de CSS web ignoré sur les plateformes natives
+    console.log('CSS web non trouvé, utilisation des styles par défaut');
   }
 }
 
 export default function App() {
   const [showUpdateAlert, setShowUpdateAlert] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
+  const navigationRef = useRef(null);
 
   // Initialisation des services de mise à jour
   useEffect(() => {
@@ -144,7 +147,7 @@ export default function App() {
           className="scrollable-content"
         >
           <StatusBar style="auto" />
-          <AppNavigator />
+          <AppNavigator navigationRef={navigationRef} />
         </ScrollView>
       </SafeAreaProvider>
     );
@@ -169,7 +172,7 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.container} className="main-container">
         <StatusBar style="auto" />
-        <AppNavigator />
+        <AppNavigator navigationRef={navigationRef} />
         
         {/* Alerte de mise à jour */}
         <UpdateAlert

@@ -2,8 +2,8 @@
 // Ce fichier est mis à jour automatiquement par le script de build 
  
 const version = ""; 
-const buildNumber = 81; 
-const fullVersion = ".81"; 
+const buildNumber = 20; 
+const fullVersion = ".20"; 
  
 module.exports = { 
   version, 

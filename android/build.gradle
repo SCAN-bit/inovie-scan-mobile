@@ -15,9 +15,9 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath('com.android.tools.build:gradle')
+        classpath('com.android.tools.build:gradle:8.1.4')
         classpath('com.facebook.react:react-native-gradle-plugin')
-        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25')
     }
 }
 
@@ -38,4 +38,24 @@ allprojects {
         mavenCentral()
         maven { url 'https://www.jitpack.io' }
     }
+    
+    // Configuration pour tous les projets
+    project.configurations.all {
+        resolutionStrategy {
+            force "com.android.tools.build:gradle:8.5.0"
+        }
+    }
 }
+
+// Configuration spécifique pour les projets Expo
+project.afterEvaluate {
+    project.subprojects.each { subproject ->
+        if (subproject.hasProperty('android')) {
+            subproject.android {
+                compileSdkVersion rootProject.ext.compileSdkVersion
+                buildToolsVersion rootProject.ext.buildToolsVersion
+            }
+        }
+    }
+}
+

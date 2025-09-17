@@ -34,6 +34,10 @@ jobs:
           sed -i '/android.suppressKotlinVersionCompatibilityCheck/d' gradle.properties
           echo "kotlin.version=1.9.25" >> gradle.properties
           echo "android.suppressKotlinVersionCompatibilityCheck=true" >> gradle.properties
+          # Force suppression of Kotlin version check in build.gradle
+          sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.25"/g' build.gradle
+          # Add system property to suppress Kotlin version check
+          echo "systemProp.kotlin.version=1.9.25" >> gradle.properties
           # Verify the changes
           echo "=== gradle.properties content ==="
           cat gradle.properties

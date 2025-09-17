@@ -289,10 +289,7 @@ class AppUpdateService {
       await AsyncStorage.removeItem(this.STORAGE_KEYS.LAST_SEEN_VERSION);
       await AsyncStorage.removeItem(this.STORAGE_KEYS.AUTO_CHECK_ENABLED);
       
-      // Vider aussi le cache des modules (si possible)
-      if (require.cache && require.resolve) {
-        delete require.cache[require.resolve('../version.js')];
-      }
+      // Cache clearing désactivé pour éviter les warnings webpack en mode web
       
       console.log('✅ [AppUpdateService] Cache des mises à jour vidé');
     } catch (error) {

@@ -121,6 +121,21 @@ if exist "android\gradle\wrapper\gradle-wrapper.properties" (
     )
 )
 
+REM Nettoyer le cache Gradle corrompu
+echo Nettoyage du cache Gradle corrompu...
+if exist "%USERPROFILE%\.gradle\caches" (
+    echo Suppression du cache Gradle...
+    rmdir /s /q "%USERPROFILE%\.gradle\caches" 2>nul
+    echo Cache Gradle supprimé ✓
+)
+
+REM Supprimer le dossier .gradle local corrompu
+if exist "android\.gradle" (
+    echo Suppression du dossier .gradle local...
+    rmdir /s /q "android\.gradle" 2>nul
+    echo Dossier .gradle local supprimé ✓
+)
+
 REM Aller dans le repertoire android pour gradlew
 cd android
 if errorlevel 1 (
@@ -131,10 +146,13 @@ if errorlevel 1 (
 
 REM Clean avec nettoyage du cache si nécessaire
 echo Nettoyage...
-call .\\gradlew clean --no-daemon
+call .\\gradlew clean --no-daemon --refresh-dependencies
 if errorlevel 1 (
-    echo Erreur lors du nettoyage, tentative de nettoyage du cache...
-    call .\\gradlew clean --refresh-dependencies --no-daemon
+    echo Erreur lors du nettoyage, arrêt des daemons...
+    call .\\gradlew --stop
+    timeout /t 3 /nobreak >nul
+    echo Nouvelle tentative de nettoyage...
+    call .\\gradlew clean --no-daemon --refresh-dependencies
     if errorlevel 1 (
         echo Erreur lors du nettoyage !
         cd ..
@@ -148,6 +166,17 @@ echo.
 echo ========================================
 echo   CREATION VERSION.JS
 echo ========================================
+
+REM Forcer les bonnes versions avant le build
+echo.
+echo Configuration des versions pour éviter les erreurs...
+REM Supprimer les anciennes lignes et ajouter les nouvelles
+powershell -Command "(Get-Content 'gradle.properties') -replace 'kotlin.version=.*', '' | Where-Object { $_.Trim() -ne '' } | Set-Content 'gradle.properties'"
+powershell -Command "(Get-Content 'gradle.properties') -replace 'android.suppressKotlinVersionCompatibilityCheck=.*', '' | Where-Object { $_.Trim() -ne '' } | Set-Content 'gradle.properties'"
+echo kotlin.version=1.9.25 >> gradle.properties
+echo android.suppressKotlinVersionCompatibilityCheck=true >> gradle.properties
+echo systemProp.kotlin.version=1.9.25 >> gradle.properties
+echo org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m >> gradle.properties
 
 REM Lire la version et le build number depuis android/app/build.gradle
 for /f "tokens=2 delims= " %%a in ('findstr "versionName" android\app\build.gradle') do (

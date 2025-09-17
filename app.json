@@ -10,16 +10,15 @@
                                                      }
                                      }
                                  ],
-                                 "expo-font",
                                  "./plugins/withDataWedgeReceiver.js"
                              ],
                  "name":  "SCAN",
                  "slug":  "snack-2c79588e-2732-4f6a-a4f4-5ed4e39cd83b",
-                 "version":  "1.0.7",
+                 "version":  "1.0.8",
                  "orientation":  "portrait",
                  "icon":  "./assets/icon-SCAN.png",
                  "userInterfaceStyle":  "light",
-                 "newArchEnabled":  false,
+                 "newArchEnabled":  true,
                  "splash":  {
                                 "image":  "./assets/logo-SCAN.png",
                                 "resizeMode":  "contain",
@@ -32,7 +31,7 @@
                                                 }
                          },
                  "android":  {
-                                 "versionCode":  11,
+                                 "versionCode":  40,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/icon-SCAN.png",
                                                       "backgroundColor":  "#ffffff"
