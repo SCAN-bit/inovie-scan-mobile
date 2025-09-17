@@ -171,10 +171,10 @@ jobs:
                 return false;
               }
           
-        @Override
-        public Boolean isHermesEnabled() {
-          return true;
-        }
+              @Override
+              public Boolean isHermesEnabled() {
+                return true;
+              }
             };
           
             @Override
