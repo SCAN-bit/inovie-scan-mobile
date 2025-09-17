@@ -263,6 +263,23 @@ jobs:
           # Forcer la génération des modules Expo
           npx expo install --fix
           
+          # Créer react-native.config.js pour forcer l'inclusion des bibliothèques natives
+          cat > react-native.config.js << 'EOF'
+          module.exports = {
+            dependencies: {
+              'react-native': {
+                platforms: {
+                  android: {
+                    sourceDir: '../node_modules/react-native/ReactAndroid',
+                    packageImportPath: 'import io.invertase.firebase.BuildConfig;',
+                  },
+                },
+              },
+            },
+            assets: ['./assets/fonts/'],
+          };
+          EOF
+          
       - name: Build APK
         run: |
           cd android
