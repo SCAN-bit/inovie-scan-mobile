@@ -198,13 +198,13 @@ jobs:
           # Garder Expo SDK 52 et React Native 0.75.4
           # Pas de changement de versions - garder la config qui fonctionne en web
           
-          # Forcer JSC (JavaScript Core) - compatible avec Java
+          # Désactiver TOUS les moteurs JavaScript natifs
           echo "hermesEnabled=false" >> android/gradle.properties
           echo "android.enableHermes=false" >> android/gradle.properties
-          echo "android.enableJSC=true" >> android/gradle.properties
+          echo "android.enableJSC=false" >> android/gradle.properties
+          echo "android.enableDefaultJSExecutor=true" >> android/gradle.properties
           
-          # Ajouter la dépendance JSC dans build.gradle
-          sed -i '/dependencies {/a\    implementation "org.webkit:android-jsc:+"' android/app/build.gradle
+          # Ne pas ajouter de dépendances JavaScript natives
           
           # Forcer la génération des modules Expo
           npx expo install --fix
