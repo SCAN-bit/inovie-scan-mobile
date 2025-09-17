@@ -82,14 +82,11 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # Ajouter les dépendances Expo manquantes
-          sed -i '/dependencies {/a\    implementation "expo.modules.splashscreen.SplashScreenManager"' android/app/build.gradle
-          sed -i '/dependencies {/a\    implementation "expo.modules.ReactActivityDelegateWrapper"' android/app/build.gradle
-          sed -i '/dependencies {/a\    implementation "expo.modules.ReactNativeHostWrapper"' android/app/build.gradle
-          sed -i '/dependencies {/a\    implementation "expo.modules.ApplicationLifecycleDispatcher"' android/app/build.gradle
-          
           # S'assurer que newArchEnabled est activé pour garder la compatibilité
           sed -i 's/"newArchEnabled": false/"newArchEnabled": true/' app.json
+          
+          # Forcer la génération des modules Expo
+          npx expo install --fix
           
       - name: Build APK
         run: |
