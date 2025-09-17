@@ -198,6 +198,11 @@ jobs:
           # Mettre à jour Expo SDK 52 vers la dernière version
           echo "Mise à jour Expo SDK 52 vers la dernière version..."
           npm install expo@latest --save
+          
+          # Mettre à jour React Native vers 0.77
+          echo "Mise à jour React Native vers 0.77..."
+          npm install react-native@0.77.0 --save
+          
           npx expo install --fix
           
           # Forcer l'inclusion des bibliothèques natives
