@@ -176,6 +176,9 @@ jobs:
           echo "hermesEnabled=true" >> android/gradle.properties
           echo "android.enableHermes=true" >> android/gradle.properties
           
+          # S'assurer que Hermes est inclus dans l'APK
+          sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
+          
           # Forcer la génération des modules Expo
           npx expo install --fix
           
