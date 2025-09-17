@@ -204,14 +204,26 @@ jobs:
           echo "android.enableJSC=true" >> android/gradle.properties
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
           
-          # Forcer l'inclusion de JSC avec toutes les architectures
-          sed -i '/dependencies {/a\    implementation "org.webkit:android-jsc:+"' android/app/build.gradle
+          # Forcer l'inclusion de Hermes avec toutes les architectures
+          sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
           sed -i '/dependencies {/a\    implementation "com.facebook.react:react-android"' android/app/build.gradle
           
-          # Forcer l'inclusion de libjscexecutor.so
+          # Forcer l'inclusion des bibliothèques natives
           echo "android.enableJSC=true" >> android/gradle.properties
           echo "android.enableHermes=false" >> android/gradle.properties
           echo "hermesEnabled=false" >> android/gradle.properties
+          echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
+          
+          # Forcer l'inclusion des bibliothèques natives dans build.gradle
+          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n    }' android/app/build.gradle
+          
+          # Forcer l'inclusion explicite de libjscexecutor.so
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p android/app/src/main/jniLibs/x86
+          mkdir -p android/app/src/main/jniLibs/x86_64
+          
+          # Copier libjscexecutor.so depuis node_modules
+          cp node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk android/app/src/main/jniLibs/ 2>/dev/null || echo "JSC libs not found in node_modules"
           
           # Forcer la génération des modules Expo
           npx expo install --fix
