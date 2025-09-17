@@ -137,7 +137,7 @@ jobs:
           
           class MainApplication : Application(), ReactApplication {
           
-            override val reactNativeHost: ReactNativeHost = DefaultReactNativeHost(this) {
+            override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
               override fun getPackages(): List<ReactPackage> {
                 val packages = PackageList(this).packages
                 return packages
