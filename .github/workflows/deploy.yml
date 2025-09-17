@@ -208,6 +208,7 @@ jobs:
           echo "android.enableHermes=false" >> android/gradle.properties
           echo "android.enableJSC=true" >> android/gradle.properties
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
+          echo "android.bundle.enableUncompressedNativeLibs=false" >> android/gradle.properties
           
           # Forcer l'inclusion de Hermes avec toutes les architectures
           sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
@@ -220,19 +221,22 @@ jobs:
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
           
           # Forcer l'inclusion des bibliothèques natives dans build.gradle
-          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n        pickFirst "**/libjsc.so"\n        pickFirst "**/libreactnative.so"\n    }' android/app/build.gradle
+          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n        pickFirst "**/libjsc.so"\n        pickFirst "**/libreactnative.so"\n        pickFirst "**/libc++_shared.so"\n        pickFirst "**/libreactnativejni.so"\n        pickFirst "**/libreact_nativemodule_core.so"\n        pickFirst "**/libglog.so"\n        pickFirst "**/libfbjni.so"\n        pickFirst "**/libfolly_json.so"\n        pickFirst "**/libfolly_runtime.so"\n        pickFirst "**/libhermes.so"\n        pickFirst "**/libjsi.so"\n        jniLibs {\n            useLegacyPackaging true\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives avec sourceSets complet
           sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc", "node_modules/jsc-android/dist"]\n            java.srcDirs = ["src/main/java"]\n            res.srcDirs = ["src/main/res"]\n            assets.srcDirs = ["src/main/assets"]\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via Gradle
-          sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk false\n        }\n    }' android/app/build.gradle
+          sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk true\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via NDK
           sed -i '/android {/a\    ndkVersion "26.1.10909125"' android/app/build.gradle
           
           # Ajouter ndk abiFilters dans defaultConfig
           sed -i '/defaultConfig {/a\        ndk {\n            abiFilters "arm64-v8a", "x86", "x86_64"\n        }' android/app/build.gradle
+          
+          # Ajouter debugSymbolLevel pour les symboles natifs
+          sed -i '/buildTypes {/a\        release {\n            ndk {\n                debugSymbolLevel "SYMBOL_TABLE"\n            }\n        }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via externalNativeBuild
           sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
