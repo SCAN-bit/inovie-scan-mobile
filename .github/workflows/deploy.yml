@@ -82,7 +82,7 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # Créer MainActivity.kt corrigé
+          # Créer MainActivity.kt sans forcer de moteur JavaScript
           cat > android/app/src/main/java/SCAN/mobile/MainActivity.kt << 'EOF'
           package SCAN.mobile
           
@@ -91,7 +91,6 @@ jobs:
           
           import com.facebook.react.ReactActivity
           import com.facebook.react.ReactActivityDelegate
-          import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
           import com.facebook.react.defaults.DefaultReactActivityDelegate
           
           class MainActivity : ReactActivity() {
@@ -105,7 +104,7 @@ jobs:
               return DefaultReactActivityDelegate(
                   this,
                   mainComponentName,
-                  fabricEnabled
+                  false
               )
             }
           
@@ -121,7 +120,7 @@ jobs:
           }
           EOF
           
-          # Créer MainApplication.kt corrigé
+          # Créer MainApplication.kt sans forcer de moteur JavaScript
           cat > android/app/src/main/java/SCAN/mobile/MainApplication.kt << 'EOF'
           package SCAN.mobile
           
@@ -145,8 +144,8 @@ jobs:
           
               override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
               override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
-              override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
-              override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
+              override val isNewArchEnabled: Boolean = false
+              override val isHermesEnabled: Boolean = false
             }
           
             override fun onCreate() {
