@@ -205,6 +205,10 @@ jobs:
           echo "Ajustement React Native pour SDK 51..."
           npm install react-native@0.74.5 --save
           
+          # Ajuster React pour React Native 0.74.5
+          echo "Ajustement React pour React Native 0.74.5..."
+          npm install react@18.2.0 --save
+          
           npx expo install --fix --legacy-peer-deps
           
           # Forcer l'inclusion des bibliothèques natives
