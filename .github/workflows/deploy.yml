@@ -226,10 +226,23 @@ jobs:
           # Forcer l'inclusion des bibliothèques natives via NDK
           sed -i '/android {/a\    ndkVersion "26.1.10909125"' android/app/build.gradle
           
+          # Forcer l'inclusion des bibliothèques natives via externalNativeBuild
+          sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
+          
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           mkdir -p android/app/src/main/jniLibs/x86
           mkdir -p android/app/src/main/jniLibs/x86_64
+          
+          # Créer le fichier Android.mk pour forcer l'inclusion
+          mkdir -p android/app/src/main/jni
+          cat > android/app/src/main/jni/Android.mk << 'EOF'
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE := jsc
+          LOCAL_SRC_FILES := ../../../../node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk
+          include $(BUILD_SHARED_LIBRARY)
+          EOF
           
           # Copier les bibliothèques JSC depuis node_modules
           echo "Copie des bibliothèques JSC..."
