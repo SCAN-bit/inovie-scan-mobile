@@ -195,10 +195,9 @@ jobs:
           }
           EOF
           
-          # Mettre à jour Expo SDK 52 vers la dernière version
-          echo "Mise à jour Expo SDK 52 vers la dernière version..."
-          npm install expo@^52.0.0 --save
-          echo "Vérification de la version installée..."
+          # Garder la version SDK 52 actuelle (52.0.47)
+          echo "Version SDK 52 actuelle: 52.0.47 (dernière version)"
+          echo "Pas de mise à jour nécessaire - version déjà à jour"
           npm list expo
           
           # Mettre à jour React Native vers 0.77
