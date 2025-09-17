@@ -203,11 +203,11 @@ jobs:
           
           # Ajuster React Native pour SDK 51 (compatible avec 0.74)
           echo "Ajustement React Native pour SDK 51..."
-          npm install react-native@0.74.5 --save
+          npm install react-native@0.74.5 --save --legacy-peer-deps
           
           # Ajuster React pour React Native 0.74.5
           echo "Ajustement React pour React Native 0.74.5..."
-          npm install react@18.2.0 --save
+          npm install react@18.2.0 --save --legacy-peer-deps
           
           npx expo install --fix --legacy-peer-deps
           
