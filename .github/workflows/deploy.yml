@@ -323,7 +323,6 @@ jobs:
                   android: {
                     sourceDir: '../node_modules/react-native/ReactAndroid',
                     packageImportPath: 'import io.invertase.firebase.BuildConfig;',
-                    jniLibs: '../node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc',
                   },
                 },
               },
