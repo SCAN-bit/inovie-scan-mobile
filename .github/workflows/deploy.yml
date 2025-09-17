@@ -173,7 +173,7 @@ jobs:
           
               @Override
               public Boolean isHermesEnabled() {
-                return true;
+                return false;
               }
             };
           
@@ -204,11 +204,11 @@ jobs:
           
           npx expo install --fix
           
-          # Utiliser Hermes au lieu de JSC (plus stable)
-          echo "hermesEnabled=true" >> android/gradle.properties
-          echo "android.enableHermes=true" >> android/gradle.properties
+          # Utiliser le moteur JavaScript par défaut (pas de libs natives)
+          echo "hermesEnabled=false" >> android/gradle.properties
+          echo "android.enableHermes=false" >> android/gradle.properties
           echo "android.enableJSC=false" >> android/gradle.properties
-          echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
+          echo "android.enableDefaultJSExecutor=true" >> android/gradle.properties
           
           # Forcer l'inclusion de Hermes avec toutes les architectures
           sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
