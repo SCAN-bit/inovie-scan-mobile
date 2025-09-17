@@ -82,23 +82,83 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # Corriger les imports Expo dans MainActivity.kt
-          sed -i 's/import expo.modules.splashscreen.SplashScreenManager/\/\/ import expo.modules.splashscreen.SplashScreenManager/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/import expo.modules.ReactActivityDelegateWrapper/\/\/ import expo.modules.ReactActivityDelegateWrapper/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/SplashScreenManager.registerOnActivity(this)/\/\/ SplashScreenManager.registerOnActivity(this)/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/return ReactActivityDelegateWrapper(/return DefaultReactActivityDelegate(/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/this,//' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/BuildConfig.IS_NEW_ARCHITECTURE_ENABLED,//' android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          sed -i 's/object : DefaultReactActivityDelegate(/this,/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          # Créer MainActivity.kt corrigé
+          cat > android/app/src/main/java/SCAN/mobile/MainActivity.kt << 'EOF'
+          package SCAN.mobile
           
-          # Corriger les imports Expo dans MainApplication.kt
-          sed -i 's/import expo.modules.ApplicationLifecycleDispatcher/\/\/ import expo.modules.ApplicationLifecycleDispatcher/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/import expo.modules.ReactNativeHostWrapper/\/\/ import expo.modules.ReactNativeHostWrapper/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(/override val reactNativeHost: ReactNativeHost = DefaultReactNativeHost(/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/override val reactHost: ReactHost/\/\/ override val reactHost: ReactHost/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)/\/\/ get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/ApplicationLifecycleDispatcher.onApplicationCreate(this)/\/\/ ApplicationLifecycleDispatcher.onApplicationCreate(this)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
-          sed -i 's/ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)/\/\/ ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          import android.os.Build
+          import android.os.Bundle
+          
+          import com.facebook.react.ReactActivity
+          import com.facebook.react.ReactActivityDelegate
+          import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
+          import com.facebook.react.defaults.DefaultReactActivityDelegate
+          
+          class MainActivity : ReactActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+              super.onCreate(savedInstanceState)
+            }
+          
+            override fun getMainComponentName(): String = "main"
+          
+            override fun createReactActivityDelegate(): ReactActivityDelegate {
+              return DefaultReactActivityDelegate(
+                  this,
+                  mainComponentName,
+                  fabricEnabled
+              )
+            }
+          
+            override fun invokeDefaultOnBackPressed() {
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
+                    if (!moveTaskToBack(false)) {
+                        super.invokeDefaultOnBackPressed()
+                    }
+                    return
+                }
+                super.invokeDefaultOnBackPressed()
+            }
+          }
+          EOF
+          
+          # Créer MainApplication.kt corrigé
+          cat > android/app/src/main/java/SCAN/mobile/MainApplication.kt << 'EOF'
+          package SCAN.mobile
+          
+          import android.app.Application
+          import android.content.res.Configuration
+          
+          import com.facebook.react.PackageList
+          import com.facebook.react.ReactApplication
+          import com.facebook.react.ReactNativeHost
+          import com.facebook.react.ReactPackage
+          import com.facebook.react.defaults.DefaultReactNativeHost
+          import com.facebook.soloader.SoLoader
+          
+          class MainApplication : Application(), ReactApplication {
+          
+            override val reactNativeHost: ReactNativeHost = DefaultReactNativeHost(this) {
+              override fun getPackages(): List<ReactPackage> {
+                val packages = PackageList(this).packages
+                return packages
+              }
+          
+              override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
+              override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
+              override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+              override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
+            }
+          
+            override fun onCreate() {
+              super.onCreate()
+              SoLoader.init(this, false)
+            }
+          
+            override fun onConfigurationChanged(newConfig: Configuration) {
+              super.onConfigurationChanged(newConfig)
+            }
+          }
+          EOF
           
       - name: Build APK
         run: |
