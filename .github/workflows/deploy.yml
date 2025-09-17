@@ -160,24 +160,11 @@ jobs:
           }
           EOF
           
-          # Corriger l'incompatibilité Expo SDK 52 + React Native 0.75.4
-          # Downgrader React Native vers 0.74.5 (compatible avec Expo SDK 52)
-          npm install react-native@0.74.5 --save --force
+          # Garder Expo SDK 52 et React Native 0.75.4
+          # Pas de changement de versions - garder la config qui fonctionne en web
           
-          # Ajuster les versions des dépendances React Native pour compatibilité
-          npm install react-native-gesture-handler@~2.18.0 --save --force
-          npm install react-native-screens@~3.31.1 --save --force
-          npm install react-native-safe-area-context@4.10.5 --save --force
-          
-          # Désactiver temporairement New Architecture pour RN 0.74.5
-          sed -i 's/"newArchEnabled": true/"newArchEnabled": false/' app.json
-          
-          # Forcer Hermes au lieu de JSC
-          echo "hermesEnabled=true" >> android/gradle.properties
-          echo "android.enableHermes=true" >> android/gradle.properties
-          
-          # Configurer Hermes via Expo
-          sed -i 's/"newArchEnabled": false/"newArchEnabled": false,\n    "android": {\n      "enableHermes": true\n    }/' app.json
+          # Utiliser la configuration par défaut d'Expo SDK 52
+          # Pas de forçage de moteur JavaScript - laisser Expo choisir
           
           # Forcer la génération des modules Expo
           npx expo install --fix
