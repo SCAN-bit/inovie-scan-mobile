@@ -82,6 +82,10 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
+          # Supprimer les anciens fichiers Kotlin s'ils existent
+          rm -f android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          rm -f android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          
           # Créer MainActivity.java avec Java + JSC
           cat > android/app/src/main/java/SCAN/mobile/MainActivity.java << 'EOF'
           package SCAN.mobile;
