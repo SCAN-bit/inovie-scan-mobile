@@ -181,6 +181,13 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
           
+          # Renommer l'APK avec version et build number
+          VERSION_CODE=$(grep '"versionCode"' ../app.json | sed 's/.*: *\([0-9]*\).*/\1/')
+          VERSION_NAME=$(grep '"version"' ../app.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+          NEW_NAME="SCAN-v${VERSION_NAME}-build${VERSION_CODE}.apk"
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/${NEW_NAME}
+          echo "APK renommé: ${NEW_NAME}"
+          
       - name: Get version from app.json
         id: version
         run: |
@@ -202,6 +209,6 @@ jobs:
             - Voir commits récents pour les détails
             
           files: |
-            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/apk/release/SCAN-v*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
