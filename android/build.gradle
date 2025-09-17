@@ -48,14 +48,5 @@ allprojects {
 }
 
 // Configuration spécifique pour les projets Expo
-project.afterEvaluate {
-    project.subprojects.each { subproject ->
-        if (subproject.hasProperty('android')) {
-            subproject.android {
-                compileSdkVersion rootProject.ext.compileSdkVersion
-                buildToolsVersion rootProject.ext.buildToolsVersion
-            }
-        }
-    }
-}
+// Bloc afterEvaluate supprimé car il causait des erreurs de timing
 
