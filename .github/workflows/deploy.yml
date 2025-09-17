@@ -120,7 +120,7 @@ jobs:
           }
           EOF
           
-          # Créer MainApplication.kt sans forcer de moteur JavaScript
+          # Créer MainApplication.kt avec moteur JavaScript par défaut forcé
           cat > android/app/src/main/java/SCAN/mobile/MainApplication.kt << 'EOF'
           package SCAN.mobile
           
@@ -133,6 +133,8 @@ jobs:
           import com.facebook.react.ReactPackage
           import com.facebook.react.defaults.DefaultReactNativeHost
           import com.facebook.soloader.SoLoader
+          import com.facebook.react.jscexecutor.JSCExecutorFactory
+          import com.facebook.react.ReactInstanceManagerBuilder
           
           class MainApplication : Application(), ReactApplication {
           
@@ -146,6 +148,23 @@ jobs:
               override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
               override val isNewArchEnabled: Boolean = false
               override val isHermesEnabled: Boolean = false
+              
+              override fun createReactInstanceManager(): ReactInstanceManager {
+                val builder = ReactInstanceManagerBuilder()
+                builder.setApplication(application)
+                builder.setJSMainModulePath(getJSMainModuleName())
+                builder.setUseDeveloperSupport(getUseDeveloperSupport())
+                builder.setInitialLifecycleState(LifecycleState.RESUMED)
+                
+                // Forcer l'utilisation du moteur JavaScript par défaut
+                builder.setJSExecutorFactory(null)
+                
+                for (reactPackage in getPackages()) {
+                  builder.addPackage(reactPackage)
+                }
+                
+                return builder.build()
+              }
             }
           
             override fun onCreate() {
