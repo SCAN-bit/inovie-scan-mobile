@@ -222,14 +222,17 @@ jobs:
           # Forcer l'inclusion des bibliothèques natives dans build.gradle
           sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n        pickFirst "**/libjsc.so"\n        pickFirst "**/libreactnative.so"\n    }' android/app/build.gradle
           
-          # Forcer l'inclusion des bibliothèques natives
-          sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc"]\n        }\n    }' android/app/build.gradle
+          # Forcer l'inclusion des bibliothèques natives avec sourceSets complet
+          sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc", "node_modules/jsc-android/dist"]\n            java.srcDirs = ["src/main/java"]\n            res.srcDirs = ["src/main/res"]\n            assets.srcDirs = ["src/main/assets"]\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via Gradle
           sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk false\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via NDK
           sed -i '/android {/a\    ndkVersion "26.1.10909125"' android/app/build.gradle
+          
+          # Ajouter ndk abiFilters dans defaultConfig
+          sed -i '/defaultConfig {/a\        ndk {\n            abiFilters "arm64-v8a", "x86", "x86_64"\n        }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via externalNativeBuild
           sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
@@ -257,6 +260,12 @@ jobs:
           echo "Copie des bibliothèques JSC..."
           find node_modules -name "libjsc.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
           find node_modules -name "libjscexecutor.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
+          
+          # Copier depuis jsc-android/dist
+          echo "Copie depuis jsc-android/dist..."
+          cp node_modules/jsc-android/dist/arm64-v8a/libjsc.so android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+          cp node_modules/jsc-android/dist/x86/libjsc.so android/app/src/main/jniLibs/x86/ 2>/dev/null || true
+          cp node_modules/jsc-android/dist/x86_64/libjsc.so android/app/src/main/jniLibs/x86_64/ 2>/dev/null || true
           
           # Forcer l'inclusion dans l'APK après build
           echo "Forcer l'inclusion des bibliothèques dans l'APK..."
