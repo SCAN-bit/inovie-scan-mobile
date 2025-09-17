@@ -229,6 +229,9 @@ jobs:
           # Forcer l'inclusion des bibliothèques natives via externalNativeBuild
           sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
           
+          # Forcer l'inclusion des bibliothèques natives via build.gradle directement
+          sed -i '/android {/a\    defaultConfig {\n        ndk {\n            abiFilters "arm64-v8a", "x86", "x86_64"\n        }\n    }' android/app/build.gradle
+          
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           mkdir -p android/app/src/main/jniLibs/x86
@@ -272,6 +275,7 @@ jobs:
                   android: {
                     sourceDir: '../node_modules/react-native/ReactAndroid',
                     packageImportPath: 'import io.invertase.firebase.BuildConfig;',
+                    jniLibs: '../node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc',
                   },
                 },
               },
@@ -283,6 +287,10 @@ jobs:
           # Forcer l'inclusion des bibliothèques natives via react-native.config.js
           echo "Configuration React Native pour forcer l'inclusion des bibliothèques natives..."
           npx react-native config
+          
+          # Forcer l'inclusion des bibliothèques natives via assets
+          echo "Forcer l'inclusion des bibliothèques natives via assets..."
+          npx react-native link
           
       - name: Build APK
         run: |
