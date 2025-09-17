@@ -4,10 +4,10 @@
                                  [
                                      "expo-build-properties",
                                      {
-                                         "android":  {
-                                                         "gradleVersion":  "8.1.1",
-                                                         "agpVersion":  "8.1.1"
-                                                     }
+                                        "android":  {
+                                                        "gradleVersion":  "8.7",
+                                                        "agpVersion":  "8.5.0"
+                                                    }
                                      }
                                  ],
                                  "./plugins/withDataWedgeReceiver.js"
