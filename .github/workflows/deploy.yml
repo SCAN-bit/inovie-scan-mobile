@@ -230,7 +230,8 @@ jobs:
           sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via build.gradle directement
-          sed -i '/android {/a\    defaultConfig {\n        ndk {\n            abiFilters "arm64-v8a", "x86", "x86_64"\n        }\n    }' android/app/build.gradle
+          # Conflit avec splits abi - suppression de ndk abiFilters
+          echo "Conflit résolu: suppression de ndk abiFilters car splits abi est déjà configuré"
           
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
