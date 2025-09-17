@@ -289,7 +289,7 @@ jobs:
           
           # Forcer l'inclusion des bibliothèques natives via assets
           echo "Forcer l'inclusion des bibliothèques natives via assets..."
-          npx react-native link
+          echo "react-native link n'existe plus dans RN 0.75.4 - commande supprimée"
           
       - name: Build APK
         run: |
