@@ -63,8 +63,20 @@ jobs:
           mkdir -p android/build/generated/autolinking
           mkdir -p android/app/build/generated
           
-          # Générer le fichier autolinking.json basique
-          echo '{"reactNativePath":"../node_modules/react-native","dependencies":{}}' > android/build/generated/autolinking/autolinking.json
+          # Générer le fichier autolinking.json complet avec packageName
+          cat > android/build/generated/autolinking/autolinking.json << 'EOF'
+          {
+            "reactNativePath": "../node_modules/react-native",
+            "project": {
+              "android": {
+                "packageName": "SCAN.mobile",
+                "sourceDir": "../android/app",
+                "appName": "SCAN"
+              }
+            },
+            "dependencies": {}
+          }
+          EOF
           
       - name: Build APK
         run: |
