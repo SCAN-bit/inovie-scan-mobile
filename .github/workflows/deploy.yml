@@ -57,6 +57,15 @@ jobs:
         run: |
           npm install
           
+      - name: Pre-build setup
+        run: |
+          # Créer les dossiers nécessaires
+          mkdir -p android/build/generated/autolinking
+          mkdir -p android/app/build/generated
+          
+          # Générer le fichier autolinking.json basique
+          echo '{"reactNativePath":"../node_modules/react-native","dependencies":{}}' > android/build/generated/autolinking/autolinking.json
+          
       - name: Build APK
         run: |
           cd android
