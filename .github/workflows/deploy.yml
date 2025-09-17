@@ -82,11 +82,23 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # S'assurer que newArchEnabled est activé pour garder la compatibilité
-          sed -i 's/"newArchEnabled": false/"newArchEnabled": true/' app.json
+          # Corriger les imports Expo dans MainActivity.kt
+          sed -i 's/import expo.modules.splashscreen.SplashScreenManager/\/\/ import expo.modules.splashscreen.SplashScreenManager/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/import expo.modules.ReactActivityDelegateWrapper/\/\/ import expo.modules.ReactActivityDelegateWrapper/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/SplashScreenManager.registerOnActivity(this)/\/\/ SplashScreenManager.registerOnActivity(this)/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/return ReactActivityDelegateWrapper(/return DefaultReactActivityDelegate(/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/this,//' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/BuildConfig.IS_NEW_ARCHITECTURE_ENABLED,//' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          sed -i 's/object : DefaultReactActivityDelegate(/this,/' android/app/src/main/java/SCAN/mobile/MainActivity.kt
           
-          # Forcer la génération des modules Expo
-          npx expo install --fix
+          # Corriger les imports Expo dans MainApplication.kt
+          sed -i 's/import expo.modules.ApplicationLifecycleDispatcher/\/\/ import expo.modules.ApplicationLifecycleDispatcher/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/import expo.modules.ReactNativeHostWrapper/\/\/ import expo.modules.ReactNativeHostWrapper/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(/override val reactNativeHost: ReactNativeHost = DefaultReactNativeHost(/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/override val reactHost: ReactHost/\/\/ override val reactHost: ReactHost/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)/\/\/ get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/ApplicationLifecycleDispatcher.onApplicationCreate(this)/\/\/ ApplicationLifecycleDispatcher.onApplicationCreate(this)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          sed -i 's/ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)/\/\/ ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)/' android/app/src/main/java/SCAN/mobile/MainApplication.kt
           
       - name: Build APK
         run: |
