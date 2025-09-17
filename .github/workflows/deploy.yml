@@ -264,6 +264,46 @@ jobs:
           # Copier les bibliothèques depuis les sources
           find node_modules/react-native/ReactAndroid -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
           
+          # Intégration directe dans le code React Native
+          echo "Intégration directe des bibliothèques dans le code..."
+          
+          # Créer un fichier Java pour charger les bibliothèques
+          cat > android/app/src/main/java/SCAN/mobile/NativeLibraryLoader.java << 'EOF'
+          package SCAN.mobile;
+          
+          import android.content.Context;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          
+          public class NativeLibraryLoader {
+              public static void loadNativeLibraries(Context context) {
+                  try {
+                      // Charger libjsc.so
+                      System.loadLibrary("jsc");
+                      System.loadLibrary("jscexecutor");
+                  } catch (UnsatisfiedLinkError e) {
+                      // Fallback: charger depuis les assets
+                      loadFromAssets(context);
+                  }
+              }
+              
+              private static void loadFromAssets(Context context) {
+                  try {
+                      // Copier depuis assets vers cache
+                      File cacheDir = new File(context.getCacheDir(), "native_libs");
+                      cacheDir.mkdirs();
+                      
+                      // Charger les bibliothèques depuis le cache
+                      System.load(cacheDir.getAbsolutePath() + "/libjsc.so");
+                      System.load(cacheDir.getAbsolutePath() + "/libjscexecutor.so");
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+              }
+          }
+          EOF
+          
           # Vérifier ce qui a été copié
           echo "Bibliothèques copiées:"
           ls -la android/app/src/main/jniLibs/arm64-v8a/ || echo "Aucune bibliothèque trouvée"
