@@ -171,10 +171,10 @@ jobs:
                 return false;
               }
           
-              @Override
-              public Boolean isHermesEnabled() {
-                return false;
-              }
+        @Override
+        public Boolean isHermesEnabled() {
+          return true;
+        }
             };
           
             @Override
@@ -204,10 +204,10 @@ jobs:
           
           npx expo install --fix
           
-          # Forcer l'inclusion des bibliothèques natives
-          echo "hermesEnabled=false" >> android/gradle.properties
-          echo "android.enableHermes=false" >> android/gradle.properties
-          echo "android.enableJSC=true" >> android/gradle.properties
+          # Utiliser Hermes au lieu de JSC (plus stable)
+          echo "hermesEnabled=true" >> android/gradle.properties
+          echo "android.enableHermes=true" >> android/gradle.properties
+          echo "android.enableJSC=false" >> android/gradle.properties
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
           
           # Forcer l'inclusion de Hermes avec toutes les architectures
