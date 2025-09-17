@@ -201,7 +201,7 @@ jobs:
           echo "Vérification de la version installée..."
           npm list expo
           
-          npx expo install --fix --legacy-peer-deps
+          npx expo install --fix
           
           # Forcer l'inclusion des bibliothèques natives
           echo "hermesEnabled=false" >> android/gradle.properties
