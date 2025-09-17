@@ -224,7 +224,7 @@ jobs:
           sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk false\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion des bibliothèques natives via NDK
-          sed -i '/android {/a\    ndk {\n        abiFilters "arm64-v8a", "x86", "x86_64"\n    }' android/app/build.gradle
+          sed -i '/android {/a\    ndkVersion "26.1.10909125"' android/app/build.gradle
           
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
