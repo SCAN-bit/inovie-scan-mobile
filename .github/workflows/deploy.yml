@@ -215,7 +215,10 @@ jobs:
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
           
           # Forcer l'inclusion des bibliothèques natives dans build.gradle
-          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n    }' android/app/build.gradle
+          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n        pickFirst "**/libjsc.so"\n        pickFirst "**/libreactnative.so"\n    }' android/app/build.gradle
+          
+          # Forcer l'inclusion des bibliothèques natives
+          sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc"]\n        }\n    }' android/app/build.gradle
           
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
