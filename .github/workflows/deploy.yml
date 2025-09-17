@@ -78,6 +78,9 @@ jobs:
           }
           EOF
           
+          # Désactiver temporairement le splash screen pour éviter les erreurs
+          sed -i 's/"newArchEnabled": true/"newArchEnabled": false/' app.json
+          
       - name: Build APK
         run: |
           cd android
