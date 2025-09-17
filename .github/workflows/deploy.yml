@@ -195,8 +195,10 @@ jobs:
           }
           EOF
           
-          # Garder Expo SDK 52 et React Native 0.75.4
-          # Pas de changement de versions - garder la config qui fonctionne en web
+          # Downgrader Expo SDK pour forcer l'inclusion des bibliothèques natives
+          echo "Downgrade Expo SDK vers 51..."
+          npm install expo@~51.0.0 --save
+          npx expo install --fix
           
           # Forcer l'inclusion des bibliothèques natives
           echo "hermesEnabled=false" >> android/gradle.properties
