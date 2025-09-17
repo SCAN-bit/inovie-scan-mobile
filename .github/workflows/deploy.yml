@@ -195,8 +195,9 @@ jobs:
           }
           EOF
           
-          # Revenir à SDK 52 avec approche radicale
-          echo "Revenir à SDK 52 avec approche radicale..."
+          # Accepter EAS Build pour SDK 52
+          echo "SDK 52 nécessite EAS Build pour les bibliothèques natives..."
+          echo "Configuration pour EAS Build..."
           npm install expo@~52.0.47 --save
           echo "Vérification de la version installée..."
           npm list expo
