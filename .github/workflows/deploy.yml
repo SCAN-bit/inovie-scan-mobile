@@ -162,7 +162,7 @@ jobs:
           
           # Corriger l'incompatibilité Expo SDK 52 + React Native 0.75.4
           # Downgrader React Native vers 0.74.5 (compatible avec Expo SDK 52)
-          npm install react-native@0.74.5 --save
+          npm install react-native@0.74.5 --save --force
           
           # Forcer la génération des modules Expo
           npx expo install --fix
