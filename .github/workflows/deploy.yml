@@ -82,79 +82,109 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # Créer MainActivity.kt sans forcer de moteur JavaScript
-          cat > android/app/src/main/java/SCAN/mobile/MainActivity.kt << 'EOF'
-          package SCAN.mobile
+          # Créer MainActivity.java avec Java + JSC
+          cat > android/app/src/main/java/SCAN/mobile/MainActivity.java << 'EOF'
+          package SCAN.mobile;
           
-          import android.os.Build
-          import android.os.Bundle
+          import android.os.Build;
+          import android.os.Bundle;
           
-          import com.facebook.react.ReactActivity
-          import com.facebook.react.ReactActivityDelegate
-          import com.facebook.react.defaults.DefaultReactActivityDelegate
+          import com.facebook.react.ReactActivity;
+          import com.facebook.react.ReactActivityDelegate;
+          import com.facebook.react.defaults.DefaultReactActivityDelegate;
           
-          class MainActivity : ReactActivity() {
-            override fun onCreate(savedInstanceState: Bundle?) {
-              super.onCreate(savedInstanceState)
+          public class MainActivity extends ReactActivity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
             }
           
-            override fun getMainComponentName(): String = "main"
+            @Override
+            protected String getMainComponentName() {
+              return "main";
+            }
           
-            override fun createReactActivityDelegate(): ReactActivityDelegate {
-              return DefaultReactActivityDelegate(
+            @Override
+            protected ReactActivityDelegate createReactActivityDelegate() {
+              return new DefaultReactActivityDelegate(
                   this,
-                  mainComponentName,
-                  false
-              )
+                  getMainComponentName(),
+                  false // isNewArchitectureEnabled
+              );
             }
           
-            override fun invokeDefaultOnBackPressed() {
+            @Override
+            public void invokeDefaultOnBackPressed() {
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
                     if (!moveTaskToBack(false)) {
-                        super.invokeDefaultOnBackPressed()
+                        super.invokeDefaultOnBackPressed();
                     }
-                    return
+                    return;
                 }
-                super.invokeDefaultOnBackPressed()
+                super.invokeDefaultOnBackPressed();
             }
           }
           EOF
           
-          # Créer MainApplication.kt simple sans override complexe
-          cat > android/app/src/main/java/SCAN/mobile/MainApplication.kt << 'EOF'
-          package SCAN.mobile
+          # Créer MainApplication.java avec Java + JSC
+          cat > android/app/src/main/java/SCAN/mobile/MainApplication.java << 'EOF'
+          package SCAN.mobile;
           
-          import android.app.Application
-          import android.content.res.Configuration
+          import android.app.Application;
+          import android.content.res.Configuration;
           
-          import com.facebook.react.PackageList
-          import com.facebook.react.ReactApplication
-          import com.facebook.react.ReactNativeHost
-          import com.facebook.react.ReactPackage
-          import com.facebook.react.defaults.DefaultReactNativeHost
-          import com.facebook.soloader.SoLoader
+          import com.facebook.react.PackageList;
+          import com.facebook.react.ReactApplication;
+          import com.facebook.react.ReactNativeHost;
+          import com.facebook.react.ReactPackage;
+          import com.facebook.react.defaults.DefaultReactNativeHost;
+          import com.facebook.soloader.SoLoader;
           
-          class MainApplication : Application(), ReactApplication {
+          public class MainApplication extends Application implements ReactApplication {
           
-            override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
-              override fun getPackages(): List<ReactPackage> {
-                val packages = PackageList(this).packages
-                return packages
+            private final ReactNativeHost mReactNativeHost = new DefaultReactNativeHost(this) {
+              @Override
+              public boolean getUseDeveloperSupport() {
+                return BuildConfig.DEBUG;
               }
           
-              override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
-              override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
-              override val isNewArchEnabled: Boolean = false
-              override val isHermesEnabled: Boolean = false
+              @Override
+              protected List<ReactPackage> getPackages() {
+                @SuppressWarnings("UnnecessaryLocalVariable")
+                List<ReactPackage> packages = new PackageList(this).getPackages();
+                return packages;
+              }
+          
+              @Override
+              protected String getJSMainModuleName() {
+                return ".expo/.virtual-metro-entry";
+              }
+          
+              @Override
+              public boolean isNewArchEnabled() {
+                return false;
+              }
+          
+              @Override
+              public boolean isHermesEnabled() {
+                return false;
+              }
+            };
+          
+            @Override
+            public ReactNativeHost getReactNativeHost() {
+              return mReactNativeHost;
             }
           
-            override fun onCreate() {
-              super.onCreate()
-              SoLoader.init(this, false)
+            @Override
+            public void onCreate() {
+              super.onCreate();
+              SoLoader.init(this, false);
             }
           
-            override fun onConfigurationChanged(newConfig: Configuration) {
-              super.onConfigurationChanged(newConfig)
+            @Override
+            public void onConfigurationChanged(Configuration newConfig) {
+              super.onConfigurationChanged(newConfig);
             }
           }
           EOF
@@ -162,13 +192,13 @@ jobs:
           # Garder Expo SDK 52 et React Native 0.75.4
           # Pas de changement de versions - garder la config qui fonctionne en web
           
-          # Désactiver complètement les moteurs JavaScript natifs pour éviter les erreurs
+          # Forcer JSC (JavaScript Core) - compatible avec Java
           echo "hermesEnabled=false" >> android/gradle.properties
           echo "android.enableHermes=false" >> android/gradle.properties
-          echo "android.enableJSC=false" >> android/gradle.properties
+          echo "android.enableJSC=true" >> android/gradle.properties
           
-          # Forcer l'utilisation du moteur JavaScript par défaut de React Native
-          echo "android.enableDefaultJSExecutor=true" >> android/gradle.properties
+          # Ajouter la dépendance JSC dans build.gradle
+          sed -i '/dependencies {/a\    implementation "org.webkit:android-jsc:+"' android/app/build.gradle
           
           # Forcer la génération des modules Expo
           npx expo install --fix
