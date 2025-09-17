@@ -4,10 +4,10 @@
                                  [
                                      "expo-build-properties",
                                      {
-                                        "android":  {
-                                                        "gradleVersion":  "8.7",
-                                                        "agpVersion":  "8.5.0"
-                                                    }
+                                         "android":  {
+                                                         "gradleVersion":  "8.7",
+                                                         "agpVersion":  "8.5.0"
+                                                     }
                                      }
                                  ],
                                  "./plugins/withDataWedgeReceiver.js"
@@ -31,7 +31,7 @@
                                                 }
                          },
                  "android":  {
-                                 "versionCode":  46,
+                                 "versionCode":  47,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/icon-SCAN.png",
                                                       "backgroundColor":  "#ffffff"
