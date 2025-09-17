@@ -209,7 +209,6 @@ jobs:
           echo "android.enableHermes=false" >> android/gradle.properties
           echo "android.enableJSC=true" >> android/gradle.properties
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
-          echo "android.bundle.enableUncompressedNativeLibs=false" >> android/gradle.properties
           
           # Forcer l'inclusion de Hermes avec toutes les architectures
           sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
