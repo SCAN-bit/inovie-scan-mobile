@@ -181,9 +181,12 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease
           
-      - name: Get version from file
+      - name: Get version from app.json
         id: version
-        run: echo "version=$(cat version.txt)" >> $GITHUB_OUTPUT
+        run: |
+          VERSION_CODE=$(grep '"versionCode"' app.json | sed 's/.*: *\([0-9]*\).*/\1/')
+          VERSION_NAME=$(grep '"version"' app.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+          echo "version=${VERSION_NAME}-build${VERSION_CODE}" >> $GITHUB_OUTPUT
         
       - name: Create Release
         uses: softprops/action-gh-release@v1
