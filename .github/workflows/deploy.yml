@@ -78,8 +78,12 @@ jobs:
           }
           EOF
           
-          # Désactiver temporairement le splash screen pour éviter les erreurs
-          sed -i 's/"newArchEnabled": true/"newArchEnabled": false/' app.json
+          # Corriger la configuration du splash screen pour Android 12+
+          # Ajouter la dépendance splash screen dans build.gradle
+          sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
+          
+          # S'assurer que newArchEnabled est activé pour garder la compatibilité
+          sed -i 's/"newArchEnabled": false/"newArchEnabled": true/' app.json
           
       - name: Build APK
         run: |
