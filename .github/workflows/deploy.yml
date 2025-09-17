@@ -195,9 +195,9 @@ jobs:
           }
           EOF
           
-          # Test SDK 51 seul - garder les versions actuelles
-          echo "Test SDK 51 seul - garder les versions actuelles..."
-          npm install expo@~51.0.0 --save --legacy-peer-deps
+          # Revenir à SDK 52 avec approche radicale
+          echo "Revenir à SDK 52 avec approche radicale..."
+          npm install expo@~52.0.47 --save
           echo "Vérification de la version installée..."
           npm list expo
           
