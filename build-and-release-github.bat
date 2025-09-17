@@ -169,6 +169,13 @@ echo   TEST DE COMPATIBILITE DES VERSIONS
 echo ========================================
 echo.
 
+REM Demander si on veut faire les tests
+set /p skip_tests="Voulez-vous passer les tests de compatibilite ? (o/N): "
+if /i "%skip_tests%"=="o" (
+    echo Tests passes, passage direct au build...
+    goto :skip_tests
+)
+
 REM Test de compatibilité des versions
 echo 🔍 Verification des versions...
 echo.
@@ -197,6 +204,8 @@ java -version 2>&1
 if errorlevel 1 (
     echo ❌ Java non trouve !
     echo Continuons quand meme...
+) else (
+    echo ✅ Java trouve !
 )
 
 echo.
@@ -287,6 +296,8 @@ if errorlevel 1 (
 
 echo ✅ Toutes les verifications de configuration sont OK !
 echo.
+
+:skip_tests
 
 echo ========================================
 echo   TEST DE COMPILATION RAPIDE
