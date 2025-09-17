@@ -201,9 +201,9 @@ jobs:
           echo "Vérification de la version installée..."
           npm list expo
           
-          # Mettre à jour React Native vers 0.77
-          echo "Mise à jour React Native vers 0.77..."
-          npm install react-native@0.77.0 --save
+          # Ajuster React Native pour SDK 51 (compatible avec 0.74)
+          echo "Ajustement React Native pour SDK 51..."
+          npm install react-native@0.74.5 --save
           
           npx expo install --fix --legacy-peer-deps
           
