@@ -195,19 +195,11 @@ jobs:
           }
           EOF
           
-          # Tester SDK 51 pour voir si les bibliothèques natives sont incluses
-          echo "Test SDK 51 pour résoudre le problème des bibliothèques natives..."
-          npm install expo@~51.0.0 --save
+          # Test SDK 51 seul - garder les versions actuelles
+          echo "Test SDK 51 seul - garder les versions actuelles..."
+          npm install expo@~51.0.0 --save --legacy-peer-deps
           echo "Vérification de la version installée..."
           npm list expo
-          
-          # Ajuster React Native pour SDK 51 (compatible avec 0.74)
-          echo "Ajustement React Native pour SDK 51..."
-          npm install react-native@0.74.5 --save --legacy-peer-deps
-          
-          # Ajuster React pour React Native 0.74.5
-          echo "Ajustement React pour React Native 0.74.5..."
-          npm install react@18.2.0 --save --legacy-peer-deps
           
           npx expo install --fix --legacy-peer-deps
           
