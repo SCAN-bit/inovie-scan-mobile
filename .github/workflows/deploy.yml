@@ -195,9 +195,10 @@ jobs:
           }
           EOF
           
-          # Revenir à SDK 52 (plus stable)
-          echo "Utilisation de SDK 52 (plus stable)..."
+          # Synchroniser avec le local (SDK 52 + RN 0.76.9)
+          echo "Synchronisation avec le local (SDK 52 + RN 0.76.9)..."
           npm install expo@~52.0.47 --save
+          npm install react-native@0.76.9 --save
           echo "Vérification de la version installée..."
           npm list expo
           
