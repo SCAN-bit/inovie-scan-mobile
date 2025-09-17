@@ -109,12 +109,12 @@ jobs:
         
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ steps.version.outputs.version }}
-        release_name: Version ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})
+        name: Version ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})
         body: |
           ## Version ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }})
           
@@ -131,16 +131,7 @@ jobs:
           - Build: ${{ steps.version.outputs.build }}
         draft: false
         prerelease: false
-        
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: android/app/build/outputs/apk/release/app-release.apk
-        asset_name: ${{ steps.version.outputs.apk_name }}
-        asset_content_type: application/vnd.android.package-archive
+        files: android/app/build/outputs/apk/release/app-release.apk
         
     - name: Success message
       run: |
