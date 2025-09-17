@@ -144,6 +144,8 @@ jobs:
           import com.facebook.react.defaults.DefaultReactNativeHost;
           import com.facebook.soloader.SoLoader;
           
+          import java.util.List;
+          
           public class MainApplication extends Application implements ReactApplication {
           
             private final ReactNativeHost mReactNativeHost = new DefaultReactNativeHost(this) {
@@ -170,7 +172,7 @@ jobs:
               }
           
               @Override
-              public boolean isHermesEnabled() {
+              public Boolean isHermesEnabled() {
                 return false;
               }
             };
