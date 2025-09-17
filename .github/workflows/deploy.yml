@@ -220,6 +220,12 @@ jobs:
           # Forcer l'inclusion des bibliothèques natives
           sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc"]\n        }\n    }' android/app/build.gradle
           
+          # Forcer l'inclusion des bibliothèques natives via Gradle
+          sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk false\n        }\n    }' android/app/build.gradle
+          
+          # Forcer l'inclusion des bibliothèques natives via NDK
+          sed -i '/android {/a\    ndk {\n        abiFilters "arm64-v8a", "x86", "x86_64"\n    }' android/app/build.gradle
+          
           # Forcer l'inclusion explicite de libjscexecutor.so
           mkdir -p android/app/src/main/jniLibs/arm64-v8a
           mkdir -p android/app/src/main/jniLibs/x86
