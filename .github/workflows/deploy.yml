@@ -203,7 +203,7 @@ jobs:
           echo "Mise à jour React Native vers 0.77..."
           npm install react-native@0.77.0 --save
           
-          npx expo install --fix
+          npx expo install --fix --legacy-peer-deps
           
           # Forcer l'inclusion des bibliothèques natives
           echo "hermesEnabled=false" >> android/gradle.properties
