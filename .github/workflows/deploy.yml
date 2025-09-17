@@ -195,9 +195,8 @@ jobs:
           }
           EOF
           
-          # Accepter EAS Build pour SDK 52
-          echo "SDK 52 nécessite EAS Build pour les bibliothèques natives..."
-          echo "Configuration pour EAS Build..."
+          # Revenir à SDK 52 (plus stable)
+          echo "Utilisation de SDK 52 (plus stable)..."
           npm install expo@~52.0.47 --save
           echo "Vérification de la version installée..."
           npm list expo
@@ -355,7 +354,21 @@ jobs:
           VERSION_CODE=$(grep '"versionCode"' ../app.json | sed 's/.*: *\([0-9]*\).*/\1/')
           VERSION_NAME=$(grep '"version"' ../app.json | sed 's/.*: *"\([^"]*\)".*/\1/')
           NEW_NAME="SCAN-v${VERSION_NAME}-build${VERSION_CODE}.apk"
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/${NEW_NAME}
+          # Vérifier où est l'APK généré
+          echo "Recherche de l'APK généré..."
+          find . -name "*.apk" -type f
+          ls -la app/build/outputs/apk/release/ || echo "Dossier release vide"
+          ls -la app/build/outputs/apk/debug/ || echo "Dossier debug vide"
+          
+          # Copier l'APK avec le bon nom
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/${NEW_NAME}
+          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/${NEW_NAME}
+          else
+            echo "ERREUR: Aucun APK trouvé !"
+            exit 1
+          fi
           echo "APK renommé: ${NEW_NAME}"
           
           # Analyser l'architecture de l'APK
