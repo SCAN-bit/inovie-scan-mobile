@@ -195,9 +195,10 @@ jobs:
           }
           EOF
           
-          # Garder la version SDK 52 actuelle (52.0.47)
-          echo "Version SDK 52 actuelle: 52.0.47 (dernière version)"
-          echo "Pas de mise à jour nécessaire - version déjà à jour"
+          # Tester SDK 51 pour voir si les bibliothèques natives sont incluses
+          echo "Test SDK 51 pour résoudre le problème des bibliothèques natives..."
+          npm install expo@~51.0.0 --save
+          echo "Vérification de la version installée..."
           npm list expo
           
           # Mettre à jour React Native vers 0.77
