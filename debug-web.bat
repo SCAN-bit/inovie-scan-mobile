@@ -1,4 +1,4 @@
-@echo off
+npx expo start --web@echo off
 title DEBUG WEB - NE SE FERME JAMAIS
 color 0E
 

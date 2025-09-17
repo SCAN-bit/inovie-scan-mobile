@@ -208,6 +208,11 @@ jobs:
           sed -i '/dependencies {/a\    implementation "org.webkit:android-jsc:+"' android/app/build.gradle
           sed -i '/dependencies {/a\    implementation "com.facebook.react:react-android"' android/app/build.gradle
           
+          # Forcer l'inclusion de libjscexecutor.so
+          echo "android.enableJSC=true" >> android/gradle.properties
+          echo "android.enableHermes=false" >> android/gradle.properties
+          echo "hermesEnabled=false" >> android/gradle.properties
+          
           # Forcer la génération des modules Expo
           npx expo install --fix
           

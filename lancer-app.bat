@@ -19,6 +19,8 @@ echo   [1] LAN (Rapide, pour appareil sur le meme reseau)
 echo   [2] LOCALHOST (Pour emulateur ou test web)
 echo   [3] NETTOYER LE CACHE & LANCER (Si bug)
 echo   [4] Quitter
+
+
 echo.
 
 set /p choice="Votre choix : "
@@ -58,4 +60,4 @@ exit
 echo.
 echo --- Session terminee ---
 pause
-goto start 
+goto start
