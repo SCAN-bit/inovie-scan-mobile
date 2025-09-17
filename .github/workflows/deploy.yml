@@ -172,6 +172,10 @@ jobs:
           # Désactiver temporairement New Architecture pour RN 0.74.5
           sed -i 's/"newArchEnabled": true/"newArchEnabled": false/' app.json
           
+          # Forcer Hermes au lieu de JSC
+          echo "hermesEnabled=true" >> android/gradle.properties
+          echo "android.enableHermes=true" >> android/gradle.properties
+          
           # Forcer la génération des modules Expo
           npx expo install --fix
           
