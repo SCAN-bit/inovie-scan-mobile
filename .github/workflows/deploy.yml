@@ -27,13 +27,13 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          # Force Gradle 8.7 - Remove any existing Gradle cache first
+          # Force Gradle 8.5.0 - Same as local working version
           rm -rf ~/.gradle/wrapper/dists/gradle-8.10.2-*
-          sed -i 's/gradle-.*-all.zip/gradle-8.7-all.zip/g' gradle/wrapper/gradle-wrapper.properties
-          # Force Kotlin 1.9.23 - Recommended by Expo for SDK 51
+          sed -i 's/gradle-.*-all.zip/gradle-8.5.0-all.zip/g' gradle/wrapper/gradle-wrapper.properties
+          # Force Kotlin 1.9.25 - Same as local working version
           sed -i '/kotlin.version/d' gradle.properties
           sed -i '/android.suppressKotlinVersionCompatibilityCheck/d' gradle.properties
-          echo "kotlin.version=1.9.23" >> gradle.properties
+          echo "kotlin.version=1.9.25" >> gradle.properties
           echo "android.suppressKotlinVersionCompatibilityCheck=true" >> gradle.properties
           # Add Kotlin compiler flags to ignore nullable errors and warnings
           echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
@@ -48,14 +48,14 @@ jobs:
           echo "kotlin.compiler.suppressWarnings=true" >> gradle.properties
           echo "kotlin.compiler.allowUnsafe=true" >> gradle.properties
           
-          # Add Android SDK configuration
-          echo "android.compileSdkVersion=34" >> gradle.properties
+          # Add Android SDK configuration - Same as local working version
+          echo "android.compileSdkVersion=35" >> gradle.properties
           echo "android.targetSdkVersion=34" >> gradle.properties
-          echo "android.buildToolsVersion=34.0.0" >> gradle.properties
+          echo "android.buildToolsVersion=35.0.0" >> gradle.properties
           # Force suppression of Kotlin version check in build.gradle
-          sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.23"/g' build.gradle
+          sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.25"/g' build.gradle
           # Add system property to suppress Kotlin version check
-          echo "systemProp.kotlin.version=1.9.23" >> gradle.properties
+          echo "systemProp.kotlin.version=1.9.25" >> gradle.properties
           # Verify the changes
           echo "=== gradle.properties content ==="
           cat gradle.properties
