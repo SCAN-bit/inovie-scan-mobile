@@ -9,35 +9,34 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
-import expo.modules.PackageList
-import expo.modules.ReactNativeHostWrapper
-import expo.modules.ApplicationLifecycleDispatcher
 
-// DataWedge import (manually added since it's not in Expo PackageList)
+// DataWedge import (manually added)
 import com.darryncampbell.rndatawedgeintents.RNDataWedgeIntentsPackage
 
 class MainApplication : Application(), ReactApplication {
 
-  override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
-    this,
-    object : DefaultReactNativeHost(this) {
-      override fun getPackages(): List<ReactPackage> {
-        val packages = PackageList(this).packages
-        // Add DataWedge manually since it's not in Expo PackageList
-        packages.add(RNDataWedgeIntentsPackage())
-        return packages
-      }
-
-      override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
-
-      override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
-
-      override val isNewArchEnabled: Boolean = false
-      override val isHermesEnabled: Boolean = false
+  override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
+    override fun getPackages(): List<ReactPackage> {
+      val packages = mutableListOf<ReactPackage>()
       
-      // Using Android's built-in JavaScript engine - no custom JS executor needed
+      // Add DataWedge manually since it's essential for scanning
+      packages.add(RNDataWedgeIntentsPackage())
+      
+      // Note: Other packages will be auto-linked by React Native
+      // Firebase, AsyncStorage, NetInfo, etc. are handled automatically
+      
+      return packages
     }
-  )
+
+    override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
+
+    override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
+
+    override val isNewArchEnabled: Boolean = false
+    override val isHermesEnabled: Boolean = false
+    
+    // Using Android's built-in JavaScript engine - no custom JS executor needed
+  }
 
   override fun onCreate() {
     super.onCreate()
@@ -46,11 +45,9 @@ class MainApplication : Application(), ReactApplication {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
-    ApplicationLifecycleDispatcher.onApplicationCreate(this)
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
-    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
   }
 }

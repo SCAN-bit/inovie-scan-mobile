@@ -141,7 +141,17 @@ export default function ScanScreen({ navigation, route }) {
       addDebugLog(`[ScanScreen] Tournée changée: ${currentTourneeId} - Rechargement des colis`, 'info');
       // Délai pour éviter les conflits avec l'affichage immédiat
       setTimeout(() => {
-        loadTakingCarePackages(true);
+        // Vérifier si on vient de scanner un colis récemment
+        const hasRecentScans = scannedContenants.length > 0;
+        if (hasRecentScans) {
+          addDebugLog(`[ScanScreen] Rechargement différé - colis récents détectés`, 'info');
+          // Attendre plus longtemps si on a des colis récents
+          setTimeout(() => {
+            loadTakingCarePackages(true);
+          }, 3000); // 3 secondes supplémentaires
+        } else {
+          loadTakingCarePackages(true);
+        }
       }, 1000); // 1 seconde de délai pour éviter les conflits
     }
   }, [currentTourneeId]);
@@ -730,12 +740,13 @@ export default function ScanScreen({ navigation, route }) {
       const currentPackages = takingCarePackages;
       const recentlyAddedCodes = new Set();
       
-      // Identifier les colis qui ont été ajoutés récemment (dans les 120 dernières secondes)
-      const twoMinutesAgo = Date.now() - 120000; // Augmenté à 2 minutes pour plus de sécurité
+      // Identifier les colis qui ont été ajoutés récemment (dans les 5 dernières minutes)
+      const fiveMinutesAgo = Date.now() - 300000; // Augmenté à 5 minutes pour plus de sécurité
       currentPackages.forEach(pkg => {
         const pkgTimestamp = new Date(pkg.scanDate || pkg.dateHeure || 0).getTime();
-        if (pkgTimestamp > twoMinutesAgo) {
+        if (pkgTimestamp > fiveMinutesAgo) {
           recentlyAddedCodes.add(pkg.idColis || pkg.code);
+          addDebugLog(`[loadTakingCarePackagesInternal] Colis récent identifié: ${pkg.idColis || pkg.code} (${Math.round((Date.now() - pkgTimestamp) / 1000)}s)`, 'info');
         }
       });
 
@@ -1075,16 +1086,18 @@ export default function ScanScreen({ navigation, route }) {
     addDebugLog(`[handleContenantScan] Code nettoyé: ${trimmedCode}`, 'info');
 
     try {
-      // CORRECTION: Suppression de la protection "déjà scanné" pour permettre le rescan
-      // Cette protection empêchait le rescan de colis déposés dans la même session
-      // const alreadyScanned = scannedContenants.some(contenant => 
-      //   (contenant.idColis || contenant.code) === trimmedCode
-      // );
-      // 
-      // if (alreadyScanned) {
-      //   showToast(`Colis "${trimmedCode}" déjà scanné.`, 'warning');
-      //   return;
-      // }
+      // CORRECTION: Protection uniquement pour les colis déjà scannés dans cette session
+      const alreadyScanned = scannedContenants.some(contenant => 
+        (contenant.idColis || contenant.code) === trimmedCode
+      );
+      
+      if (alreadyScanned) {
+        showToast(`Colis "${trimmedCode}" déjà scanné dans cette session.`, 'warning');
+        return;
+      }
+      
+      // CORRECTION: Pas de protection sur takingCarePackages pour permettre le dépôt
+      // Les colis dans takingCarePackages peuvent être déposés (c'est le but du dépôt)
       
       // CORRECTION: Suppression de la protection "récemment transmis" pour permettre le rescan
       // Cette protection empêchait le rescan de colis déposés
@@ -1571,8 +1584,9 @@ export default function ScanScreen({ navigation, route }) {
       // Après la transmission, vider la liste des scans en attente
       await updateLocalHistoryOptimized(scannedContenants);
       
-      // CORRECTION: Mise à jour immédiate de la liste de prise en charge
-      updateTakingCarePackagesOptimized(scannedContenants);
+      // CORRECTION: Pas besoin de mise à jour car les colis sont déjà affichés immédiatement
+      // Les colis ont été ajoutés lors du scan via handleContenantScan
+      addDebugLog(`[handleTransmit] Colis déjà affichés immédiatement lors du scan - pas de mise à jour nécessaire`, 'info');
       
       // CORRECTION: Pas de rechargement automatique après transmission pour éviter les conflits
       // Le rechargement se fera naturellement lors du prochain scan ou changement de tournée
