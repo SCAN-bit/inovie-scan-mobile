@@ -131,13 +131,7 @@ jobs:
           npm list react-native-datawedge-intents
           ls -la node_modules/react-native-datawedge-intents/ || echo "DataWedge not found"
           
-          # Fix dependencies but exclude expo-camera
-          echo "Fixing Expo dependencies..."
-          npx expo install --fix --legacy-peer-deps || echo "Expo install --fix failed, continuing..."
-          # Remove expo-camera if it was installed
-          npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
-          
-          # Check expo-modules-core version and downgrade to fix nullable error
+          # Check expo-modules-core version and downgrade FIRST to fix nullable error
           echo "Checking expo-modules-core version..."
           npm list expo-modules-core
           echo "Downgrading expo-modules-core to fix nullable error..."
@@ -145,10 +139,31 @@ jobs:
           # Force exact version in package.json (remove ^)
           sed -i 's/"expo-modules-core": "\^1.11.0"/"expo-modules-core": "1.11.0"/g' package.json
           
+          # Fix dependencies but exclude expo-camera (AFTER downgrade)
+          echo "Fixing Expo dependencies..."
+          npx expo install --fix --legacy-peer-deps || echo "Expo install --fix failed, continuing..."
+          # Remove expo-camera if it was installed
+          npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
+          
+          # Re-downgrade expo-modules-core after expo install --fix
+          echo "Re-downgrading expo-modules-core after expo install --fix..."
+          npm install expo-modules-core@1.11.0 --save --legacy-peer-deps
+          # Force exact version in package.json again
+          sed -i 's/"expo-modules-core": "\^1.11.0"/"expo-modules-core": "1.11.0"/g' package.json
+          
           # Verify final package list
           echo "Final package verification..."
           npm list expo
           npm list react-native-datawedge-intents
+          echo "Final expo-modules-core verification..."
+          npm list expo-modules-core
+          # Verify the version is correct
+          if npm list expo-modules-core | grep -q "1.11.0"; then
+            echo "✅ expo-modules-core@1.11.0 correctly installed"
+          else
+            echo "❌ expo-modules-core version incorrect, forcing reinstall..."
+            npm install expo-modules-core@1.11.0 --save --legacy-peer-deps --force
+          fi
           
           # Force Android's built-in JavaScript engine (single configuration)
           # Configuration déjà présente dans gradle.properties local - pas besoin de la dupliquer
