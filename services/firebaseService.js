@@ -105,7 +105,7 @@ const FirebaseService = {
         await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify({
           email: user.email,
           uid: user.uid,
-          role: userData?.role || 'Utilisateur',
+          role: (userData && userData.role) || 'Utilisateur',
           ...userData
         }));
         // Informations utilisateur stockées avec succès
@@ -397,7 +397,7 @@ const FirebaseService = {
       
       // Récupérer le selasId de l'utilisateur connecté
       const userProfile = await FirebaseService.getUserProfile();
-      if (!userProfile?.selasId) {
+      if (!(userProfile && userProfile.selasId)) {
         // console.log('⚠️ Utilisateur sans SELAS, retour SELAS par défaut');
         // Retourner uniquement la SELAS LABOSUD par défaut
         const selasCollection = collection(db, 'selas');
@@ -499,7 +499,7 @@ const FirebaseService = {
         FirebaseService.getCurrentSession()
       ]);
       
-              const userName = userProfile?.nom 
+              const userName = (userProfile && userProfile.nom) 
           ? userProfile.nom 
           : user.email;
       
@@ -511,14 +511,14 @@ const FirebaseService = {
       let siteDetails = null;
       
       // Récupérer les détails du site (qui contient les infos de pôle) une seule fois
-      const siteId = sessionData?.tournee?.siteDepart || scansArray[0]?.site || scansArray[0]?.siteDepart;
+      const siteId = (sessionData && sessionData.tournee)?.siteDepart || scansArray[0]?.site || scansArray[0]?.siteDepart;
       if (siteId && !scansArray[0]?.poleId) {
         try {
           console.log('Récupération des détails du site avec pôle:', siteId);
           siteDetails = await FirebaseService.getSiteWithPole(siteId);
-          if (siteDetails?.pole) {
+          if ((siteDetails && siteDetails.pole)) {
             poleDetails = siteDetails.pole;
-            console.log('Détails du pôle récupérés depuis le site:', poleDetails?.nom);
+            console.log('Détails du pôle récupérés depuis le site:', (poleDetails && poleDetails.nom));
           } else {
             console.log('Aucun pôle trouvé pour ce site');
           }
@@ -528,10 +528,10 @@ const FirebaseService = {
       }
       
       // Fallback: Récupérer le pôle depuis la session si disponible
-      if (!poleDetails && sessionData?.poleId && !scansArray[0]?.poleId) {
+      if (!poleDetails && (sessionData && sessionData.poleId) && !scansArray[0]?.poleId) {
         try {
           poleDetails = await FirebaseService.getPoleById(sessionData.poleId);
-          console.log('Détails du pôle récupérés depuis la session:', poleDetails?.nom);
+          console.log('Détails du pôle récupérés depuis la session:', (poleDetails && poleDetails.nom));
         } catch (error) {
           console.warn('Erreur récupération pôle depuis session:', error.message);
         }
@@ -553,23 +553,23 @@ const FirebaseService = {
           if (!polesSnapshot.empty) {
             const poleDoc = polesSnapshot.docs[0];
             poleDetails = { id: poleDoc.id, ...poleDoc.data() };
-            console.log('[FALLBACK] Pôle CENTRE trouvé par défaut:', poleDetails?.nom, 'ID:', poleDetails?.id);
+            console.log('[FALLBACK] Pôle CENTRE trouvé par défaut:', (poleDetails && poleDetails.nom), 'ID:', (poleDetails && poleDetails.id));
           } else {
             console.warn('[FALLBACK] Pôle CENTRE non trouvé, essai avec profil utilisateur...');
             
             // Si CENTRE n'existe pas, essayer avec le profil utilisateur
-            if (userProfile?.pole) {
+            if ((userProfile && userProfile.pole)) {
               if (typeof userProfile.pole === 'string') {
                 const userPolesQuery = query(collection(db, 'poles'), where('nom', '==', userProfile.pole));
                 const userPolesSnapshot = await getDocs(userPolesQuery);
                 if (!userPolesSnapshot.empty) {
                   const userPoleDoc = userPolesSnapshot.docs[0];
                   poleDetails = { id: userPoleDoc.id, ...userPoleDoc.data() };
-                  console.log('[FALLBACK] Pôle utilisateur trouvé:', poleDetails?.nom);
+                  console.log('[FALLBACK] Pôle utilisateur trouvé:', (poleDetails && poleDetails.nom));
                 }
               } else if (typeof userProfile.pole === 'object' && userProfile.pole.id) {
                 poleDetails = userProfile.pole;
-                console.log('[FALLBACK] Pôle utilisateur objet utilisé:', poleDetails?.nom);
+                console.log('[FALLBACK] Pôle utilisateur objet utilisé:', (poleDetails && poleDetails.nom));
               }
             }
           }
@@ -581,14 +581,14 @@ const FirebaseService = {
       console.log('[FALLBACK DEBUG] poleDetails final:', poleDetails);
       
       // Récupérer les détails du véhicule une seule fois si nécessaire
-      const vehiculeId = sessionData?.vehicule?.id || scansArray[0]?.vehiculeId;
-      let vehiculeName = sessionData?.vehicule?.immatriculation || scansArray[0]?.vehicule;
+      const vehiculeId = (sessionData && sessionData.vehicule)?.id || scansArray[0]?.vehiculeId;
+      let vehiculeName = (sessionData && sessionData.vehicule)?.immatriculation || scansArray[0]?.vehicule;
       
       // AMÉLIORATION : Toujours essayer de récupérer le véhicule si on a un ID
       if (vehiculeId) {
         try {
           vehiculeDetails = await FirebaseService.getVehiculeById(vehiculeId);
-          vehiculeName = vehiculeDetails?.immatriculation || vehiculeName || '';
+          vehiculeName = (vehiculeDetails && vehiculeDetails.immatriculation) || vehiculeName || '';
           console.log('Détails du véhicule récupérés:', vehiculeName);
         } catch (error) {
           console.warn('Erreur récupération véhicule:', error.message);
@@ -596,13 +596,13 @@ const FirebaseService = {
       }
       
       // AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
-      const tourneeId = sessionData?.tournee?.id || scansArray[0]?.tourneeId;
-      let tourneeName = sessionData?.tournee?.nom || scansArray[0]?.tournee;
+      const tourneeId = (sessionData && sessionData.tournee)?.id || scansArray[0]?.tourneeId;
+      let tourneeName = (sessionData && sessionData.tournee)?.nom || scansArray[0]?.tournee;
       
       if (tourneeId && !tourneeName) {
         try {
           const tourneeDetails = await FirebaseService.getTourneeById(tourneeId);
-          tourneeName = tourneeDetails?.nom || '';
+          tourneeName = (tourneeDetails && tourneeDetails.nom) || '';
           console.log('Détails de la tournée récupérés:', tourneeName);
         } catch (error) {
           console.warn('Erreur récupération tournée:', error.message);
@@ -612,16 +612,16 @@ const FirebaseService = {
       // Formatage optimisé des données
       const formattedScans = scansArray.map(scan => {
         // Utiliser les données pré-récupérées ou celles du scan
-        const poleId = scan.poleId || poleDetails?.id || sessionData?.poleId || sessionData?.pole?.id || '';
-        const poleName = scan.poleName || poleDetails?.nom || sessionData?.pole?.nom || scan.pole || '';
+        const poleId = scan.poleId || (poleDetails && poleDetails.id) || (sessionData && sessionData.poleId) || (sessionData && sessionData.pole)?.id || '';
+        const poleName = scan.poleName || (poleDetails && poleDetails.nom) || (sessionData && sessionData.pole)?.nom || scan.pole || '';
         
         console.log(`[addScans] Pôle pour ${scan.idColis}: ID=${poleId}, Nom=${poleName}`);
         
         const finalVehiculeId = scan.vehiculeId || vehiculeId || '';
         const finalVehiculeName = scan.vehicule || vehiculeName || '';
-        const finalTourneeName = tourneeName || sessionData?.tournee?.nom || scan.tournee || '';
-        const finalTourneeId = sessionData?.tournee?.id || scan.tourneeId || tourneeId || '';
-        const siteName = sessionData?.tournee?.siteDepart || scan.site || scan.siteDepart || 'Non spécifié';
+        const finalTourneeName = tourneeName || (sessionData && sessionData.tournee)?.nom || scan.tournee || '';
+        const finalTourneeId = (sessionData && sessionData.tournee)?.id || scan.tourneeId || tourneeId || '';
+        const siteName = (sessionData && sessionData.tournee)?.siteDepart || scan.site || scan.siteDepart || 'Non spécifié';
         
         console.log(`🚗 [addScans] Véhicule pour ${scan.idColis}: ID=${finalVehiculeId}, Nom=${finalVehiculeName}`);
         console.log(`🚌 [addScans] Tournée pour ${scan.idColis}: ID=${finalTourneeId}, Nom=${finalTourneeName}`);
@@ -1429,8 +1429,8 @@ const FirebaseService = {
       // Nettoyer les données pour éviter les valeurs undefined
       const rawSessionInfo = {
         uid: userData.uid,
-        tourneeId: sessionData.tournee?.id || null,
-        vehiculeId: sessionData.vehicule?.id || null,
+        tourneeId: sessionData.(tournee && tournee.id) || null,
+        vehiculeId: sessionData.(vehicule && vehicule.id) || null,
         vehiculeCheck: sessionData.vehiculeCheck || null,
         startTime: serverTimestamp(),
         status: 'active',
@@ -1552,18 +1552,18 @@ const FirebaseService = {
       const vehicleCheckDoc = vehicleCheckSnapshot.docs[0];
       const vehicleCheckData = vehicleCheckDoc.data();
       
-      console.log(`[getVehicleCheckHistory] Historique trouvé avec ${vehicleCheckData.checkHistory?.length || 0} checks`);
+      console.log(`[getVehicleCheckHistory] Historique trouvé avec ${vehicleCheckData.(checkHistory && checkHistory.length) || 0} checks`);
       
       return {
         id: vehicleCheckDoc.id,
         ...vehicleCheckData,
         // Convertir les timestamps en dates lisibles
-        createdAt: vehicleCheckData.createdAt?.toDate?.() || vehicleCheckData.createdAt,
-        updatedAt: vehicleCheckData.updatedAt?.toDate?.() || vehicleCheckData.updatedAt,
+        createdAt: vehicleCheckData.(createdAt && createdAt.toDate)?.() || vehicleCheckData.createdAt,
+        updatedAt: vehicleCheckData.(updatedAt && updatedAt.toDate)?.() || vehicleCheckData.updatedAt,
         // Convertir les timestamps dans l'historique
-        checkHistory: vehicleCheckData.checkHistory?.map(check => ({
+        checkHistory: vehicleCheckData.(checkHistory && checkHistory.map)(check => ({
           ...check,
-          createdAt: check.createdAt?.toDate?.() || check.createdAt
+          createdAt: check.(createdAt && createdAt.toDate)?.() || check.createdAt
         })) || []
       };
       
@@ -1603,7 +1603,7 @@ const FirebaseService = {
         id: doc.id,
         ...doc.data(),
         // Convertir les timestamps en dates lisibles
-        createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+        createdAt: doc.data().(createdAt && createdAt.toDate)?.() || doc.data().createdAt,
         date: doc.data().date
       }));
       
@@ -1613,7 +1613,7 @@ const FirebaseService = {
         vehiculeId: results[0].vehiculeId,
         immatriculation: results[0].immatriculation,
         lastCheckDate: results[0].lastCheckDate,
-        checkHistoryLength: results[0].checkHistory?.length || 0
+        checkHistoryLength: results[0].(checkHistory && checkHistory.length) || 0
       } : 'Aucun résultat');
       
       return results;
@@ -1635,7 +1635,7 @@ const FirebaseService = {
       return {
         id: checkDoc.id,
         ...checkDoc.data(),
-        createdAt: checkDoc.data().createdAt?.toDate?.() || checkDoc.data().createdAt
+        createdAt: checkDoc.data().(createdAt && createdAt.toDate)?.() || checkDoc.data().createdAt
       };
     } catch (error) {
       console.error('Erreur lors de la récupération du check véhicule:', error);
@@ -2113,7 +2113,7 @@ const FirebaseService = {
       
       // Récupération des informations utilisateur pour association
       const userProfile = await FirebaseService.getUserProfile();
-      const userName = userProfile?.nom && userProfile?.prenom 
+      const userName = (userProfile && userProfile.nom) && (userProfile && userProfile.prenom) 
         ? `${userProfile.prenom} ${userProfile.nom}` 
         : user.email;
       
@@ -2134,8 +2134,8 @@ const FirebaseService = {
         contenantCount: contenants.length,
         contenantCodes: contenants.map(c => c.code),
         selaId: selaId || null,
-        pole: bigSacocheData.pole?.id || bigSacocheData.poleId || '',
-        poleName: bigSacocheData.pole?.nom || bigSacocheData.poleName || '',
+        pole: bigSacocheData.(pole && pole.id) || bigSacocheData.poleId || '',
+        poleName: bigSacocheData.(pole && pole.nom) || bigSacocheData.poleName || '',
         location: bigSacocheData.location || null,
         status: 'en-cours',
         createdAt: serverTimestamp()
@@ -2165,8 +2165,8 @@ const FirebaseService = {
         bigSacocheId: bigSacocheRef.id,
         bigSacocheDate: new Date().toISOString(),
         selaId: selaId || null,
-        pole: bigSacocheData.pole?.id || bigSacocheData.poleId || contenant.pole || '',
-        poleName: bigSacocheData.pole?.nom || bigSacocheData.poleName || contenant.poleName || '',
+        pole: bigSacocheData.(pole && pole.id) || bigSacocheData.poleId || contenant.pole || '',
+        poleName: bigSacocheData.(pole && pole.nom) || bigSacocheData.poleName || contenant.poleName || '',
         location: contenant.location || null,
         status: 'en-cours',
         createdAt: serverTimestamp()
@@ -2213,12 +2213,12 @@ const FirebaseService = {
       const tourneeData = tourneeDoc.data();
       
       // Récupérer les sites visités de la session (une seule fois)
-      const visitedSiteIdentifiers = sessionDoc?.exists() 
+      const visitedSiteIdentifiers = (sessionDoc && sessionDoc.exists)() 
         ? (sessionDoc.data().visitedSiteIdentifiers || [])
         : [];
       
       // OPTIMISATION 2: Vérifier s'il y a des sites à traiter
-      if (!tourneeData?.sites?.length) {
+      if (!(tourneeData && tourneeData.sites)?.length) {
         console.log(`⚡ [getTourneeWithSites] Aucun site dans la tournée`);
         return { ...tourneeData, sitesWithStatus: [], sitesCount: 0 };
       }
@@ -2240,7 +2240,7 @@ const FirebaseService = {
       // OPTIMISATION 5: Créer un Map pour accès O(1)
       const sitesMap = new Map();
       siteDocs.forEach((siteDoc, index) => {
-        if (siteDoc?.exists()) {
+        if ((siteDoc && siteDoc.exists)()) {
           sitesMap.set(siteIds[index], siteDoc.data());
         }
       });
@@ -2448,7 +2448,7 @@ const FirebaseService = {
       const sessionData = sessionDoc.data();
       console.log('[markSiteVisitedInSession] Données de session récupérées:', {
         id: sessionId,
-        visitedSiteIdentifiers: sessionData.visitedSiteIdentifiers?.length || 0
+        visitedSiteIdentifiers: sessionData.(visitedSiteIdentifiers && visitedSiteIdentifiers.length) || 0
       });
 
       // Créer l'identifiant unique pour cette occurrence du site

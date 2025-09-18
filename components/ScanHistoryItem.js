@@ -146,9 +146,9 @@ const ScanHistoryItem = ({ item }) => {
       {/* Détails du scan */}
       <View style={styles.detailsContainer}>
         <Text style={styles.scanId}>{item.idColis || item.code || 'Code inconnu'}</Text>
-        { (item.siteDetails?.name || item.siteName || item.site) && (
+        { (item.(siteDetails && siteDetails.name) || item.siteName || item.site) && (
           <Text style={styles.siteText}>
-            {item.siteDetails?.name || item.siteName || item.site}
+            {item.(siteDetails && siteDetails.name) || item.siteName || item.site}
           </Text>
         ) }
         

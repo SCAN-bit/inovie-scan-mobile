@@ -224,7 +224,7 @@ const SupabaseService = {
         .eq('id', userData.uid)
         .single();
       
-      if (userProfile?.selas_id) {
+      if ((userProfile && userProfile.selas_id)) {
         const selasId = userProfile.selas_id;
         // Stocker pour utilisation future
         await AsyncStorage.setItem('user_selas_id', selasId);
@@ -305,9 +305,9 @@ const SupabaseService = {
       
       const sessionInfo = {
         user_id: userData.uid,
-        tournee_id: sessionData.tournee?.id || null,
-        vehicule_id: sessionData.vehicule?.id || null,
-        pole_id: sessionData.pole?.id || null,
+        tournee_id: sessionData.(tournee && tournee.id) || null,
+        vehicule_id: sessionData.(vehicule && vehicule.id) || null,
+        pole_id: sessionData.(pole && pole.id) || null,
         status: 'active',
         selas_id: selasId || null,
         visited_site_identifiers: [],
@@ -515,7 +515,7 @@ const SupabaseService = {
       const selaId = await SupabaseService.getUserSelas();
       const sessionData = await SupabaseService.getCurrentSession();
       
-      const userName = userProfile?.nom && userProfile?.prenom 
+      const userName = (userProfile && userProfile.nom) && (userProfile && userProfile.prenom) 
         ? `${userProfile.prenom} ${userProfile.nom}` 
         : user.email;
       
@@ -527,15 +527,15 @@ const SupabaseService = {
         session_id: scan.sessionId || '',
         coursier_charge: userName || user.email,
         coursier_chargeant_id: user.uid,
-        tournee: scan.tournee || sessionData?.tournee?.nom || '',
-        tournee_id: scan.tourneeId || sessionData?.tournee_id || '',
-        vehicule: scan.vehicule || sessionData?.vehicule?.immatriculation || '',
-        vehicule_id: scan.vehiculeId || sessionData?.vehicule_id || '',
+        tournee: scan.tournee || (sessionData && sessionData.tournee)?.nom || '',
+        tournee_id: scan.tourneeId || (sessionData && sessionData.tournee_id) || '',
+        vehicule: scan.vehicule || (sessionData && sessionData.vehicule)?.immatriculation || '',
+        vehicule_id: scan.vehiculeId || (sessionData && sessionData.vehicule_id) || '',
         site: scan.site || scan.siteDepart || 'Non spécifié',
         site_depart: scan.siteDepart || scan.site || 'Non spécifié',
         site_fin: scan.operationType === 'sortie' ? (scan.siteFin || scan.siteActuel || scan.site || '') : null,
         selas_id: selaId || null,
-        pole: scan.poleId || scan.pole || sessionData?.pole_id || '',
+        pole: scan.poleId || scan.pole || (sessionData && sessionData.pole_id) || '',
         pole_name: scan.poleName || scan.pole || '',
         location: scan.location || null,
         status: scan.operationType === 'sortie' ? 'livré' : 
@@ -1022,7 +1022,7 @@ const SupabaseService = {
       console.log('[Supabase] Test de connectivité réseau mobile...');
       
       // Détecter si on est sur web ou mobile
-      const isWeb = typeof window !== 'undefined' && window.location?.protocol === 'http:';
+      const isWeb = typeof window !== 'undefined' && window.(location && location.protocol) === 'http:';
       console.log('[Supabase] Plateforme détectée:', isWeb ? 'Web' : 'Mobile');
       
       // Test 1: Connectivité internet de base
@@ -1118,7 +1118,7 @@ const SupabaseService = {
           return { success: false, error: listError.message, operation: 'read' };
         } else {
           console.log(`[Supabase] Lecture bucket ${bucketName} OK`);
-          return { success: true, operation: 'read', files: files?.length || 0 };
+          return { success: true, operation: 'read', files: (files && files.length) || 0 };
         }
       } catch (readError) {
         console.log(`[Supabase] Exception lecture bucket ${bucketName}:`, readError.message);
@@ -1185,7 +1185,7 @@ const SupabaseService = {
         if (authError) {
           console.log('[Supabase] Pas d\'utilisateur authentifié (normal pour les opérations publiques)');
         } else {
-          console.log('[Supabase] Utilisateur authentifié:', user?.email);
+          console.log('[Supabase] Utilisateur authentifié:', (user && user.email));
         }
       } catch (authError) {
         console.log('[Supabase] Pas d\'authentification requise pour les opérations publiques');

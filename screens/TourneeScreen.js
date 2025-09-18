@@ -182,7 +182,7 @@ export default function TourneeScreen({ navigation, route }) {
           setVehicules(vehiculesData || []);
           setVehiculesFiltres(vehiculesData || []);
           
-          // console.log(`📊 [TourneeScreen] Mode normal: ${tourneesData?.length || 0} tournées, ${vehiculesData?.length || 0} véhicules`);
+          // console.log(`📊 [TourneeScreen] Mode normal: ${(tourneesData && tourneesData.length) || 0} tournées, ${(vehiculesData && vehiculesData.length) || 0} véhicules`);
         }
 
         const loadTime = Date.now() - startTime;
@@ -239,7 +239,7 @@ export default function TourneeScreen({ navigation, route }) {
             // console.log(`🎯 [TourneeScreen] Sélection pôle: ${poleId}`);
     
     try {
-      if (poleId === selectedPole?.id) {
+      if (poleId === (selectedPole && selectedPole.id)) {
         // console.log('⚡ [TourneeScreen] Même pôle, pas de rechargement');
         return; // Éviter de recharger si c'est le même pôle
       }
@@ -395,7 +395,7 @@ export default function TourneeScreen({ navigation, route }) {
         <TouchableOpacity
           style={[
             styles.tourneeItem,
-            selectedTournee?.id === item.id && styles.tourneeItemSelected,
+            (selectedTournee && selectedTournee.id) === item.id && styles.tourneeItemSelected,
           ]}
           onPress={() => handleTourneeSelect(item)}
         >
@@ -505,7 +505,7 @@ export default function TourneeScreen({ navigation, route }) {
             <Text style={styles.sectionTitle}>Sélectionnez votre pôle</Text>
           
                             <CustomPicker
-                  selectedValue={selectedPole?.id}
+                  selectedValue={(selectedPole && selectedPole.id)}
                   onValueChange={handlePoleSelect}
                   items={[
                     { label: "-- Choisissez un pôle --", value: null },

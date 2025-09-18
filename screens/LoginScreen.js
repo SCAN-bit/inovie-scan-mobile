@@ -73,7 +73,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
     useEffect(() => {
     const loadDataAndCheckAuth = async () => {
       // console.log('🚀 [LoginScreen] Chargement optimisé');
-      const currentJustReset = route.params?.justReset;
+      const currentJustReset = route.(params && params.justReset);
 
       if (currentJustReset) {
         // console.log('🔄 [LoginScreen] Traitement reset flow');
@@ -115,7 +115,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
     };
 
     loadDataAndCheckAuth();
-  }, [navigation, route.params?.justReset]);
+  }, [navigation, route.(params && params.justReset)]);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -149,7 +149,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
         }
         
         // Vérifier le rôle de l'utilisateur pour la redirection
-        const userRole = result.user?.role || result.userData?.role;
+        const userRole = result.(user && user.role) || result.(userData && userData.role);
         // Rôle utilisateur détecté
         // Données utilisateur récupérées
         

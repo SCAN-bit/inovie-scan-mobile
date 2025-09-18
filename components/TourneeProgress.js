@@ -241,7 +241,7 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
   React.useImperativeHandle(ref, () => ({
     loadTourneeDetails: (force = false) => loadTourneeDetails(force),
     markSiteAsVisitedLocally,
-    getSitesWithStatus: () => tourneeDetails?.sitesWithStatus || []
+    getSitesWithStatus: () => (tourneeDetails && tourneeDetails.sitesWithStatus) || []
   }));
 
   // OPTIMISATION: Chargement intelligent uniquement si nécessaire
@@ -341,7 +341,7 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
   const markSiteAsVisitedLocally = async (siteIdentifier, specificIndex = null) => {
     console.log(`[TourneeProgress] markSiteAsVisitedLocally CALLED. Identifier: ${siteIdentifier}, Index: ${specificIndex}`);
 
-    if (!tourneeDetails?.sitesWithStatus) {
+    if (!(tourneeDetails && tourneeDetails.sitesWithStatus)) {
       console.error('[TourneeProgress] tourneeDetails.sitesWithStatus est manquant');
       return; 
     }
@@ -456,12 +456,12 @@ const TourneeProgress = React.forwardRef(({ tourneeId, sessionId, onSiteSelect, 
   }
 
   // Vérifications de sécurité pour éviter les erreurs
-  const sitesWithStatus = tourneeDetails?.sitesWithStatus || [];
+  const sitesWithStatus = (tourneeDetails && tourneeDetails.sitesWithStatus) || [];
   const totalSites = Array.isArray(sitesWithStatus) ? sitesWithStatus.length : 0;
-  const visitedSites = Array.isArray(sitesWithStatus) ? sitesWithStatus.filter(site => site?.visited).length : 0;
+  const visitedSites = Array.isArray(sitesWithStatus) ? sitesWithStatus.filter(site => (site && site.visited)).length : 0;
 
   const progressPercentage = totalSites > 0 ? (visitedSites / totalSites) * 100 : 0;
-  const nextSiteToVisit = Array.isArray(sitesWithStatus) ? sitesWithStatus.find(site => !site?.visited) : null;
+  const nextSiteToVisit = Array.isArray(sitesWithStatus) ? sitesWithStatus.find(site => !(site && site.visited)) : null;
 
   const generateUniqueKey = (prefix, id, index) => {
     return `${prefix}-${id || ''}-${index}-${Math.random().toString(36).substring(2, 7)}`;

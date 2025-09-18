@@ -56,8 +56,8 @@ class AppUpdateService {
           available: true,
           latestVersion,
           currentVersion,
-          downloadUrl: this.latestVersionInfo?.downloadUrl || this.GITHUB_DOWNLOAD_URL,
-          releaseNotes: this.latestVersionInfo?.releaseNotes || 'Nouvelle version disponible'
+          downloadUrl: this.(latestVersionInfo && latestVersionInfo.downloadUrl) || this.GITHUB_DOWNLOAD_URL,
+          releaseNotes: this.(latestVersionInfo && latestVersionInfo.releaseNotes) || 'Nouvelle version disponible'
         };
       } else {
         // Application à jour
@@ -95,7 +95,7 @@ class AppUpdateService {
       console.log('[AppUpdateService] Téléchargement de la mise à jour...');
       
       // Afficher une alerte de confirmation avec les notes de version
-      const releaseNotes = this.latestVersionInfo?.releaseNotes || '';
+      const releaseNotes = this.(latestVersionInfo && latestVersionInfo.releaseNotes) || '';
       const message = `Une nouvelle version (${updateInfo.latestVersion}) est disponible.${releaseNotes ? `\n\nNouveautés:\n${releaseNotes}` : ''}\n\nVoulez-vous la télécharger et l'installer maintenant?`;
       
       return new Promise((resolve) => {
@@ -305,7 +305,7 @@ class AppUpdateService {
       // Lire depuis app.json pour la version et le versionCode
       const appJson = require('../app.json');
       const version = appJson.expo.version;
-      const buildNumber = appJson.expo.android?.versionCode || 55; // Fallback vers 55 si pas défini
+      const buildNumber = appJson.expo.(android && android.versionCode) || 55; // Fallback vers 55 si pas défini
       const fullVersion = `${version}.${buildNumber}`;
       
       // console.log('📱 [AppUpdateService] Version actuelle:', fullVersion);
@@ -324,7 +324,7 @@ class AppUpdateService {
       // Lire depuis app.json pour la version et le versionCode
       const appJson = require('../app.json');
       const version = appJson.expo.version;
-      const buildNumber = appJson.expo.android?.versionCode || 55; // Fallback vers 55 si pas défini
+      const buildNumber = appJson.expo.(android && android.versionCode) || 55; // Fallback vers 55 si pas défini
       const fullVersion = `${version}.${buildNumber}`;
       
       // console.log('📱 [AppUpdateService] Version actuelle (statique):', fullVersion);

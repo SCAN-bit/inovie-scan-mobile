@@ -43,7 +43,7 @@ import { wp, hp, fp, sp, isSmallScreen, isLargeScreen } from '../utils/responsiv
 const View = CustomView;
 
 export default function ScanScreen({ navigation, route }) {
-  const sessionData = route.params?.sessionData || {}; // Sécurise sessionData
+  const sessionData = (route.params && route.params.sessionData) || {}; // Sécurise sessionData
 
   // Déplacer la définition de resetScan AVANT useLayoutEffect
   const resetScan = () => {
@@ -122,15 +122,15 @@ export default function ScanScreen({ navigation, route }) {
 
   // Simplification de la gestion de l'état de la session
   // On récupère les objets complets depuis les paramètres de navigation
-  const [currentTournee, setCurrentTournee] = useState(route.params?.tournee || null);
-  const [currentVehicule, setCurrentVehicule] = useState(route.params?.vehicule || null);
-  const [currentPole, setCurrentPole] = useState(route.params?.pole || null);
+  const [currentTournee, setCurrentTournee] = useState(route.(params && params.tournee) || null);
+  const [currentVehicule, setCurrentVehicule] = useState(route.(params && params.vehicule) || null);
+  const [currentPole, setCurrentPole] = useState(route.(params && params.pole) || null);
 
   // Les états dérivés sont maintenus pour l'affichage et la compatibilité
-  const [currentTourneeName, setCurrentTourneeName] = useState(route.params?.tournee?.nom || "Tournée inconnue");
-  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState(route.params?.vehicule?.immatriculation || "Véhicule inconnu");
-  const [currentVehiculeId, setCurrentVehiculeId] = useState(route.params?.vehicule?.id || null);
-  const [currentTourneeId, setCurrentTourneeId] = useState(route.params?.tournee?.id || null);
+  const [currentTourneeName, setCurrentTourneeName] = useState(route.(params && params.tournee)?.nom || "Tournée inconnue");
+  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState(route.(params && params.vehicule)?.immatriculation || "Véhicule inconnu");
+  const [currentVehiculeId, setCurrentVehiculeId] = useState(route.(params && params.vehicule)?.id || null);
+  const [currentTourneeId, setCurrentTourneeId] = useState(route.(params && params.tournee)?.id || null);
   
   // Rechargement des colis quand currentTourneeId change
   useEffect(() => {
@@ -175,7 +175,7 @@ export default function ScanScreen({ navigation, route }) {
   // Effet pour initialiser la session au démarrage OU récupérer la session passée
   useEffect(() => {
     const initializeOrUseExistingSession = async () => {
-      let sessionIdFromParams = route.params?.sessionId;
+      let sessionIdFromParams = route.(params && params.sessionId);
       let sessionToUse = null;
 
       if (sessionIdFromParams) {
@@ -226,11 +226,11 @@ export default function ScanScreen({ navigation, route }) {
           setSelectedSelas({ id: currentSession.selasId, nom: currentSession.selasName });
         } else {
            // Si c'est une NOUVELLE session, on s'assure que les états sont bien définis depuis les route.params
-           setCurrentTournee(route.params?.tournee || null);
-           setCurrentVehicule(route.params?.vehicule || null);
-           setCurrentPole(route.params?.pole || null);
+           setCurrentTournee(route.(params && params.tournee) || null);
+           setCurrentVehicule(route.(params && params.vehicule) || null);
+           setCurrentPole(route.(params && params.pole) || null);
            // Pour selas, on le récupère du profil car il n'est pas dans les params
-           if (userProfile?.selasId) {
+           if ((userProfile && userProfile.selasId)) {
              setSelectedSelas({ id: userProfile.selasId, nom: userProfile.selasName || '' });
            }
         }
@@ -242,12 +242,12 @@ export default function ScanScreen({ navigation, route }) {
           // Mettre à jour l'ID de la tournée - Essayer d'abord le champ direct, puis l'objet
           if (currentSession.tourneeId) {
             setCurrentTourneeId(currentSession.tourneeId);
-          } else if (currentSession.tournee?.id) {
+          } else if (currentSession.(tournee && tournee.id)) {
             setCurrentTourneeId(currentSession.tournee.id);
           }
           
           // Mettre à jour le nom de la tournée
-          if (currentSession.tournee?.nom) {
+          if (currentSession.(tournee && tournee.nom)) {
             setCurrentTourneeName(currentSession.tournee.nom);
           } 
           
@@ -317,29 +317,29 @@ export default function ScanScreen({ navigation, route }) {
       await loadHistoricalData();
       
       // Forcer la mise à jour du suivi de tournée pour réafficher les coches SANS supprimer la persistance
-      if (tourneeProgressRef.current?.loadTourneeDetails) {
+      if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
         await tourneeProgressRef.current.loadTourneeDetails(false); // Changé de true à false pour préserver AsyncStorage
       }
     };
 
     initializeOrUseExistingSession();
-  }, [route.params?.sessionId]);
+  }, [route.(params && params.sessionId)]);
 
   // Effet pour détecter le paramètre refresh et rafraîchir les données
   useEffect(() => {
-    if (route.params?.refresh) {
+    if (route.(params && params.refresh)) {
       refreshTourneeData();
     }
-  }, [route.params?.refresh]);
+  }, [route.(params && params.refresh)]);
 
   // Surveiller les changements de route.params pour détecter quand le bouton d'historique est pressé
   useEffect(() => {
-    if (route.params?.showHistory) {
+    if (route.(params && params.showHistory)) {
       setShowHistoryModal(true);
       // Réinitialiser le paramètre pour éviter de rouvrir la modale si on navigue ailleurs puis revient
       navigation.setParams({ showHistory: false });
     }
-  }, [route.params?.showHistory]);
+  }, [route.(params && params.showHistory)]);
 
   // Chargement des scans historiques au démarrage et récupération des paquets en cours
   useEffect(() => {
@@ -378,7 +378,7 @@ export default function ScanScreen({ navigation, route }) {
         
         // Récupérer l'ID de la tournée actuelle
         const currentSession = await firebaseService.getCurrentSession();
-        const currentTourneeId = currentSession?.tournee?.id || sessionData?.tournee?.id || '';
+        const currentTourneeId = (currentSession && currentSession.tournee)?.id || (sessionData && sessionData.tournee)?.id || '';
         
         // Filtrer l'historique local
         const today = new Date();
@@ -863,7 +863,7 @@ export default function ScanScreen({ navigation, route }) {
             else {
               // Ne pas bloquer l'interface - récupérer de manière asynchrone
               firebaseService.getCurrentSession().then(currentSession => {
-                if (currentSession?.poleId) {
+                if ((currentSession && currentSession.poleId)) {
                   firebaseService.getPoleById(currentSession.poleId).then(poleDetails => {
                     if (poleDetails) {
                       const newPole = { id: poleDetails.id, nom: poleDetails.nom };
@@ -880,7 +880,7 @@ export default function ScanScreen({ navigation, route }) {
           }
 
           let occurrenceIndex = -1; // Initialiser à -1 (aucune occurrence non visitée trouvée par défaut)
-          if (tourneeProgressRef.current?.getSitesWithStatus) {
+          if (tourneeProgressRef.(current && current.getSitesWithStatus)) {
             const sitesList = tourneeProgressRef.current.getSitesWithStatus();
             const siteNameToFind = siteVerification.site.nom || siteVerification.site.name;
 
@@ -918,9 +918,9 @@ export default function ScanScreen({ navigation, route }) {
               const markSuccess = await Promise.race([markPromise, markTimeoutPromise]);
               
               if (markSuccess) {
-                if (tourneeProgressRef.current?.markSiteAsVisitedLocally) {
+                if (tourneeProgressRef.(current && current.markSiteAsVisitedLocally)) {
                   await tourneeProgressRef.current.markSiteAsVisitedLocally(identifier, occurrenceIndex);
-                } else if (tourneeProgressRef.current?.loadTourneeDetails) {
+                } else if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
                   // PROTECTION: Timeout sur loadTourneeDetails
                   const loadPromise = tourneeProgressRef.current.loadTourneeDetails(true);
                   const loadTimeoutPromise = new Promise((_, reject) => 
@@ -1199,12 +1199,12 @@ export default function ScanScreen({ navigation, route }) {
           scanDate: new Date().toISOString(),
           status: 'en-cours',
           operationType: 'entree',
-          site: siteDetails?.name || siteCode,
-          siteDepart: siteDetails?.name || siteCode,
+          site: (siteDetails && siteDetails.name) || siteCode,
+          siteDepart: (siteDetails && siteDetails.name) || siteCode,
           tournee: currentTourneeName,
           tourneeId: currentTourneeId,
           vehicule: currentVehiculeImmat,
-          vehiculeId: sessionData.vehicule?.id
+          vehiculeId: sessionData.(vehicule && vehicule.id)
         };
         
         setTakingCarePackages(prev => {
@@ -1319,8 +1319,8 @@ export default function ScanScreen({ navigation, route }) {
           immatriculation: currentVehiculeImmat
         },
         pole: {
-          id: currentPole?.id,
-          nom: currentPole?.nom
+          id: (currentPole && currentPole.id),
+          nom: (currentPole && currentPole.nom)
         },
         sessionId: currentSessionId
       }
@@ -1380,20 +1380,20 @@ export default function ScanScreen({ navigation, route }) {
           // Ajouter les informations de site selon le type d'opération
           ...(operationType === 'sortie' ? {
             // Pour les sorties (arrivée) : site de destination
-            siteFin: siteDetails?.id || siteCode,
-            siteFinName: siteDetails?.name || 'Inconnu',
-            siteActuel: siteDetails?.id || siteCode,
-            siteActuelName: siteDetails?.name || 'Inconnu'
+            siteFin: (siteDetails && siteDetails.id) || siteCode,
+            siteFinName: (siteDetails && siteDetails.name) || 'Inconnu',
+            siteActuel: (siteDetails && siteDetails.id) || siteCode,
+            siteActuelName: (siteDetails && siteDetails.name) || 'Inconnu'
           } : operationType === 'entree' ? {
             // Pour les entrées (prise en charge) : site de départ
-            siteDepart: siteDetails?.id || siteCode,
-            siteDepartName: siteDetails?.name || 'Inconnu',
-            site: siteDetails?.id || siteCode
+            siteDepart: (siteDetails && siteDetails.id) || siteCode,
+            siteDepartName: (siteDetails && siteDetails.name) || 'Inconnu',
+            site: (siteDetails && siteDetails.id) || siteCode
           } : operationType === 'visite_sans_colis' ? {
             // Pour les visites sans colis : site visité
-            siteVisite: siteDetails?.id || siteCode,
-            siteVisiteName: siteDetails?.name || 'Inconnu',
-            site: siteDetails?.id || siteCode
+            siteVisite: (siteDetails && siteDetails.id) || siteCode,
+            siteVisiteName: (siteDetails && siteDetails.name) || 'Inconnu',
+            site: (siteDetails && siteDetails.id) || siteCode
           } : {})
         }));
         
@@ -1503,10 +1503,10 @@ export default function ScanScreen({ navigation, route }) {
             // Informations de site selon le type
             ...(scanType === 'sortie' ? {
               // Pour les sorties : site de destination
-              siteFin: siteDetails?.id || siteCode,
-              siteFinName: siteDetails?.name || 'Inconnu',
-              siteActuel: siteDetails?.id || siteCode,
-              siteActuelName: siteDetails?.name || 'Inconnu',
+              siteFin: (siteDetails && siteDetails.id) || siteCode,
+              siteFinName: (siteDetails && siteDetails.name) || 'Inconnu',
+              siteActuel: (siteDetails && siteDetails.id) || siteCode,
+              siteActuelName: (siteDetails && siteDetails.name) || 'Inconnu',
               dateHeureFin: scanDate,
               dateArrivee: new Date(scanDate).toLocaleDateString(),
               heureArrivee: new Date(scanDate).toLocaleTimeString('fr-FR'),
@@ -1514,9 +1514,9 @@ export default function ScanScreen({ navigation, route }) {
               coursierLivraison: currentUserDisplayName,
             } : {
               // Pour les entrées et visites : site de départ
-              siteDepart: siteDetails?.id || siteCode,
-              siteDepartName: siteDetails?.name || 'Inconnu',
-              site: siteDetails?.id || siteCode,
+              siteDepart: (siteDetails && siteDetails.id) || siteCode,
+              siteDepartName: (siteDetails && siteDetails.name) || 'Inconnu',
+              site: (siteDetails && siteDetails.id) || siteCode,
               dateHeureDepart: scanDate,
               dateDepart: new Date(scanDate).toLocaleDateString(),
               heureDepart: new Date(scanDate).toLocaleTimeString('fr-FR'),
@@ -1525,13 +1525,13 @@ export default function ScanScreen({ navigation, route }) {
             }),
             
             // Informations communes
-            tourneeId: currentTournee?.id || '',
-            tourneeName: currentTournee?.nom || '',
-            vehiculeId: currentVehicule?.id || '',
-            immatriculation: currentVehicule?.immatriculation || '',
+            tourneeId: (currentTournee && currentTournee.id) || '',
+            tourneeName: (currentTournee && currentTournee.nom) || '',
+            vehiculeId: (currentVehicule && currentVehicule.id) || '',
+            immatriculation: (currentVehicule && currentVehicule.immatriculation) || '',
             poleId: latestPole.id,
             poleName: latestPole.nom || '',
-            selasId: selectedSelas?.id || '',
+            selasId: (selectedSelas && selectedSelas.id) || '',
             
             // Location si disponible
             ...(sessionData.location && {
@@ -1557,10 +1557,10 @@ export default function ScanScreen({ navigation, route }) {
           const colisList = sortieScans.map(scan => scan.idColis || scan.code).filter(code => code);
           const updateData = {
             status: 'livré',
-            siteFin: siteDetails?.id || siteCode,
-            siteFinName: siteDetails?.name || 'Inconnu',
-            siteActuel: siteDetails?.id || siteCode,
-            siteActuelName: siteDetails?.name || 'Inconnu',
+            siteFin: (siteDetails && siteDetails.id) || siteCode,
+            siteFinName: (siteDetails && siteDetails.name) || 'Inconnu',
+            siteActuel: (siteDetails && siteDetails.id) || siteCode,
+            siteActuelName: (siteDetails && siteDetails.name) || 'Inconnu',
             dateHeureFin: new Date().toISOString(),
             dateArrivee: new Date().toLocaleDateString(),
             heureArrivee: new Date().toLocaleTimeString('fr-FR'),
@@ -1654,7 +1654,7 @@ export default function ScanScreen({ navigation, route }) {
         // Suivi de tournée mis à jour
         
         // Protection supplémentaire: forcer le rechargement du composant TourneeProgress
-        if (tourneeProgressRef.current?.loadTourneeDetails) {
+        if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
           setTimeout(() => {
             tourneeProgressRef.current.loadTourneeDetails(true);
             // Rechargement forcé du composant TourneeProgress
@@ -2007,9 +2007,9 @@ export default function ScanScreen({ navigation, route }) {
 
     // Nettoyage
     return () => {
-      keyDownListener?.remove();
-      textInputListener?.remove();
-      intentListener?.remove();
+      (keyDownListener && keyDownListener.remove)();
+      (textInputListener && textInputListener.remove)();
+      (intentListener && intentListener.remove)();
       // Nettoyer la queue au démontage
       scanQueue = [];
       isProcessingQueue = false;
@@ -2241,13 +2241,13 @@ export default function ScanScreen({ navigation, route }) {
         
         if (currentSession) {
           // Mettre à jour l'ID de la tournée si disponible
-          if (currentSession.tournee?.id) {
+          if (currentSession.(tournee && tournee.id)) {
             setCurrentTourneeId(currentSession.tournee.id);
             console.log(`[updateTourneeProgress] ID de tournée mis à jour: ${currentSession.tournee.id}`);
           }
           
           // Mettre à jour le nom de la tournée si disponible
-          if (currentSession.tournee?.nom) {
+          if (currentSession.(tournee && tournee.nom)) {
             setCurrentTourneeName(currentSession.tournee.nom);
             console.log(`[updateTourneeProgress] Nom de tournée mis à jour: ${currentSession.tournee.nom}`);
           }
@@ -2362,7 +2362,7 @@ export default function ScanScreen({ navigation, route }) {
       await loadHistoricalData();
       
       // ÉTAPE 4: Actualiser le suivi de la tournée avec force reload
-      if (currentSession?.tourneeId && tourneeProgressRef.current) {
+      if ((currentSession && currentSession.tourneeId) && tourneeProgressRef.current) {
         console.log(`[refreshTourneeData] Actualisation forcée du suivi de tournée pour ID: ${currentSession.tourneeId}`);
         // Utiliser un petit délai pour s'assurer que les suppressions AsyncStorage sont terminées
         setTimeout(() => {
@@ -2388,7 +2388,7 @@ export default function ScanScreen({ navigation, route }) {
   // Effet pour gérer le retour du check véhicule final
   useEffect(() => {
     const handleReturnFromFinalCheck = async () => {
-      if (route.params?.fromFinalCheck) {
+      if (route.(params && params.fromFinalCheck)) {
         try {
           
           // Réinitialisation complète après le check final
@@ -2406,7 +2406,7 @@ export default function ScanScreen({ navigation, route }) {
     };
 
     handleReturnFromFinalCheck();
-  }, [route.params?.fromFinalCheck]);
+  }, [route.(params && params.fromFinalCheck)]);
 
   // Fonction pour gérer le check véhicule final
   const handleFinalVehicleCheck = async () => {
@@ -2449,7 +2449,7 @@ export default function ScanScreen({ navigation, route }) {
     const tourneeName = currentTourneeName;
     const tourneeId = currentTourneeId;
     const vehiculeName = currentVehiculeImmat;
-    const vehiculeId = sessionData.vehicule?.id || route.params?.vehicule?.id || '';
+    const vehiculeId = sessionData.(vehicule && vehicule.id) || route.(params && params.vehicule)?.id || '';
 
     setLoading(true);
 
@@ -2458,7 +2458,7 @@ export default function ScanScreen({ navigation, route }) {
       const siteName = siteDetails.name || siteDetails.nom || siteCode;
       const siteId = siteDetails.id || '';
       // Définir le nom du coursier si disponible
-      // const coursierName = sessionData.coursierCharg || route.params?.coursierCharg || ''; // Ancienne méthode
+      // const coursierName = sessionData.coursierCharg || route.(params && params.coursierCharg) || ''; // Ancienne méthode
       const coursierName = currentUserDisplayName; // Utiliser l'état actuel du nom de l'utilisateur
 
       const userData = await firebaseService.getCurrentUser();
@@ -2488,10 +2488,10 @@ export default function ScanScreen({ navigation, route }) {
         statut: 'Pas de colis', // Modifié pour correspondre au format attendu
         type: 'visite_sans_colis', // Cohérence
         coursierCharg: coursierName,
-        coursierChargeantId: userData?.uid,
+        coursierChargeantId: (userData && userData.uid),
         // CORRECTION: Ne pas définir poleId/poleName ici pour laisser le fallback dans addScans() fonctionner
-        // poleId: pole?.id || '', // Supprimé: laisser addScans() gérer le fallback
-        // poleName: pole?.nom || '' // Supprimé: laisser addScans() gérer le fallback
+        // poleId: (pole && pole.id) || '', // Supprimé: laisser addScans() gérer le fallback
+        // poleName: (pole && pole.nom) || '' // Supprimé: laisser addScans() gérer le fallback
       };
 
       console.log("Envoi du scan 'visite_sans_colis' à Firestore:", JSON.stringify(visitScan, null, 2));
@@ -2734,15 +2734,15 @@ export default function ScanScreen({ navigation, route }) {
     };
     
     // Écouter les interactions
-    document?.addEventListener?.('click', handleUserInteraction);
-    document?.addEventListener?.('keydown', handleUserInteraction);
+    (document && document.addEventListener)?.('click', handleUserInteraction);
+    (document && document.addEventListener)?.('keydown', handleUserInteraction);
     
     return () => {
       if (freezeTimer) {
         clearTimeout(freezeTimer);
       }
-      document?.removeEventListener?.('click', handleUserInteraction);
-      document?.removeEventListener?.('keydown', handleUserInteraction);
+      (document && document.removeEventListener)?.('click', handleUserInteraction);
+      (document && document.removeEventListener)?.('keydown', handleUserInteraction);
     };
   }, [siteScanned, scanMode, isProcessingScan, scannedContenants.length, currentCyclePackages.size]);
 
@@ -3160,11 +3160,11 @@ export default function ScanScreen({ navigation, route }) {
                 </TouchableOpacity>
           </View>
               <View style={styles.scannedSiteInfo}>
-                <Text style={styles.scannedSiteCode}>{siteDetails?.name || siteCode}</Text>
-                {siteDetails?.address && (
+                <Text style={styles.scannedSiteCode}>{(siteDetails && siteDetails.name) || siteCode}</Text>
+                {(siteDetails && siteDetails.address) && (
                   <Text style={styles.scannedSiteAddress}>{siteDetails.address}</Text>
                 )}
-                {siteDetails?.city && (
+                {(siteDetails && siteDetails.city) && (
                   <Text style={styles.scannedSiteCity}>{siteDetails.city}</Text>
                 )}
                 <Text style={styles.scannedSiteDate}>

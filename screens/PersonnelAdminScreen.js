@@ -36,8 +36,8 @@ export default function PersonnelAdminScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   
   // Vérifier si un check a été terminé
-  const routeCheckCompleted = route.params?.checkCompleted || false;
-  const completedSessionData = route.params?.sessionData || null;
+  const routeCheckCompleted = route.(params && params.checkCompleted) || false;
+  const completedSessionData = route.(params && params.sessionData) || null;
 
   // États pour les modales et la recherche
   const [modalVehiculeVisible, setModalVehiculeVisible] = useState(false);
@@ -129,12 +129,12 @@ export default function PersonnelAdminScreen({ navigation, route }) {
       setIsLoading(true);
       const sitesData = await FirebaseService.getSitesByPole(poleId);
       console.log(`🔍 [PersonnelAdminScreen] Sites reçus de FirebaseService:`, sitesData);
-      console.log(`🔍 [PersonnelAdminScreen] Nombre de sites: ${sitesData?.length || 0}`);
+      console.log(`🔍 [PersonnelAdminScreen] Nombre de sites: ${(sitesData && sitesData.length) || 0}`);
       
       setSites(sitesData);
       setSitesFiltres(sitesData);
       
-      console.log(`🔍 [PersonnelAdminScreen] États mis à jour - sites: ${sitesData?.length || 0}, sitesFiltres: ${sitesData?.length || 0}`);
+      console.log(`🔍 [PersonnelAdminScreen] États mis à jour - sites: ${(sitesData && sitesData.length) || 0}, sitesFiltres: ${(sitesData && sitesData.length) || 0}`);
     } catch (error) {
       console.error('❌ [PersonnelAdminScreen] Erreur lors du chargement des sites:', error);
       setError('Impossible de charger les sites');
@@ -225,7 +225,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
     } else {
       const filtered = vehicules.filter(vehicule =>
         vehicule.immatriculation.toLowerCase().includes(rechercheVehiculeTexte.toLowerCase()) ||
-        vehicule.modele?.toLowerCase().includes(rechercheVehiculeTexte.toLowerCase())
+        vehicule.(modele && modele.toLowerCase)().includes(rechercheVehiculeTexte.toLowerCase())
       );
       setVehiculesFiltres(filtered);
     }
@@ -233,7 +233,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
 
   // Filtrage des sites
   useEffect(() => {
-    console.log('🔍 [PersonnelAdminScreen] Filtrage des sites - sites:', sites?.length || 0, 'recherche:', rechercheSiteTexte);
+    console.log('🔍 [PersonnelAdminScreen] Filtrage des sites - sites:', (sites && sites.length) || 0, 'recherche:', rechercheSiteTexte);
     
     // Protection contre la perte des sites
     if (!sites || sites.length === 0) {
@@ -246,7 +246,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
     } else {
       const filtered = sites.filter(site =>
         site.nom.toLowerCase().includes(rechercheSiteTexte.toLowerCase()) ||
-        site.adresse?.toLowerCase().includes(rechercheSiteTexte.toLowerCase())
+        site.(adresse && adresse.toLowerCase)().includes(rechercheSiteTexte.toLowerCase())
       );
       setSitesFiltres(filtered);
     }
@@ -322,7 +322,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
             
             <View style={styles.pickerContainer}>
               <CustomPicker
-                selectedValue={selectedPole?.id || ''}
+                selectedValue={(selectedPole && selectedPole.id) || ''}
                 onValueChange={handlePoleSelect}
                 items={poles.map(pole => ({
                   label: pole.nom,
@@ -342,7 +342,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
               <Text style={styles.stepTitle}>Sélection du Véhicule</Text>
             </View>
             <Text style={styles.stepDescription}>
-              Pôle sélectionné : {selectedPole?.nom}
+              Pôle sélectionné : {(selectedPole && selectedPole.nom)}
             </Text>
             
             <TouchableOpacity
@@ -370,13 +370,13 @@ export default function PersonnelAdminScreen({ navigation, route }) {
             
             <View style={styles.vehicleInfo}>
               <Text style={styles.vehicleInfoText}>
-                <Text style={styles.bold}>Véhicule :</Text> {selectedVehicule?.immatriculation}
+                <Text style={styles.bold}>Véhicule :</Text> {(selectedVehicule && selectedVehicule.immatriculation)}
               </Text>
               <Text style={styles.vehicleInfoText}>
-                <Text style={styles.bold}>Modèle :</Text> {selectedVehicule?.modele}
+                <Text style={styles.bold}>Modèle :</Text> {(selectedVehicule && selectedVehicule.modele)}
               </Text>
               <Text style={styles.vehicleInfoText}>
-                <Text style={styles.bold}>Pôle :</Text> {selectedPole?.nom}
+                <Text style={styles.bold}>Pôle :</Text> {(selectedPole && selectedPole.nom)}
               </Text>
             </View>
             
@@ -426,10 +426,10 @@ export default function PersonnelAdminScreen({ navigation, route }) {
             
             <View style={styles.siteInfo}>
               <Text style={styles.siteInfoText}>
-                <Text style={styles.bold}>Site :</Text> {selectedSite?.nom}
+                <Text style={styles.bold}>Site :</Text> {(selectedSite && selectedSite.nom)}
               </Text>
               <Text style={styles.siteInfoText}>
-                <Text style={styles.bold}>Adresse :</Text> {selectedSite?.adresse}
+                <Text style={styles.bold}>Adresse :</Text> {(selectedSite && selectedSite.adresse)}
               </Text>
             </View>
             
@@ -572,7 +572,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
           />
           
           {console.log(`🔍 [Modal Sites] sitesFiltres:`, sitesFiltres)}
-          {console.log(`🔍 [Modal Sites] Nombre de sites: ${sitesFiltres?.length || 0}`)}
+          {console.log(`🔍 [Modal Sites] Nombre de sites: ${(sitesFiltres && sitesFiltres.length) || 0}`)}
           
           {sitesFiltres && sitesFiltres.length > 0 ? (
             <FlatList

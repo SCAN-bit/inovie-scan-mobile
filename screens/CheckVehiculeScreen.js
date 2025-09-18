@@ -28,11 +28,11 @@ const { width } = Dimensions.get('window');
 
 export default function CheckVehiculeScreen({ navigation, route }) {
   const { sessionData, isFromScanScreen, isFromPersonnelAdmin } = route.params || {};
-  const vehicule = sessionData?.vehicule || {};
-  const tournee = sessionData?.tournee || {};
-  const pole = sessionData?.pole || {};
-  const isFinalCheck = sessionData?.isFinalCheck || false; // Nouveau: détecter si c'est un check final
-  const isPersonnelAdmin = sessionData?.isPersonnelAdmin || false; // Flag pour le personnel administratif
+  const vehicule = (sessionData && sessionData.vehicule) || {};
+  const tournee = (sessionData && sessionData.tournee) || {};
+  const pole = (sessionData && sessionData.pole) || {};
+  const isFinalCheck = (sessionData && sessionData.isFinalCheck) || false; // Nouveau: détecter si c'est un check final
+  const isPersonnelAdmin = (sessionData && sessionData.isPersonnelAdmin) || false; // Flag pour le personnel administratif
 
   // États pour gérer les fonctionnalités de l'écran
   const [photos, setPhotos] = useState([]);

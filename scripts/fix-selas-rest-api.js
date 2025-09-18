@@ -133,16 +133,16 @@ async function fixAllMissingSelas() {
       // Vérifier chaque document
       for (const doc of documents) {
         const data = doc.fields || {};
-        const selasId = data.selasId?.stringValue || data.selasId || '';
+        const selasId = data.(selasId && selasId.stringValue) || data.selasId || '';
         
         if (!selasId || selasId === '') {
           try {
             // Identifier l'élément pour le log
             let elementName = 'N/A';
-            if (data.nom?.stringValue) elementName = data.nom.stringValue;
-            else if (data.name?.stringValue) elementName = data.name.stringValue;
-            else if (data.registrationNumber?.stringValue) elementName = data.registrationNumber.stringValue;
-            else if (data.immatriculation?.stringValue) elementName = data.immatriculation.stringValue;
+            if (data.(nom && nom.stringValue)) elementName = data.nom.stringValue;
+            else if (data.(name && name.stringValue)) elementName = data.name.stringValue;
+            else if (data.(registrationNumber && registrationNumber.stringValue)) elementName = data.registrationNumber.stringValue;
+            else if (data.(immatriculation && immatriculation.stringValue)) elementName = data.immatriculation.stringValue;
             
             console.log(`    - Correction de ${elementName} (ID: ${doc.name.split('/').pop()})`);
             

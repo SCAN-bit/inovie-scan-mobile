@@ -20,7 +20,7 @@ import { wp, hp, fp, sp } from '../utils/responsiveUtils';
 const View = CustomView;
 
 export default function BigSacocheScreen({ navigation, route }) {
-  const sessionData = route.params?.sessionData || {}; // ✅ Sécurise `sessionData`
+  const sessionData = route.(params && params.sessionData) || {}; // ✅ Sécurise `sessionData`
 
   // ✅ Vérifie si `sessionData.tournee` et `sessionData.vehicule` existent
   const tournee = sessionData.tournee ? sessionData.tournee.nom || "Tournée inconnue" : "Tournée inconnue";
@@ -193,12 +193,12 @@ export default function BigSacocheScreen({ navigation, route }) {
       // Préparation des données de la Big-Sacoche
       const bigSacocheData = {
         code: sacocheCode,
-        tournee: sessionData.tournee?.id || '',
-        tourneeId: sessionData.tournee?.id || '',
-        vehicule: sessionData.vehicule?.immatriculation || '',
-        vehiculeId: sessionData.vehicule?.id || '',
-        site: sessionData.tournee?.siteDepart || 'Non spécifié',
-        siteDepart: sessionData.tournee?.siteDepart || 'Non spécifié',
+        tournee: sessionData.(tournee && tournee.id) || '',
+        tourneeId: sessionData.(tournee && tournee.id) || '',
+        vehicule: sessionData.(vehicule && vehicule.immatriculation) || '',
+        vehiculeId: sessionData.(vehicule && vehicule.id) || '',
+        site: sessionData.(tournee && tournee.siteDepart) || 'Non spécifié',
+        siteDepart: sessionData.(tournee && tournee.siteDepart) || 'Non spécifié',
         location: sessionData.location || null
       };
 
@@ -206,13 +206,13 @@ export default function BigSacocheScreen({ navigation, route }) {
       const formattedContenants = scannedContenants.map(contenant => ({
         code: contenant.code,
         scanDate: new Date().toISOString(),
-        tournee: sessionData.tournee?.id || '',
-        tourneeId: sessionData.tournee?.id || '',
-        vehicule: sessionData.vehicule?.immatriculation || '',
-        vehiculeId: sessionData.vehicule?.id || '',
-        site: sessionData.tournee?.siteDepart || 'Non spécifié',
-        siteDepart: sessionData.tournee?.siteDepart || 'Non spécifié',
-        siteDépart: sessionData.tournee?.siteDepart || 'Non spécifié',
+        tournee: sessionData.(tournee && tournee.id) || '',
+        tourneeId: sessionData.(tournee && tournee.id) || '',
+        vehicule: sessionData.(vehicule && vehicule.immatriculation) || '',
+        vehiculeId: sessionData.(vehicule && vehicule.id) || '',
+        site: sessionData.(tournee && tournee.siteDepart) || 'Non spécifié',
+        siteDepart: sessionData.(tournee && tournee.siteDepart) || 'Non spécifié',
+        siteDépart: sessionData.(tournee && tournee.siteDepart) || 'Non spécifié',
         siteFin: 'Laboratoire Central',
         location: sessionData.location || null
       }));
