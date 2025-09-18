@@ -1603,7 +1603,7 @@ const FirebaseService = {
         id: doc.id,
         ...doc.data(),
         // Convertir les timestamps en dates lisibles
-        createdAt: doc.data().(createdAt && createdAt.toDate)?.() || doc.data().createdAt,
+        createdAt: (doc.data().createdAt && doc.data().createdAt.toDate)?.() || doc.data().createdAt,
         date: doc.data().date
       }));
       
@@ -1635,7 +1635,7 @@ const FirebaseService = {
       return {
         id: checkDoc.id,
         ...checkDoc.data(),
-        createdAt: checkDoc.data().(createdAt && createdAt.toDate)?.() || checkDoc.data().createdAt
+        createdAt: (checkDoc.data().createdAt && checkDoc.data().createdAt.toDate)?.() || checkDoc.data().createdAt
       };
     } catch (error) {
       console.error('Erreur lors de la récupération du check véhicule:', error);
