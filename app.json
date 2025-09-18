@@ -18,7 +18,7 @@
                  "orientation":  "portrait",
                  "icon":  "./assets/icon-SCAN.png",
                  "userInterfaceStyle":  "light",
-                 "newArchEnabled":  true,
+                 "newArchEnabled":  false,
                  "splash":  {
                                 "image":  "./assets/logo-SCAN.png",
                                 "resizeMode":  "contain",
