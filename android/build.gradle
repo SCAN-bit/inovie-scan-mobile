@@ -34,6 +34,8 @@ allprojects {
         google()
         mavenCentral()
         maven { url 'https://www.jitpack.io' }
+        // CameraView repository
+        maven { url 'https://maven.google.com' }
     }
     
     // Configuration pour tous les projets

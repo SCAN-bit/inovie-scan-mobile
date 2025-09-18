@@ -141,8 +141,10 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
     
-    // Camera dependency for expo-camera
-    implementation("com.google.android:cameraview:1.0.0")
+    // Camera dependency for expo-camera - using compatible version
+    implementation("com.google.android:cameraview:1.0.0") {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    }
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
