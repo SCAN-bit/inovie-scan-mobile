@@ -89,7 +89,7 @@ export default function AppNavigator({ navigationRef }) { // Accepter navigation
           style={{ marginRight: 15 }}
           onPress={() => {
             const route = navigation.getState().routes.find(r => r.name === 'Scan');
-            const sessionId = (route && route.params)?.sessionId;
+            const sessionId = (route && route.params && route.params.sessionId) || null;
             navigation.navigate('BigSacoche', { sessionId: sessionId });
           }}
         >

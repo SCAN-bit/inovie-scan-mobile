@@ -682,16 +682,16 @@ const FirebaseService = {
       // Formatage optimisé des données
       const formattedScans = scansArray.map(scan => {
         // Utiliser les données pré-récupérées ou celles du scan
-        const poleId = scan.poleId || (poleDetails && poleDetails.id) || (sessionData && sessionData.poleId) || (sessionData && sessionData.pole)?.id || '';
-        const poleName = scan.poleName || (poleDetails && poleDetails.nom) || (sessionData && sessionData.pole)?.nom || scan.pole || '';
+        const poleId = scan.poleId || (poleDetails && poleDetails.id) || (sessionData && sessionData.poleId) || (sessionData && sessionData.pole && sessionData.pole.id) || '';
+        const poleName = scan.poleName || (poleDetails && poleDetails.nom) || (sessionData && sessionData.pole && sessionData.pole.nom) || scan.pole || '';
         
         console.log(`[addScans] Pôle pour ${scan.idColis}: ID=${poleId}, Nom=${poleName}`);
         
         const finalVehiculeId = scan.vehiculeId || vehiculeId || '';
         const finalVehiculeName = scan.vehicule || vehiculeName || '';
-        const finalTourneeName = tourneeName || (sessionData && sessionData.tournee)?.nom || scan.tournee || '';
-        const finalTourneeId = (sessionData && sessionData.tournee)?.id || scan.tourneeId || tourneeId || '';
-        const siteName = (sessionData && sessionData.tournee)?.siteDepart || scan.site || scan.siteDepart || 'Non spécifié';
+        const finalTourneeName = tourneeName || (sessionData && sessionData.tournee && sessionData.tournee.nom) || scan.tournee || '';
+        const finalTourneeId = (sessionData && sessionData.tournee && sessionData.tournee.id) || scan.tourneeId || tourneeId || '';
+        const siteName = (sessionData && sessionData.tournee && sessionData.tournee.siteDepart) || scan.site || scan.siteDepart || 'Non spécifié';
         
         console.log(`🚗 [addScans] Véhicule pour ${scan.idColis}: ID=${finalVehiculeId}, Nom=${finalVehiculeName}`);
         console.log(`🚌 [addScans] Tournée pour ${scan.idColis}: ID=${finalTourneeId}, Nom=${finalTourneeName}`);

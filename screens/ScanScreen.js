@@ -127,10 +127,10 @@ export default function ScanScreen({ navigation, route }) {
   const [currentPole, setCurrentPole] = useState((route.params && route.params.pole) || null);
 
   // Les états dérivés sont maintenus pour l'affichage et la compatibilité
-  const [currentTourneeName, setCurrentTourneeName] = useState((route.params && route.params.tournee)?.nom || "Tournée inconnue");
-  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState((route.params && route.params.vehicule)?.immatriculation || "Véhicule inconnu");
-  const [currentVehiculeId, setCurrentVehiculeId] = useState((route.params && route.params.vehicule)?.id || null);
-  const [currentTourneeId, setCurrentTourneeId] = useState((route.params && route.params.tournee)?.id || null);
+  const [currentTourneeName, setCurrentTourneeName] = useState((route.params && route.params.tournee && route.params.tournee.nom) || "Tournée inconnue");
+  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState((route.params && route.params.vehicule && route.params.vehicule.immatriculation) || "Véhicule inconnu");
+  const [currentVehiculeId, setCurrentVehiculeId] = useState((route.params && route.params.vehicule && route.params.vehicule.id) || null);
+  const [currentTourneeId, setCurrentTourneeId] = useState((route.params && route.params.tournee && route.params.tournee.id) || null);
   
   // Rechargement des colis quand currentTourneeId change
   useEffect(() => {
