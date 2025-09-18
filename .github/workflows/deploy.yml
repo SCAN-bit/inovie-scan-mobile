@@ -54,8 +54,8 @@ jobs:
           echo "android.buildToolsVersion=35.0.0" >> gradle.properties
           # Force suppression of Kotlin version check in build.gradle
           sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.25"/g' build.gradle
-          # Force Android Gradle Plugin version - Same as local working version
-          sed -i 's/com.android.tools.build:gradle:.*/com.android.tools.build:gradle:8.5.0/g' build.gradle
+          # Android Gradle Plugin version already correct in build.gradle (8.5.0)
+          echo "Using Android Gradle Plugin 8.5.0 from build.gradle"
           # Add system property to suppress Kotlin version check
           echo "systemProp.kotlin.version=1.9.25" >> gradle.properties
           # Verify the changes
