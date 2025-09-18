@@ -3,13 +3,13 @@ package SCAN.mobile
 import android.app.Application
 import android.content.res.Configuration
 
-import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
+import expo.modules.PackageList
 // Expo modules removed - using standard React Native
 
 // Expo modules removed - using standard React Native
@@ -18,7 +18,7 @@ class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
     override fun getPackages(): List<ReactPackage> {
-      val packages = PackageList(this).packages
+      val packages = expo.modules.PackageList(this).packages
       // Packages that cannot be autolinked yet can be added manually here, for example:
       // packages.add(new MyReactNativePackage());
       return packages

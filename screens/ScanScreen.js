@@ -136,10 +136,10 @@ export default function ScanScreen({ navigation, route }) {
   useEffect(() => {
     // console.log(`🎯 [ScanScreen] currentTourneeId mis à jour: ${currentTourneeId}`);
     
-    // Recharger les colis quand currentTourneeId change
+    // CORRECTION: Pas de rechargement automatique pour éviter les conflits avec l'affichage immédiat
     if (currentTourneeId) {
-      // console.log(`🔄 [ScanScreen] Rechargement des colis pour tournée: ${currentTourneeId}`);
-      loadTakingCarePackages(true); // Force reload
+      addDebugLog(`[ScanScreen] Tournée changée: ${currentTourneeId} - Pas de rechargement automatique`, 'info');
+      // loadTakingCarePackages(true); // Désactivé temporairement
     }
   }, [currentTourneeId]);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("Chargement...");
@@ -343,11 +343,18 @@ export default function ScanScreen({ navigation, route }) {
       // console.log(`🚀 [ScanScreen] Appel loadTakingCarePackages avec currentTourneeId: ${currentTourneeId}`);
       const promises = [
         loadHistoricalScans(),
-        loadFirestoreScans(),
-        loadTakingCarePackages() // Remettre le chargement automatique des colis
+        loadFirestoreScans()
+        // CORRECTION: Pas de chargement automatique des colis pour éviter les conflits
+        // loadTakingCarePackages() // Désactivé temporairement
       ];
       
       await Promise.all(promises);
+      
+      // CORRECTION: Charger les colis seulement si la liste est vide
+      if (takingCarePackages.length === 0 && currentTourneeId) {
+        addDebugLog(`[loadHistoricalData] Chargement initial des colis pour tournée: ${currentTourneeId}`, 'info');
+        await loadTakingCarePackages(false);
+      }
       
     } catch (error) {
       console.error('Erreur lors du chargement des données historiques:', error);
@@ -720,16 +727,41 @@ export default function ScanScreen({ navigation, route }) {
         !scan.idColis.startsWith('TEST_') // Exclure les tests aussi
       );
 
-      // Paquets pris en charge trouvés
-      addDebugLog(`[loadTakingCarePackagesInternal] Mise à jour état avec ${filteredScans.length} colis`, 'info');
-      console.log(`📦 ${filteredScans.length} colis trouvés:`, filteredScans.map(s => s.idColis));
-      setTakingCarePackages(filteredScans);
+      // CORRECTION: Fusion intelligente pour préserver les colis récemment ajoutés
+      const currentPackages = takingCarePackages;
+      const recentlyAddedCodes = new Set();
       
-      // OPTIMISATION: Mettre en cache les résultats
+      // Identifier les colis qui ont été ajoutés récemment (dans les 60 dernières secondes)
+      const sixtySecondsAgo = Date.now() - 60000; // Augmenté à 60s pour plus de sécurité
+      currentPackages.forEach(pkg => {
+        const pkgTimestamp = new Date(pkg.scanDate || pkg.dateHeure || 0).getTime();
+        if (pkgTimestamp > sixtySecondsAgo) {
+          recentlyAddedCodes.add(pkg.idColis || pkg.code);
+        }
+      });
+
+      // Fusionner les colis Firebase avec les colis récemment ajoutés localement
+      const mergedPackages = [...filteredScans];
+      
+      // Ajouter les colis récemment ajoutés qui ne sont pas encore dans Firebase
+      currentPackages.forEach(pkg => {
+        const pkgCode = pkg.idColis || pkg.code;
+        if (recentlyAddedCodes.has(pkgCode) && !mergedPackages.some(fp => (fp.idColis || fp.code) === pkgCode)) {
+          mergedPackages.push(pkg);
+          addDebugLog(`[loadTakingCarePackagesInternal] Colis récent préservé: ${pkgCode}`, 'info');
+        }
+      });
+
+      // Paquets pris en charge trouvés
+      addDebugLog(`[loadTakingCarePackagesInternal] Firebase: ${filteredScans.length}, Locaux: ${recentlyAddedCodes.size}, Fusionnés: ${mergedPackages.length}`, 'info');
+      console.log(`📦 ${mergedPackages.length} colis trouvés:`, mergedPackages.map(s => s.idColis));
+      setTakingCarePackages(mergedPackages);
+      
+      // OPTIMISATION: Mettre en cache les résultats fusionnés
       try {
-        await AsyncStorage.setItem(cacheKey, JSON.stringify(filteredScans));
+        await AsyncStorage.setItem(cacheKey, JSON.stringify(mergedPackages));
         await AsyncStorage.setItem(`${cacheKey}_timestamp`, cacheTime.toString());
-        addDebugLog(`[loadTakingCarePackagesInternal] Cache mis à jour avec succès`, 'info');
+        addDebugLog(`[loadTakingCarePackagesInternal] Cache mis à jour avec succès (${mergedPackages.length} colis)`, 'info');
       } catch (cacheError) {
         addDebugLog(`[loadTakingCarePackagesInternal] ERREUR cache: ${cacheError.message}`, 'error');
         console.warn('Erreur lors de la mise en cache:', cacheError);
@@ -1004,17 +1036,9 @@ export default function ScanScreen({ navigation, route }) {
         clearTimeout(reloadTimeoutRef.current);
       }
       
-      // Chargement immédiat pour performance maximale
-      reloadTimeoutRef.current = setTimeout(async () => {
-        try {
-          await loadTakingCarePackages(false);
-          // Colis pris en charge rechargés
-        } catch (error) {
-          console.warn('Erreur lors du rechargement des colis pris en charge:', error);
-        } finally {
-          reloadTimeoutRef.current = null;
-        }
-      }, 100); // Délai minimal pour performance maximale
+      // CORRECTION: Pas de rechargement automatique pour éviter les conflits
+      addDebugLog(`[setOperationType] Mode unifié activé - Pas de rechargement automatique`, 'info');
+      // Le chargement se fera lors du premier scan ou manuellement
     }
     setIsReadyForScan(true);
     
@@ -1141,6 +1165,29 @@ export default function ScanScreen({ navigation, route }) {
       };
       
       addDebugLog(`[handleContenantScan] Ajout colis à la liste: ${trimmedCode} (${detectedOperationType})`, 'info');
+      
+      // CORRECTION: Affichage immédiat du colis dans la liste de prise en charge si c'est une entrée
+      if (detectedOperationType === 'entree') {
+        const newPackage = {
+          idColis: trimmedCode,
+          code: trimmedCode,
+          scanDate: new Date().toISOString(),
+          status: 'en-cours',
+          operationType: 'entree',
+          site: siteDetails?.name || siteCode,
+          siteDepart: siteDetails?.name || siteCode,
+          tournee: currentTourneeName,
+          tourneeId: currentTourneeId,
+          vehicule: currentVehiculeImmat,
+          vehiculeId: sessionData.vehicule?.id
+        };
+        
+        setTakingCarePackages(prev => {
+          const newPackages = [newPackage, ...prev];
+          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} affiché IMMÉDIATEMENT - Total: ${newPackages.length}`, 'info');
+          return newPackages;
+        });
+      }
       
       // PROTECTION: Vérifier que l'état est cohérent avant la mise à jour
       if (!siteDetails || !siteCode) {
@@ -1519,7 +1566,12 @@ export default function ScanScreen({ navigation, route }) {
 
       // Après la transmission, vider la liste des scans en attente
       await updateLocalHistoryOptimized(scannedContenants);
+      
+      // CORRECTION: Mise à jour immédiate de la liste de prise en charge
       updateTakingCarePackagesOptimized(scannedContenants);
+      
+      // CORRECTION: Pas de rechargement automatique après transmission pour éviter les conflits
+      // Le rechargement se fera naturellement lors du prochain scan ou changement de tournée
       
       // PROTECTION: Marquer les colis comme récemment transmis
       const transmittedCodes = scannedContenants.map(scan => scan.idColis || scan.code);
@@ -1565,56 +1617,9 @@ export default function ScanScreen({ navigation, route }) {
         console.warn('[handleTransmit] Erreur lors de la mise à jour du suivi de tournée:', error);
       }
       
-      // OPTIMISATION HAUTE PERFORMANCE: Rechargement immédiat après transmission
-      if (operationType === 'sortie' || operationType === 'unified') {
-        addDebugLog(`[handleTransmit] Début rechargement colis - operationType: ${operationType}`, 'info');
-        
-        // Annuler le timeout précédent s'il existe
-        if (reloadTimeoutRef.current) {
-          clearTimeout(reloadTimeoutRef.current);
-        }
-        
-        // OPTIMISATION: Rechargement optimisé pour performance maximale
-        reloadTimeoutRef.current = setTimeout(async () => {
-          try {
-            addDebugLog(`[handleTransmit] Rechargement colis en cours...`, 'info');
-            
-            // PROTECTION: Vérifier que l'application n'est pas déjà en freeze
-            if (isProcessingScan) {
-              addDebugLog(`[handleTransmit] Rechargement annulé - scan en cours`, 'info');
-              return;
-            }
-            
-            // OPTIMISATION: Invalider le cache pour forcer le rechargement
-            if (currentTourneeId) {
-              const cacheKey = `takingCarePackages_${currentTourneeId}`;
-              await AsyncStorage.removeItem(cacheKey);
-              await AsyncStorage.removeItem(`${cacheKey}_timestamp`);
-              addDebugLog(`[handleTransmit] Cache invalidé pour tournée: ${currentTourneeId}`, 'info');
-            }
-            
-            // PROTECTION: Timeout court pour éviter les blocages
-            const reloadPromise = loadTakingCarePackages(true); // Force reload après transmission
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout rechargement colis')), 3000) // Réduit à 3s
-            );
-            
-            try {
-              await Promise.race([reloadPromise, timeoutPromise]);
-              addDebugLog(`[handleTransmit] Rechargement colis terminé avec succès`, 'info');
-              // Colis pris en charge rechargés
-            } catch (timeoutError) {
-              addDebugLog(`[handleTransmit] Timeout rechargement colis - ignoré`, 'info');
-              // Rechargement colis timeout - pas grave
-            }
-          } catch (error) {
-            addDebugLog(`[handleTransmit] ERREUR rechargement colis: ${error.message}`, 'error');
-            console.warn('Erreur lors du rechargement des colis pris en charge après transmission:', error);
-          } finally {
-            reloadTimeoutRef.current = null;
-          }
-        }, 5000); // Augmenté à 5s pour éviter les conflits avec le debouncing
-      }
+      // CORRECTION: Pas de rechargement automatique après transmission pour éviter les conflits
+      // Le colis est déjà affiché immédiatement via updateTakingCarePackagesOptimized
+      addDebugLog(`[handleTransmit] Pas de rechargement automatique - colis déjà affiché`, 'info');
 
       // Enregistrer le timestamp de la transmission pour le monitoring des quotas
       addDebugLog(`[handleTransmit] Enregistrement timestamp transmission...`, 'info');
@@ -2887,35 +2892,57 @@ export default function ScanScreen({ navigation, route }) {
 
   // Mise à jour optimisée des paquets pris en charge
   const updateTakingCarePackagesOptimized = (scansToSubmit) => {
-    // Séparer les colis par type d'opération détecté
-    const entreeScans = scansToSubmit.filter(scan => (scan.operationType || scan.type) === 'entree');
-    const sortieScans = scansToSubmit.filter(scan => (scan.operationType || scan.type) === 'sortie');
-    
-    console.log(`[updateTakingCarePackagesOptimized] Entrée: ${entreeScans.length}, Sortie: ${sortieScans.length}`);
-    
-    // Ajouter les colis de prise en charge
-    if (entreeScans.length > 0) {
-      setTakingCarePackages(prev => [...entreeScans, ...prev]);
-      console.log(`[updateTakingCarePackagesOptimized] ${entreeScans.length} colis ajoutés à la prise en charge`);
-    }
-    
-    // Retirer les colis déposés
-    if (sortieScans.length > 0) {
-      const codesDeposited = sortieScans.map(scan => scan.idColis || scan.code);
-      setTakingCarePackages(prev => prev.filter(pkg => {
-        const pkgCode = pkg.idColis || pkg.code;
-        return !codesDeposited.includes(pkgCode);
-      }));
+    try {
+      addDebugLog(`[updateTakingCarePackagesOptimized] Début mise à jour avec ${scansToSubmit.length} scans`, 'info');
       
-      console.log(`[updateTakingCarePackagesOptimized] ${sortieScans.length} colis retirés de la prise en charge`);
+      // Séparer les colis par type d'opération détecté
+      const entreeScans = scansToSubmit.filter(scan => (scan.operationType || scan.type) === 'entree');
+      const sortieScans = scansToSubmit.filter(scan => (scan.operationType || scan.type) === 'sortie');
       
-      // OPTIMISATION: Nettoyer le cache des paquets pris en charge
-      if (currentTourneeId) {
-        const cacheKey = `takingCarePackages_${currentTourneeId}`;
-        AsyncStorage.removeItem(cacheKey).catch(err => 
-          console.warn('Erreur suppression cache paquets:', err)
-        );
+      addDebugLog(`[updateTakingCarePackagesOptimized] Entrée: ${entreeScans.length}, Sortie: ${sortieScans.length}`, 'info');
+      
+      // Ajouter les colis de prise en charge IMMÉDIATEMENT
+      if (entreeScans.length > 0) {
+        setTakingCarePackages(prev => {
+          // CORRECTION: Ajouter avec timestamp actuel pour marquer comme récent
+          const enrichedScans = entreeScans.map(scan => ({
+            ...scan,
+            scanDate: new Date().toISOString(), // Timestamp actuel pour marquer comme récent
+            status: 'en-cours', // Statut explicite
+            operationType: 'entree' // Type d'opération explicite
+          }));
+          
+          const newPackages = [...enrichedScans, ...prev];
+          addDebugLog(`[updateTakingCarePackagesOptimized] ${entreeScans.length} colis ajoutés IMMÉDIATEMENT - Total: ${newPackages.length}`, 'info');
+          return newPackages;
+        });
       }
+      
+      // Retirer les colis déposés
+      if (sortieScans.length > 0) {
+        const codesDeposited = sortieScans.map(scan => scan.idColis || scan.code);
+        setTakingCarePackages(prev => {
+          const filteredPackages = prev.filter(pkg => {
+            const pkgCode = pkg.idColis || pkg.code;
+            return !codesDeposited.includes(pkgCode);
+          });
+          addDebugLog(`[updateTakingCarePackagesOptimized] ${sortieScans.length} colis retirés - Restant: ${filteredPackages.length}`, 'info');
+          return filteredPackages;
+        });
+        
+        // OPTIMISATION: Nettoyer le cache des paquets pris en charge
+        if (currentTourneeId) {
+          const cacheKey = `takingCarePackages_${currentTourneeId}`;
+          AsyncStorage.removeItem(cacheKey).catch(err => 
+            console.warn('Erreur suppression cache paquets:', err)
+          );
+        }
+      }
+      
+      addDebugLog(`[updateTakingCarePackagesOptimized] Mise à jour terminée avec succès`, 'info');
+    } catch (error) {
+      addDebugLog(`[updateTakingCarePackagesOptimized] ERREUR: ${error.message}`, 'error');
+      console.error('Erreur lors de la mise à jour des paquets pris en charge:', error);
     }
   };
 
