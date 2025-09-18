@@ -19,7 +19,7 @@
                  "icon":  "./assets/icon-SCAN.png",
                  "userInterfaceStyle":  "light",
                  "newArchEnabled":  false,
-                 "sdkVersion": "51.0.0",
+                 "sdkVersion":  "51.0.0",
                  "splash":  {
                                 "image":  "./assets/logo-SCAN.png",
                                 "resizeMode":  "contain",
@@ -32,7 +32,7 @@
                                                 }
                          },
                  "android":  {
-                                 "versionCode":  55,
+                                 "versionCode":  57,
                                  "adaptiveIcon":  {
                                                       "foregroundImage":  "./assets/icon-SCAN.png",
                                                       "backgroundColor":  "#ffffff"

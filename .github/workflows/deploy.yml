@@ -119,11 +119,13 @@ jobs:
           EOF
           
           # Corriger la configuration du splash screen pour Android 12+
-          # Ajouter la dépendance splash screen dans build.gradle
+          # Ajouter les dépendances nécessaires dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
-          # Vérifier que la dépendance a été ajoutée
-          echo "Vérification de la dépendance splash screen..."
+          sed -i '/implementation "androidx.core:core-splashscreen:1.0.1"/a\    implementation "org.webkit:android-jsc:+"' android/app/build.gradle
+          # Vérifier que les dépendances ont été ajoutées
+          echo "Vérification des dépendances..."
           grep -n "core-splashscreen" android/app/build.gradle || echo "Dépendance splash screen ajoutée"
+          grep -n "android-jsc" android/app/build.gradle || echo "Dépendance JSC ajoutée"
           
           # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
           echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
@@ -266,7 +268,7 @@ jobs:
           cd android
           chmod +x gradlew
           # Build with relaxed Kotlin compiler options and continue on errors
-          ./gradlew assembleRelease -Pkotlin.compiler.suppressWarnings=true -Pkotlin.compiler.allowUnsafe=true -Pkotlin.nullability.annotations=disable --continue
+          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a -Pkotlin.compiler.suppressWarnings=true -Pkotlin.compiler.allowUnsafe=true -Pkotlin.nullability.annotations=disable --continue
           
           # Renommer l'APK avec version et build number
           VERSION_CODE=$(grep '"versionCode"' app.json | sed 's/.*: *\([0-9]*\).*/\1/')
