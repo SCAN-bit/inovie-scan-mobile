@@ -82,9 +82,8 @@ jobs:
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
           
-          # Supprimer les anciens fichiers Kotlin s'ils existent
-          rm -f android/app/src/main/java/SCAN/mobile/MainActivity.kt
-          rm -f android/app/src/main/java/SCAN/mobile/MainApplication.kt
+          # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
+          echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
           
           # Créer MainActivity.java avec Java + JSC
           cat > android/app/src/main/java/SCAN/mobile/MainActivity.java << 'EOF'
@@ -130,70 +129,8 @@ jobs:
           }
           EOF
           
-          # Créer MainApplication.java avec Java + JSC
-          cat > android/app/src/main/java/SCAN/mobile/MainApplication.java << 'EOF'
-          package SCAN.mobile;
-          
-          import android.app.Application;
-          import android.content.res.Configuration;
-          
-          import com.facebook.react.PackageList;
-          import com.facebook.react.ReactApplication;
-          import com.facebook.react.ReactNativeHost;
-          import com.facebook.react.ReactPackage;
-          import com.facebook.react.defaults.DefaultReactNativeHost;
-          import com.facebook.soloader.SoLoader;
-          
-          import java.util.List;
-          
-          public class MainApplication extends Application implements ReactApplication {
-          
-            private final ReactNativeHost mReactNativeHost = new DefaultReactNativeHost(this) {
-              @Override
-              public boolean getUseDeveloperSupport() {
-                return BuildConfig.DEBUG;
-              }
-          
-              @Override
-              protected List<ReactPackage> getPackages() {
-                @SuppressWarnings("UnnecessaryLocalVariable")
-                List<ReactPackage> packages = new PackageList(this).getPackages();
-                return packages;
-              }
-          
-              @Override
-              protected String getJSMainModuleName() {
-                return ".expo/.virtual-metro-entry";
-              }
-          
-              @Override
-              public boolean isNewArchEnabled() {
-                return false;
-              }
-          
-              @Override
-              public Boolean isHermesEnabled() {
-                return false;
-              }
-            };
-          
-            @Override
-            public ReactNativeHost getReactNativeHost() {
-              return mReactNativeHost;
-            }
-          
-            @Override
-            public void onCreate() {
-              super.onCreate();
-              SoLoader.init(this, false);
-            }
-          
-            @Override
-            public void onConfigurationChanged(Configuration newConfig) {
-              super.onConfigurationChanged(newConfig);
-            }
-          }
-          EOF
+          # Utiliser nos fichiers Kotlin modifiés au lieu de créer des fichiers Java
+          echo "Utilisation des fichiers Kotlin modifiés avec Android JS engine"
           
           # Synchroniser avec le local (SDK 52 + RN 0.76.9)
           echo "Synchronisation avec le local (SDK 52 + RN 0.76.9)..."
