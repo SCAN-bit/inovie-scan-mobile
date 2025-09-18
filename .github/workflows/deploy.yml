@@ -131,6 +131,23 @@ jobs:
           echo "Correction du thème splash screen..."
           sed -i 's/parent="Theme.SplashScreen"/parent="Theme.AppCompat.Light.NoActionBar"/g' android/app/src/main/res/values/styles.xml
           
+          # Créer le fichier splashscreen_logo.xml manquant
+          echo "Création du fichier splashscreen_logo.xml..."
+          mkdir -p android/app/src/main/res/drawable
+          cat > android/app/src/main/res/drawable/splashscreen_logo.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:drawable="@color/splashscreen_background" />
+              <item android:gravity="center">
+                  <bitmap android:src="@mipmap/ic_launcher" />
+              </item>
+          </layer-list>
+          EOF
+          
+          # Corriger MainActivity pour activer le thème
+          echo "Correction du MainActivity..."
+          sed -i 's|// setTheme(R.style.AppTheme);|setTheme(R.style.AppTheme)|g' android/app/src/main/java/SCAN/mobile/MainActivity.kt
+          
           # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
           echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
           

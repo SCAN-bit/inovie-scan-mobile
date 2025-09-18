@@ -13,8 +13,7 @@ class MainActivity : ReactActivity() {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
-    // setTheme(R.style.AppTheme);
-    // Expo splash screen removed - using standard React Native
+    setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
   }
 
