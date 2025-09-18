@@ -30,10 +30,10 @@ jobs:
           # Force Gradle 8.7 - Same as local working version
           rm -rf ~/.gradle/wrapper/dists/gradle-8.10.2-*
           sed -i 's/gradle-.*-all.zip/gradle-8.7-all.zip/g' gradle/wrapper/gradle-wrapper.properties
-          # Force Kotlin 1.9.25 - Same as local working version
+          # Force Kotlin 1.8.22 - Stable version compatible with expo-modules-core
           sed -i '/kotlin.version/d' gradle.properties
           sed -i '/android.suppressKotlinVersionCompatibilityCheck/d' gradle.properties
-          echo "kotlin.version=1.9.25" >> gradle.properties
+          echo "kotlin.version=1.8.22" >> gradle.properties
           echo "android.suppressKotlinVersionCompatibilityCheck=true" >> gradle.properties
           # Add Kotlin compiler flags to ignore nullable errors and warnings
           echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
@@ -56,11 +56,11 @@ jobs:
           echo "android.targetSdkVersion=34" >> gradle.properties
           echo "android.buildToolsVersion=35.0.0" >> gradle.properties
           # Force suppression of Kotlin version check in build.gradle
-          sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.25"/g' build.gradle
+          sed -i 's/kotlinVersion = .*/kotlinVersion = "1.8.22"/g' build.gradle
           # Android Gradle Plugin version already correct in build.gradle (8.5.0)
           echo "Using Android Gradle Plugin 8.5.0 from build.gradle"
           # Add system property to suppress Kotlin version check
-          echo "systemProp.kotlin.version=1.9.25" >> gradle.properties
+          echo "systemProp.kotlin.version=1.8.22" >> gradle.properties
           # Verify the changes
           echo "=== gradle.properties content ==="
           cat gradle.properties
