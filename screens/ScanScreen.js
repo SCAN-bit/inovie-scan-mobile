@@ -122,15 +122,15 @@ export default function ScanScreen({ navigation, route }) {
 
   // Simplification de la gestion de l'état de la session
   // On récupère les objets complets depuis les paramètres de navigation
-  const [currentTournee, setCurrentTournee] = useState(route.(params && params.tournee) || null);
-  const [currentVehicule, setCurrentVehicule] = useState(route.(params && params.vehicule) || null);
-  const [currentPole, setCurrentPole] = useState(route.(params && params.pole) || null);
+  const [currentTournee, setCurrentTournee] = useState((route.params && route.params.tournee) || null);
+  const [currentVehicule, setCurrentVehicule] = useState((route.params && route.params.vehicule) || null);
+  const [currentPole, setCurrentPole] = useState((route.params && route.params.pole) || null);
 
   // Les états dérivés sont maintenus pour l'affichage et la compatibilité
-  const [currentTourneeName, setCurrentTourneeName] = useState(route.(params && params.tournee)?.nom || "Tournée inconnue");
-  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState(route.(params && params.vehicule)?.immatriculation || "Véhicule inconnu");
-  const [currentVehiculeId, setCurrentVehiculeId] = useState(route.(params && params.vehicule)?.id || null);
-  const [currentTourneeId, setCurrentTourneeId] = useState(route.(params && params.tournee)?.id || null);
+  const [currentTourneeName, setCurrentTourneeName] = useState((route.params && route.params.tournee)?.nom || "Tournée inconnue");
+  const [currentVehiculeImmat, setCurrentVehiculeImmat] = useState((route.params && route.params.vehicule)?.immatriculation || "Véhicule inconnu");
+  const [currentVehiculeId, setCurrentVehiculeId] = useState((route.params && route.params.vehicule)?.id || null);
+  const [currentTourneeId, setCurrentTourneeId] = useState((route.params && route.params.tournee)?.id || null);
   
   // Rechargement des colis quand currentTourneeId change
   useEffect(() => {
@@ -175,7 +175,7 @@ export default function ScanScreen({ navigation, route }) {
   // Effet pour initialiser la session au démarrage OU récupérer la session passée
   useEffect(() => {
     const initializeOrUseExistingSession = async () => {
-      let sessionIdFromParams = route.(params && params.sessionId);
+      let sessionIdFromParams = (route.params && route.params.sessionId);
       let sessionToUse = null;
 
       if (sessionIdFromParams) {
@@ -226,9 +226,9 @@ export default function ScanScreen({ navigation, route }) {
           setSelectedSelas({ id: currentSession.selasId, nom: currentSession.selasName });
         } else {
            // Si c'est une NOUVELLE session, on s'assure que les états sont bien définis depuis les route.params
-           setCurrentTournee(route.(params && params.tournee) || null);
-           setCurrentVehicule(route.(params && params.vehicule) || null);
-           setCurrentPole(route.(params && params.pole) || null);
+           setCurrentTournee((route.params && route.params.tournee) || null);
+           setCurrentVehicule((route.params && route.params.vehicule) || null);
+           setCurrentPole((route.params && route.params.pole) || null);
            // Pour selas, on le récupère du profil car il n'est pas dans les params
            if ((userProfile && userProfile.selasId)) {
              setSelectedSelas({ id: userProfile.selasId, nom: userProfile.selasName || '' });
@@ -242,12 +242,12 @@ export default function ScanScreen({ navigation, route }) {
           // Mettre à jour l'ID de la tournée - Essayer d'abord le champ direct, puis l'objet
           if (currentSession.tourneeId) {
             setCurrentTourneeId(currentSession.tourneeId);
-          } else if (currentSession.(tournee && tournee.id)) {
+          } else if ((currentSession.tournee && currentSession.tournee.id)) {
             setCurrentTourneeId(currentSession.tournee.id);
           }
           
           // Mettre à jour le nom de la tournée
-          if (currentSession.(tournee && tournee.nom)) {
+          if ((currentSession.tournee && currentSession.tournee.nom)) {
             setCurrentTourneeName(currentSession.tournee.nom);
           } 
           
@@ -317,29 +317,29 @@ export default function ScanScreen({ navigation, route }) {
       await loadHistoricalData();
       
       // Forcer la mise à jour du suivi de tournée pour réafficher les coches SANS supprimer la persistance
-      if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
+      if ((tourneeProgressRef.current && tourneeProgressRef.current.loadTourneeDetails)) {
         await tourneeProgressRef.current.loadTourneeDetails(false); // Changé de true à false pour préserver AsyncStorage
       }
     };
 
     initializeOrUseExistingSession();
-  }, [route.(params && params.sessionId)]);
+  }, [(route.params && route.params.sessionId)]);
 
   // Effet pour détecter le paramètre refresh et rafraîchir les données
   useEffect(() => {
-    if (route.(params && params.refresh)) {
+    if ((route.params && route.params.refresh)) {
       refreshTourneeData();
     }
-  }, [route.(params && params.refresh)]);
+  }, [(route.params && route.params.refresh)]);
 
   // Surveiller les changements de route.params pour détecter quand le bouton d'historique est pressé
   useEffect(() => {
-    if (route.(params && params.showHistory)) {
+    if ((route.params && route.params.showHistory)) {
       setShowHistoryModal(true);
       // Réinitialiser le paramètre pour éviter de rouvrir la modale si on navigue ailleurs puis revient
       navigation.setParams({ showHistory: false });
     }
-  }, [route.(params && params.showHistory)]);
+  }, [(route.params && route.params.showHistory)]);
 
   // Chargement des scans historiques au démarrage et récupération des paquets en cours
   useEffect(() => {
@@ -880,7 +880,7 @@ export default function ScanScreen({ navigation, route }) {
           }
 
           let occurrenceIndex = -1; // Initialiser à -1 (aucune occurrence non visitée trouvée par défaut)
-          if (tourneeProgressRef.(current && current.getSitesWithStatus)) {
+          if ((tourneeProgressRef.current && tourneeProgressRef.current.getSitesWithStatus)) {
             const sitesList = tourneeProgressRef.current.getSitesWithStatus();
             const siteNameToFind = siteVerification.site.nom || siteVerification.site.name;
 
@@ -918,9 +918,9 @@ export default function ScanScreen({ navigation, route }) {
               const markSuccess = await Promise.race([markPromise, markTimeoutPromise]);
               
               if (markSuccess) {
-                if (tourneeProgressRef.(current && current.markSiteAsVisitedLocally)) {
+                if ((tourneeProgressRef.current && tourneeProgressRef.current.markSiteAsVisitedLocally)) {
                   await tourneeProgressRef.current.markSiteAsVisitedLocally(identifier, occurrenceIndex);
-                } else if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
+                } else if ((tourneeProgressRef.current && tourneeProgressRef.current.loadTourneeDetails)) {
                   // PROTECTION: Timeout sur loadTourneeDetails
                   const loadPromise = tourneeProgressRef.current.loadTourneeDetails(true);
                   const loadTimeoutPromise = new Promise((_, reject) => 
@@ -1204,7 +1204,7 @@ export default function ScanScreen({ navigation, route }) {
           tournee: currentTourneeName,
           tourneeId: currentTourneeId,
           vehicule: currentVehiculeImmat,
-          vehiculeId: sessionData.(vehicule && vehicule.id)
+          vehiculeId: (sessionData.vehicule && sessionData.vehicule.id)
         };
         
         setTakingCarePackages(prev => {
@@ -1654,7 +1654,7 @@ export default function ScanScreen({ navigation, route }) {
         // Suivi de tournée mis à jour
         
         // Protection supplémentaire: forcer le rechargement du composant TourneeProgress
-        if (tourneeProgressRef.(current && current.loadTourneeDetails)) {
+        if ((tourneeProgressRef.current && tourneeProgressRef.current.loadTourneeDetails)) {
           setTimeout(() => {
             tourneeProgressRef.current.loadTourneeDetails(true);
             // Rechargement forcé du composant TourneeProgress
@@ -2241,13 +2241,13 @@ export default function ScanScreen({ navigation, route }) {
         
         if (currentSession) {
           // Mettre à jour l'ID de la tournée si disponible
-          if (currentSession.(tournee && tournee.id)) {
+          if ((currentSession.tournee && currentSession.tournee.id)) {
             setCurrentTourneeId(currentSession.tournee.id);
             console.log(`[updateTourneeProgress] ID de tournée mis à jour: ${currentSession.tournee.id}`);
           }
           
           // Mettre à jour le nom de la tournée si disponible
-          if (currentSession.(tournee && tournee.nom)) {
+          if ((currentSession.tournee && currentSession.tournee.nom)) {
             setCurrentTourneeName(currentSession.tournee.nom);
             console.log(`[updateTourneeProgress] Nom de tournée mis à jour: ${currentSession.tournee.nom}`);
           }
@@ -2388,7 +2388,7 @@ export default function ScanScreen({ navigation, route }) {
   // Effet pour gérer le retour du check véhicule final
   useEffect(() => {
     const handleReturnFromFinalCheck = async () => {
-      if (route.(params && params.fromFinalCheck)) {
+      if ((route.params && route.params.fromFinalCheck)) {
         try {
           
           // Réinitialisation complète après le check final
@@ -2406,7 +2406,7 @@ export default function ScanScreen({ navigation, route }) {
     };
 
     handleReturnFromFinalCheck();
-  }, [route.(params && params.fromFinalCheck)]);
+  }, [(route.params && route.params.fromFinalCheck)]);
 
   // Fonction pour gérer le check véhicule final
   const handleFinalVehicleCheck = async () => {
@@ -2449,7 +2449,7 @@ export default function ScanScreen({ navigation, route }) {
     const tourneeName = currentTourneeName;
     const tourneeId = currentTourneeId;
     const vehiculeName = currentVehiculeImmat;
-    const vehiculeId = sessionData.(vehicule && vehicule.id) || route.(params && params.vehicule)?.id || '';
+    const vehiculeId = (sessionData.vehicule && sessionData.vehicule.id) || (route.params && route.params.vehicule)?.id || '';
 
     setLoading(true);
 
@@ -2458,7 +2458,7 @@ export default function ScanScreen({ navigation, route }) {
       const siteName = siteDetails.name || siteDetails.nom || siteCode;
       const siteId = siteDetails.id || '';
       // Définir le nom du coursier si disponible
-      // const coursierName = sessionData.coursierCharg || route.(params && params.coursierCharg) || ''; // Ancienne méthode
+      // const coursierName = sessionData.coursierCharg || (route.params && route.params.coursierCharg) || ''; // Ancienne méthode
       const coursierName = currentUserDisplayName; // Utiliser l'état actuel du nom de l'utilisateur
 
       const userData = await firebaseService.getCurrentUser();
