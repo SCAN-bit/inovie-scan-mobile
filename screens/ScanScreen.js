@@ -136,10 +136,13 @@ export default function ScanScreen({ navigation, route }) {
   useEffect(() => {
     // console.log(`🎯 [ScanScreen] currentTourneeId mis à jour: ${currentTourneeId}`);
     
-    // CORRECTION: Pas de rechargement automatique pour éviter les conflits avec l'affichage immédiat
+    // CORRECTION: Rechargement intelligent quand la tournée change
     if (currentTourneeId) {
-      addDebugLog(`[ScanScreen] Tournée changée: ${currentTourneeId} - Pas de rechargement automatique`, 'info');
-      // loadTakingCarePackages(true); // Désactivé temporairement
+      addDebugLog(`[ScanScreen] Tournée changée: ${currentTourneeId} - Rechargement des colis`, 'info');
+      // Délai pour éviter les conflits avec l'affichage immédiat
+      setTimeout(() => {
+        loadTakingCarePackages(true);
+      }, 1000); // 1 seconde de délai pour éviter les conflits
     }
   }, [currentTourneeId]);
   const [currentUserDisplayName, setCurrentUserDisplayName] = useState("Chargement...");
@@ -339,25 +342,21 @@ export default function ScanScreen({ navigation, route }) {
   // Fonction pour charger tous les données d'historique et de paquets en cours
   const loadHistoricalData = async () => {
     try {
+      addDebugLog(`[loadHistoricalData] Début chargement des données historiques`, 'info');
+      
       // OPTIMISATION: Chargement en parallèle
-      // console.log(`🚀 [ScanScreen] Appel loadTakingCarePackages avec currentTourneeId: ${currentTourneeId}`);
       const promises = [
         loadHistoricalScans(),
-        loadFirestoreScans()
-        // CORRECTION: Pas de chargement automatique des colis pour éviter les conflits
-        // loadTakingCarePackages() // Désactivé temporairement
+        loadFirestoreScans(),
+        loadTakingCarePackages(false) // CORRECTION: Restaurer le chargement automatique des colis
       ];
       
       await Promise.all(promises);
-      
-      // CORRECTION: Charger les colis seulement si la liste est vide
-      if (takingCarePackages.length === 0 && currentTourneeId) {
-        addDebugLog(`[loadHistoricalData] Chargement initial des colis pour tournée: ${currentTourneeId}`, 'info');
-        await loadTakingCarePackages(false);
-      }
+      addDebugLog(`[loadHistoricalData] Chargement des données historiques terminé`, 'info');
       
     } catch (error) {
       console.error('Erreur lors du chargement des données historiques:', error);
+      addDebugLog(`[loadHistoricalData] ERREUR: ${error.message}`, 'error');
     }
   };
 
@@ -731,11 +730,11 @@ export default function ScanScreen({ navigation, route }) {
       const currentPackages = takingCarePackages;
       const recentlyAddedCodes = new Set();
       
-      // Identifier les colis qui ont été ajoutés récemment (dans les 60 dernières secondes)
-      const sixtySecondsAgo = Date.now() - 60000; // Augmenté à 60s pour plus de sécurité
+      // Identifier les colis qui ont été ajoutés récemment (dans les 120 dernières secondes)
+      const twoMinutesAgo = Date.now() - 120000; // Augmenté à 2 minutes pour plus de sécurité
       currentPackages.forEach(pkg => {
         const pkgTimestamp = new Date(pkg.scanDate || pkg.dateHeure || 0).getTime();
-        if (pkgTimestamp > sixtySecondsAgo) {
+        if (pkgTimestamp > twoMinutesAgo) {
           recentlyAddedCodes.add(pkg.idColis || pkg.code);
         }
       });
@@ -1036,9 +1035,12 @@ export default function ScanScreen({ navigation, route }) {
         clearTimeout(reloadTimeoutRef.current);
       }
       
-      // CORRECTION: Pas de rechargement automatique pour éviter les conflits
-      addDebugLog(`[setOperationType] Mode unifié activé - Pas de rechargement automatique`, 'info');
-      // Le chargement se fera lors du premier scan ou manuellement
+      // CORRECTION: Chargement intelligent en mode unifié
+      addDebugLog(`[setOperationType] Mode unifié activé - Chargement des colis`, 'info');
+      // Délai pour éviter les conflits avec l'affichage immédiat
+      setTimeout(() => {
+        loadTakingCarePackages(false);
+      }, 500); // 500ms de délai pour éviter les conflits
     }
     setIsReadyForScan(true);
     
@@ -1073,21 +1075,23 @@ export default function ScanScreen({ navigation, route }) {
     addDebugLog(`[handleContenantScan] Code nettoyé: ${trimmedCode}`, 'info');
 
     try {
-      // PROTECTION: Vérifier si le colis n'a pas déjà été scanné
-      const alreadyScanned = scannedContenants.some(contenant => 
-        (contenant.idColis || contenant.code) === trimmedCode
-      );
+      // CORRECTION: Suppression de la protection "déjà scanné" pour permettre le rescan
+      // Cette protection empêchait le rescan de colis déposés dans la même session
+      // const alreadyScanned = scannedContenants.some(contenant => 
+      //   (contenant.idColis || contenant.code) === trimmedCode
+      // );
+      // 
+      // if (alreadyScanned) {
+      //   showToast(`Colis "${trimmedCode}" déjà scanné.`, 'warning');
+      //   return;
+      // }
       
-      if (alreadyScanned) {
-        showToast(`Colis "${trimmedCode}" déjà scanné.`, 'warning');
-        return;
-      }
-      
-      // PROTECTION: Vérifier si le colis n'a pas été récemment transmis
-      if (recentlyTransmitted.has(trimmedCode)) {
-        showToast(`Colis "${trimmedCode}" récemment transmis. Attendez quelques secondes.`, 'warning');
-        return;
-      }
+      // CORRECTION: Suppression de la protection "récemment transmis" pour permettre le rescan
+      // Cette protection empêchait le rescan de colis déposés
+      // if (recentlyTransmitted.has(trimmedCode)) {
+      //   showToast(`Colis "${trimmedCode}" récemment transmis. Attendez quelques secondes.`, 'warning');
+      //   return;
+      // }
 
       // Mode unifié - détection automatique du type d'opération
       let detectedOperationType = 'entree'; // Par défaut : prise en charge
@@ -1573,25 +1577,26 @@ export default function ScanScreen({ navigation, route }) {
       // CORRECTION: Pas de rechargement automatique après transmission pour éviter les conflits
       // Le rechargement se fera naturellement lors du prochain scan ou changement de tournée
       
-      // PROTECTION: Marquer les colis comme récemment transmis
-      const transmittedCodes = scannedContenants.map(scan => scan.idColis || scan.code);
-      addDebugLog(`[handleTransmit] Marquage ${transmittedCodes.length} colis comme récemment transmis`, 'info');
-      
-      setRecentlyTransmitted(prev => {
-        const newSet = new Set(prev);
-        transmittedCodes.forEach(code => newSet.add(code));
-        return newSet;
-      });
-      
-      // Nettoyer la liste des colis récemment transmis après 30 secondes
-      setTimeout(() => {
-        addDebugLog(`[handleTransmit] Nettoyage des colis récemment transmis après 30s`, 'info');
-        setRecentlyTransmitted(prev => {
-          const newSet = new Set(prev);
-          transmittedCodes.forEach(code => newSet.delete(code));
-          return newSet;
-        });
-      }, 30000); // 30 secondes
+      // CORRECTION: Suppression du marquage "récemment transmis" pour permettre le rescan
+      // Cette fonctionnalité empêchait le rescan de colis déposés
+      // const transmittedCodes = scannedContenants.map(scan => scan.idColis || scan.code);
+      // addDebugLog(`[handleTransmit] Marquage ${transmittedCodes.length} colis comme récemment transmis`, 'info');
+      // 
+      // setRecentlyTransmitted(prev => {
+      //   const newSet = new Set(prev);
+      //   transmittedCodes.forEach(code => newSet.add(code));
+      //   return newSet;
+      // });
+      // 
+      // // Nettoyer la liste des colis récemment transmis après 30 secondes
+      // setTimeout(() => {
+      //   addDebugLog(`[handleTransmit] Nettoyage des colis récemment transmis après 30s`, 'info');
+      //   setRecentlyTransmitted(prev => {
+      //     const newSet = new Set(prev);
+      //     transmittedCodes.forEach(code => newSet.delete(code));
+      //     return newSet;
+      //   });
+      // }, 30000); // 30 secondes
       
       // Vider la liste des colis scannés mais garder l'interface active
       setScannedContenants([]);
