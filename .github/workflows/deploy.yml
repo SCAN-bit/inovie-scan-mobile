@@ -55,7 +55,9 @@ jobs:
         
       - name: Install Node.js dependencies
         run: |
-          npm install
+          # Clean install to avoid conflicts
+          rm -rf node_modules package-lock.json
+          npm install --legacy-peer-deps
           
       - name: Pre-build setup
         run: |
@@ -74,7 +76,16 @@ jobs:
                 "appName": "SCAN"
               }
             },
-            "dependencies": {}
+            "dependencies": {
+              "react-native-datawedge-intents": {
+                "platforms": {
+                  "android": {
+                    "sourceDir": "../node_modules/react-native-datawedge-intents/android",
+                    "packageImportPath": "import com.darryncampbell.rndatawedgeintents.RNDataWedgeIntentsPackage;"
+                  }
+                }
+              }
+            }
           }
           EOF
           
@@ -93,13 +104,16 @@ jobs:
           
           # Synchroniser avec le local (SDK 51 + RN 0.74.5)
           echo "Synchronisation avec le local (SDK 51 + RN 0.74.5)..."
-          npm install expo@~51.0.0 --save
-          npm install react-native@0.74.5 --save
+          npm install expo@~51.0.0 --save --legacy-peer-deps
+          npm install react-native@0.74.5 --save --legacy-peer-deps
           echo "Vérification de la version installée..."
           npm list expo
           
-          # npx expo install --fix  # Désactivé car il réinstalle expo-camera automatiquement
-          echo "Skipping expo install --fix to avoid reinstalling expo-camera"
+          # Fix dependencies but exclude expo-camera
+          echo "Fixing Expo dependencies..."
+          npx expo install --fix --legacy-peer-deps
+          # Remove expo-camera if it was installed
+          npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
           
           # Force Android's built-in JavaScript engine (single configuration)
           # Configuration déjà présente dans gradle.properties local - pas besoin de la dupliquer
@@ -147,8 +161,10 @@ jobs:
           echo "No JSC Android.mk needed - using Android's built-in JavaScript engine"
           
           # Forcer la génération des modules Expo
-          # npx expo install --fix  # Désactivé car il réinstalle expo-camera automatiquement
-          echo "Skipping second expo install --fix to avoid reinstalling expo-camera"
+          echo "Generating Expo modules..."
+          npx expo install --fix --legacy-peer-deps
+          # Remove expo-camera if it was installed again
+          npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
           
           # Créer react-native.config.js pour forcer l'inclusion des bibliothèques natives
           cat > react-native.config.js << 'EOF'

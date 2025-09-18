@@ -736,34 +736,48 @@ export default function ScanScreen({ navigation, route }) {
         !scan.idColis.startsWith('TEST_') // Exclure les tests aussi
       );
 
-      // CORRECTION: Fusion intelligente pour préserver les colis récemment ajoutés
+      // CORRECTION: Fusion intelligente pour préserver les modifications locales récentes
       const currentPackages = takingCarePackages;
-      const recentlyAddedCodes = new Set();
+      const recentlyModifiedCodes = new Set();
       
-      // Identifier les colis qui ont été ajoutés récemment (dans les 5 dernières minutes)
-      const fiveMinutesAgo = Date.now() - 300000; // Augmenté à 5 minutes pour plus de sécurité
+      // Identifier les colis qui ont été modifiés récemment (dans les 2 dernières minutes)
+      const twoMinutesAgo = Date.now() - 120000; // Réduit à 2 minutes pour éviter les conflits
       currentPackages.forEach(pkg => {
         const pkgTimestamp = new Date(pkg.scanDate || pkg.dateHeure || 0).getTime();
-        if (pkgTimestamp > fiveMinutesAgo) {
-          recentlyAddedCodes.add(pkg.idColis || pkg.code);
-          addDebugLog(`[loadTakingCarePackagesInternal] Colis récent identifié: ${pkg.idColis || pkg.code} (${Math.round((Date.now() - pkgTimestamp) / 1000)}s)`, 'info');
+        if (pkgTimestamp > twoMinutesAgo) {
+          recentlyModifiedCodes.add(pkg.idColis || pkg.code);
+          addDebugLog(`[loadTakingCarePackagesInternal] Colis récemment modifié identifié: ${pkg.idColis || pkg.code} (${Math.round((Date.now() - pkgTimestamp) / 1000)}s)`, 'info');
         }
       });
 
-      // Fusionner les colis Firebase avec les colis récemment ajoutés localement
+      // CORRECTION: Fusion intelligente - préserver les modifications locales récentes
       const mergedPackages = [...filteredScans];
       
-      // Ajouter les colis récemment ajoutés qui ne sont pas encore dans Firebase
+      // Ajouter les colis récemment modifiés qui ne sont pas dans Firebase OU qui diffèrent
       currentPackages.forEach(pkg => {
         const pkgCode = pkg.idColis || pkg.code;
-        if (recentlyAddedCodes.has(pkgCode) && !mergedPackages.some(fp => (fp.idColis || fp.code) === pkgCode)) {
-          mergedPackages.push(pkg);
-          addDebugLog(`[loadTakingCarePackagesInternal] Colis récent préservé: ${pkgCode}`, 'info');
+        if (recentlyModifiedCodes.has(pkgCode)) {
+          const firebasePkg = mergedPackages.find(fp => (fp.idColis || fp.code) === pkgCode);
+          if (!firebasePkg) {
+            // Colis ajouté localement mais pas encore dans Firebase
+            mergedPackages.push(pkg);
+            addDebugLog(`[loadTakingCarePackagesInternal] Colis local préservé: ${pkgCode}`, 'info');
+          } else {
+            // Colis existe dans Firebase - vérifier si la version locale est plus récente
+            const localTimestamp = new Date(pkg.scanDate || pkg.dateHeure || 0).getTime();
+            const firebaseTimestamp = new Date(firebasePkg.scanDate || firebasePkg.dateHeure || 0).getTime();
+            if (localTimestamp > firebaseTimestamp) {
+              // Version locale plus récente - remplacer
+              const index = mergedPackages.findIndex(fp => (fp.idColis || fp.code) === pkgCode);
+              mergedPackages[index] = pkg;
+              addDebugLog(`[loadTakingCarePackagesInternal] Colis local plus récent appliqué: ${pkgCode}`, 'info');
+            }
+          }
         }
       });
 
       // Paquets pris en charge trouvés
-      addDebugLog(`[loadTakingCarePackagesInternal] Firebase: ${filteredScans.length}, Locaux: ${recentlyAddedCodes.size}, Fusionnés: ${mergedPackages.length}`, 'info');
+      addDebugLog(`[loadTakingCarePackagesInternal] Firebase: ${filteredScans.length}, Locaux: ${recentlyModifiedCodes.size}, Fusionnés: ${mergedPackages.length}`, 'info');
       console.log(`📦 ${mergedPackages.length} colis trouvés:`, mergedPackages.map(s => s.idColis));
       setTakingCarePackages(mergedPackages);
       
@@ -1183,8 +1197,9 @@ export default function ScanScreen({ navigation, route }) {
       
       addDebugLog(`[handleContenantScan] Ajout colis à la liste: ${trimmedCode} (${detectedOperationType})`, 'info');
       
-      // CORRECTION: Affichage immédiat du colis dans la liste de prise en charge si c'est une entrée
+      // CORRECTION: Mise à jour immédiate de la liste selon le type d'opération
       if (detectedOperationType === 'entree') {
+        // Ajouter le colis à la liste de prise en charge
         const newPackage = {
           idColis: trimmedCode,
           code: trimmedCode,
@@ -1201,8 +1216,18 @@ export default function ScanScreen({ navigation, route }) {
         
         setTakingCarePackages(prev => {
           const newPackages = [newPackage, ...prev];
-          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} affiché IMMÉDIATEMENT - Total: ${newPackages.length}`, 'info');
+          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} ajouté IMMÉDIATEMENT - Total: ${newPackages.length}`, 'info');
           return newPackages;
+        });
+      } else if (detectedOperationType === 'sortie') {
+        // Retirer le colis de la liste de prise en charge
+        setTakingCarePackages(prev => {
+          const filteredPackages = prev.filter(pkg => {
+            const pkgCode = pkg.idColis || pkg.code;
+            return pkgCode !== trimmedCode;
+          });
+          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} retiré IMMÉDIATEMENT - Restant: ${filteredPackages.length}`, 'info');
+          return filteredPackages;
         });
       }
       
