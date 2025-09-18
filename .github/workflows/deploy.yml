@@ -185,11 +185,11 @@ jobs:
           cat > react-native.config.js << 'EOF'
           module.exports = {
             dependencies: {
-              'react-native': {
+              'react-native-datawedge-intents': {
                 platforms: {
                   android: {
-                    sourceDir: '../node_modules/react-native/ReactAndroid',
-                    packageImportPath: 'import io.invertase.firebase.BuildConfig;',
+                    sourceDir: '../node_modules/react-native-datawedge-intents/android',
+                    packageImportPath: 'import com.darryncampbell.rndatawedgeintents.RNDataWedgeIntentsPackage;',
                   },
                 },
               },

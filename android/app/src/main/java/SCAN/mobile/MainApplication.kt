@@ -10,20 +10,14 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
 
-// DataWedge import (manually added)
-import com.darryncampbell.rndatawedgeintents.RNDataWedgeIntentsPackage
-
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
     override fun getPackages(): List<ReactPackage> {
       val packages = mutableListOf<ReactPackage>()
       
-      // Add DataWedge manually since it's essential for scanning
-      packages.add(RNDataWedgeIntentsPackage())
-      
-      // Note: Other packages will be auto-linked by React Native
-      // Firebase, AsyncStorage, NetInfo, etc. are handled automatically
+      // Let React Native auto-linking handle all packages including DataWedge
+      // DataWedge should be auto-linked from package.json
       
       return packages
     }
