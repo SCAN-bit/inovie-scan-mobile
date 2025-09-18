@@ -47,19 +47,12 @@ const firebaseConfig = {
 // Initialiser Firebase
 let app, auth, db, storage;
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  
-  // Initialiser également firebase compat pour les anciennes API
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-} catch (error) {
-  console.error('❌ Erreur initialisation Firebase:', error);
-  // Fallback avec Firebase compat uniquement
+// Détecter l'environnement (web vs mobile)
+const isWeb = typeof window !== 'undefined' && window.document;
+
+if (isWeb) {
+  // En mode web, utiliser uniquement Firebase compat pour éviter les conflits
+  console.log('🌐 Mode web détecté - utilisation Firebase compat');
   if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
   }
@@ -67,6 +60,30 @@ try {
   auth = firebase.auth();
   db = firebase.firestore();
   storage = firebase.storage();
+} else {
+  // En mode mobile, utiliser Firebase v9
+  console.log('📱 Mode mobile détecté - utilisation Firebase v9');
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    
+    // Initialiser également firebase compat pour les anciennes API
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+  } catch (error) {
+    console.error('❌ Erreur initialisation Firebase:', error);
+    // Fallback avec Firebase compat uniquement
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    app = firebase.app();
+    auth = firebase.auth();
+    db = firebase.firestore();
+    storage = firebase.storage();
+  }
 }
 
 // Clé pour le stockage local du token
@@ -78,11 +95,22 @@ const reinitializeFirebase = () => {
   try {
     console.log('🔄 Réinitialisation Firebase...');
     
-    // Réinitialiser avec Firebase v9
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
+    if (isWeb) {
+      // En mode web, utiliser Firebase compat
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      app = firebase.app();
+      auth = firebase.auth();
+      db = firebase.firestore();
+      storage = firebase.storage();
+    } else {
+      // En mode mobile, utiliser Firebase v9
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      storage = getStorage(app);
+    }
     
     console.log('✅ Firebase réinitialisé avec succès');
     return true;
@@ -2244,10 +2272,27 @@ const FirebaseService = {
       const startTime = Date.now();
       
       // OPTIMISATION 1: Requêtes parallèles pour tournée et session
-      const [tourneeDoc, sessionDoc] = await Promise.all([
-        getDoc(doc(db, 'tournees', tourneeId)),
-        sessionId ? getDoc(doc(db, 'sessions', sessionId)) : Promise.resolve(null)
-      ]);
+      let tourneeDoc, sessionDoc;
+      
+      if (isWeb) {
+        // En mode web, utiliser Firebase compat
+        const [tourneeSnapshot, sessionSnapshot] = await Promise.all([
+          db.collection('tournees').doc(tourneeId).get(),
+          sessionId ? db.collection('sessions').doc(sessionId).get() : Promise.resolve(null)
+        ]);
+        
+        tourneeDoc = tourneeSnapshot;
+        sessionDoc = sessionSnapshot;
+      } else {
+        // En mode mobile, utiliser Firebase v9
+        const [tourneeDocV9, sessionDocV9] = await Promise.all([
+          getDoc(doc(db, 'tournees', tourneeId)),
+          sessionId ? getDoc(doc(db, 'sessions', sessionId)) : Promise.resolve(null)
+        ]);
+        
+        tourneeDoc = tourneeDocV9;
+        sessionDoc = sessionDocV9;
+      }
       
       if (!tourneeDoc.exists()) {
         throw new Error('Tournée non trouvée');
@@ -2256,7 +2301,7 @@ const FirebaseService = {
       const tourneeData = tourneeDoc.data();
       
       // Récupérer les sites visités de la session (une seule fois)
-      const visitedSiteIdentifiers = (sessionDoc && sessionDoc.exists)() 
+      const visitedSiteIdentifiers = (sessionDoc && sessionDoc.exists()) 
         ? (sessionDoc.data().visitedSiteIdentifiers || [])
         : [];
       
@@ -2271,19 +2316,32 @@ const FirebaseService = {
       console.log(`🔍 [getTourneeWithSites] Chargement ${siteIds.length} sites uniques`);
       
       // OPTIMISATION 4: Requêtes parallèles pour tous les sites
-      const sitePromises = siteIds.map(siteId => 
-        getDoc(doc(db, 'sites', siteId)).catch(error => {
-          console.warn(`⚠️ Site ${siteId} non accessible:`, error.message);
-          return null;
-        })
-      );
+      let siteDocs;
       
-      const siteDocs = await Promise.all(sitePromises);
+      if (isWeb) {
+        // En mode web, utiliser Firebase compat
+        const sitePromises = siteIds.map(siteId => 
+          db.collection('sites').doc(siteId).get().catch(error => {
+            console.warn(`⚠️ Site ${siteId} non accessible:`, error.message);
+            return null;
+          })
+        );
+        siteDocs = await Promise.all(sitePromises);
+      } else {
+        // En mode mobile, utiliser Firebase v9
+        const sitePromises = siteIds.map(siteId => 
+          getDoc(doc(db, 'sites', siteId)).catch(error => {
+            console.warn(`⚠️ Site ${siteId} non accessible:`, error.message);
+            return null;
+          })
+        );
+        siteDocs = await Promise.all(sitePromises);
+      }
       
       // OPTIMISATION 5: Créer un Map pour accès O(1)
       const sitesMap = new Map();
       siteDocs.forEach((siteDoc, index) => {
-        if ((siteDoc && siteDoc.exists)()) {
+        if (siteDoc && siteDoc.exists()) {
           sitesMap.set(siteIds[index], siteDoc.data());
         }
       });
