@@ -38,10 +38,7 @@ class MainApplication : Application(), ReactApplication {
           override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
           override val isHermesEnabled: Boolean = false
           
-          override fun getJSExecutorFactory(): com.facebook.react.jscexecutor.JSCExecutorFactory? {
-            // Force use of Android's built-in JavaScript engine instead of JSC
-            return null
-          }
+          // getJSExecutorFactory() removed - let React Native use default Android JS engine
           
           override fun createReactInstanceManager(): ReactInstanceManager {
             val builder = ReactInstanceManagerBuilder.newBuilder()

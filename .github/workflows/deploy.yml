@@ -158,10 +158,12 @@ jobs:
           echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
           
           # Forcer l'inclusion des bibliothèques natives dans build.gradle
-          sed -i '/android {/a\    packagingOptions {\n        pickFirst "**/libjscexecutor.so"\n        pickFirst "**/libhermes_executor.so"\n        pickFirst "**/libjsc.so"\n        pickFirst "**/libreactnative.so"\n        pickFirst "**/libc++_shared.so"\n        pickFirst "**/libreactnativejni.so"\n        pickFirst "**/libreact_nativemodule_core.so"\n        pickFirst "**/libglog.so"\n        pickFirst "**/libfbjni.so"\n        pickFirst "**/libfolly_json.so"\n        pickFirst "**/libfolly_runtime.so"\n        pickFirst "**/libhermes.so"\n        pickFirst "**/libjsi.so"\n        jniLibs {\n            useLegacyPackaging true\n        }\n    }' android/app/build.gradle
+          # JSC packaging options removed - using Android's built-in JavaScript engine
+          echo "No JSC packaging options needed - using Android's built-in JavaScript engine"
           
           # Forcer l'inclusion des bibliothèques natives avec sourceSets complet
-          sed -i '/android {/a\    sourceSets {\n        main {\n            jniLibs.srcDirs = ["src/main/jniLibs", "node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc", "node_modules/jsc-android/dist"]\n            java.srcDirs = ["src/main/java"]\n            res.srcDirs = ["src/main/res"]\n            assets.srcDirs = ["src/main/assets"]\n        }\n    }' android/app/build.gradle
+          # JSC sourceSets removed - using Android's built-in JavaScript engine
+          echo "No JSC sourceSets needed - using Android's built-in JavaScript engine"
           
           # Forcer l'inclusion des bibliothèques natives via Gradle
           sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk true\n        }\n    }' android/app/build.gradle
@@ -197,16 +199,8 @@ jobs:
           include $(BUILD_SHARED_LIBRARY)
           EOF
           
-          # Copier les bibliothèques JSC depuis node_modules
-          echo "Copie des bibliothèques JSC..."
-          find node_modules -name "libjsc.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
-          find node_modules -name "libjscexecutor.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
-          
-          # Copier depuis jsc-android/dist
-          echo "Copie depuis jsc-android/dist..."
-          cp node_modules/jsc-android/dist/arm64-v8a/libjsc.so android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
-          cp node_modules/jsc-android/dist/x86/libjsc.so android/app/src/main/jniLibs/x86/ 2>/dev/null || true
-          cp node_modules/jsc-android/dist/x86_64/libjsc.so android/app/src/main/jniLibs/x86_64/ 2>/dev/null || true
+          # JSC libraries removed - using Android's built-in JavaScript engine
+          echo "Using Android's built-in JavaScript engine - no JSC libraries needed"
           
           # Forcer l'inclusion dans l'APK après build
           echo "Forcer l'inclusion des bibliothèques dans l'APK..."
@@ -235,49 +229,15 @@ jobs:
           # Intégration directe dans le code React Native
           echo "Intégration directe des bibliothèques dans le code..."
           
-          # Créer un fichier Java pour charger les bibliothèques
-          cat > android/app/src/main/java/SCAN/mobile/NativeLibraryLoader.java << 'EOF'
-          package SCAN.mobile;
-          
-          import android.content.Context;
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.InputStream;
-          
-          public class NativeLibraryLoader {
-              public static void loadNativeLibraries(Context context) {
-                  try {
-                      // Charger libjsc.so
-                      System.loadLibrary("jsc");
-                      System.loadLibrary("jscexecutor");
-                  } catch (UnsatisfiedLinkError e) {
-                      // Fallback: charger depuis les assets
-                      loadFromAssets(context);
-                  }
-              }
-              
-              private static void loadFromAssets(Context context) {
-                  try {
-                      // Copier depuis assets vers cache
-                      File cacheDir = new File(context.getCacheDir(), "native_libs");
-                      cacheDir.mkdirs();
-                      
-                      // Charger les bibliothèques depuis le cache
-                      System.load(cacheDir.getAbsolutePath() + "/libjsc.so");
-                      System.load(cacheDir.getAbsolutePath() + "/libjscexecutor.so");
-                  } catch (Exception e) {
-                      e.printStackTrace();
-                  }
-              }
-          }
-          EOF
+          # NativeLibraryLoader.java removed - using Android's built-in JavaScript engine
+          echo "No native library loading needed - using Android's built-in JavaScript engine"
           
           # Vérifier ce qui a été copié
           echo "Bibliothèques copiées:"
           ls -la android/app/src/main/jniLibs/arm64-v8a/ || echo "Aucune bibliothèque trouvée"
           
-          # Copier libjscexecutor.so depuis node_modules
-          cp node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk android/app/src/main/jniLibs/ 2>/dev/null || echo "JSC libs not found in node_modules"
+          # JSC Android.mk removed - using Android's built-in JavaScript engine
+          echo "No JSC Android.mk needed - using Android's built-in JavaScript engine"
           
           # Forcer la génération des modules Expo
           npx expo install --fix
