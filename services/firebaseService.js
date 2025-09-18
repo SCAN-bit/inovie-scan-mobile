@@ -1429,8 +1429,8 @@ const FirebaseService = {
       // Nettoyer les données pour éviter les valeurs undefined
       const rawSessionInfo = {
         uid: userData.uid,
-        tourneeId: sessionData.(tournee && tournee.id) || null,
-        vehiculeId: sessionData.(vehicule && vehicule.id) || null,
+        tourneeId: (sessionData.tournee && sessionData.tournee.id) || null,
+        vehiculeId: (sessionData.vehicule && sessionData.vehicule.id) || null,
         vehiculeCheck: sessionData.vehiculeCheck || null,
         startTime: serverTimestamp(),
         status: 'active',
@@ -1552,18 +1552,18 @@ const FirebaseService = {
       const vehicleCheckDoc = vehicleCheckSnapshot.docs[0];
       const vehicleCheckData = vehicleCheckDoc.data();
       
-      console.log(`[getVehicleCheckHistory] Historique trouvé avec ${vehicleCheckData.(checkHistory && checkHistory.length) || 0} checks`);
+      console.log(`[getVehicleCheckHistory] Historique trouvé avec ${(vehicleCheckData.checkHistory && vehicleCheckData.checkHistory.length) || 0} checks`);
       
       return {
         id: vehicleCheckDoc.id,
         ...vehicleCheckData,
         // Convertir les timestamps en dates lisibles
-        createdAt: vehicleCheckData.(createdAt && createdAt.toDate)?.() || vehicleCheckData.createdAt,
-        updatedAt: vehicleCheckData.(updatedAt && updatedAt.toDate)?.() || vehicleCheckData.updatedAt,
+        createdAt: (vehicleCheckData.createdAt && vehicleCheckData.createdAt.toDate)?.() || vehicleCheckData.createdAt,
+        updatedAt: (vehicleCheckData.updatedAt && vehicleCheckData.updatedAt.toDate)?.() || vehicleCheckData.updatedAt,
         // Convertir les timestamps dans l'historique
-        checkHistory: vehicleCheckData.(checkHistory && checkHistory.map)(check => ({
+        checkHistory: (vehicleCheckData.checkHistory && vehicleCheckData.checkHistory.map)(check => ({
           ...check,
-          createdAt: check.(createdAt && createdAt.toDate)?.() || check.createdAt
+          createdAt: (check.createdAt && check.createdAt.toDate)?.() || check.createdAt
         })) || []
       };
       
@@ -2134,8 +2134,8 @@ const FirebaseService = {
         contenantCount: contenants.length,
         contenantCodes: contenants.map(c => c.code),
         selaId: selaId || null,
-        pole: bigSacocheData.(pole && pole.id) || bigSacocheData.poleId || '',
-        poleName: bigSacocheData.(pole && pole.nom) || bigSacocheData.poleName || '',
+        pole: (bigSacocheData.pole && bigSacocheData.pole.id) || bigSacocheData.poleId || '',
+        poleName: (bigSacocheData.pole && bigSacocheData.pole.nom) || bigSacocheData.poleName || '',
         location: bigSacocheData.location || null,
         status: 'en-cours',
         createdAt: serverTimestamp()
@@ -2165,8 +2165,8 @@ const FirebaseService = {
         bigSacocheId: bigSacocheRef.id,
         bigSacocheDate: new Date().toISOString(),
         selaId: selaId || null,
-        pole: bigSacocheData.(pole && pole.id) || bigSacocheData.poleId || contenant.pole || '',
-        poleName: bigSacocheData.(pole && pole.nom) || bigSacocheData.poleName || contenant.poleName || '',
+        pole: (bigSacocheData.pole && bigSacocheData.pole.id) || bigSacocheData.poleId || contenant.pole || '',
+        poleName: (bigSacocheData.pole && bigSacocheData.pole.nom) || bigSacocheData.poleName || contenant.poleName || '',
         location: contenant.location || null,
         status: 'en-cours',
         createdAt: serverTimestamp()
@@ -2448,7 +2448,7 @@ const FirebaseService = {
       const sessionData = sessionDoc.data();
       console.log('[markSiteVisitedInSession] Données de session récupérées:', {
         id: sessionId,
-        visitedSiteIdentifiers: sessionData.(visitedSiteIdentifiers && visitedSiteIdentifiers.length) || 0
+        visitedSiteIdentifiers: (sessionData.visitedSiteIdentifiers && sessionData.visitedSiteIdentifiers.length) || 0
       });
 
       // Créer l'identifiant unique pour cette occurrence du site

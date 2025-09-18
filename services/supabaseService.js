@@ -305,9 +305,9 @@ const SupabaseService = {
       
       const sessionInfo = {
         user_id: userData.uid,
-        tournee_id: sessionData.(tournee && tournee.id) || null,
-        vehicule_id: sessionData.(vehicule && vehicule.id) || null,
-        pole_id: sessionData.(pole && pole.id) || null,
+        tournee_id: (sessionData.tournee && sessionData.tournee.id) || null,
+        vehicule_id: (sessionData.vehicule && sessionData.vehicule.id) || null,
+        pole_id: (sessionData.pole && sessionData.pole.id) || null,
         status: 'active',
         selas_id: selasId || null,
         visited_site_identifiers: [],
@@ -1022,7 +1022,7 @@ const SupabaseService = {
       console.log('[Supabase] Test de connectivité réseau mobile...');
       
       // Détecter si on est sur web ou mobile
-      const isWeb = typeof window !== 'undefined' && window.(location && location.protocol) === 'http:';
+      const isWeb = typeof window !== 'undefined' && (window.location && window.location.protocol) === 'http:';
       console.log('[Supabase] Plateforme détectée:', isWeb ? 'Web' : 'Mobile');
       
       // Test 1: Connectivité internet de base

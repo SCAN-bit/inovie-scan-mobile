@@ -2,10 +2,10 @@ const fs = require('fs');
 
 // Fonction pour corriger les erreurs de syntaxe
 function fixSyntaxErrors(content) {
-  // Corriger route.(params && params.prop) en (route.params && route.params.prop)
+  // Corriger (route.params && route.params.prop) en (route.params && route.params.prop)
   content = content.replace(/route\.\(params && params\.(\w+)\)/g, '(route.params && route.params.$1)');
   
-  // Corriger obj.(prop && prop.subprop) en (obj.prop && obj.prop.subprop)
+  // Corriger (obj.prop && obj.prop.subprop) en (obj.prop && obj.prop.subprop)
   content = content.replace(/(\w+)\.\((\w+) && \2\.(\w+)\)/g, '($1.$2 && $1.$2.$3)');
   
   // Corriger les autres patterns similaires

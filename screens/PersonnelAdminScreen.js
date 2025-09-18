@@ -36,8 +36,8 @@ export default function PersonnelAdminScreen({ navigation, route }) {
   const [error, setError] = useState(null);
   
   // Vérifier si un check a été terminé
-  const routeCheckCompleted = route.(params && params.checkCompleted) || false;
-  const completedSessionData = route.(params && params.sessionData) || null;
+  const routeCheckCompleted = (route.params && route.params.checkCompleted) || false;
+  const completedSessionData = (route.params && route.params.sessionData) || null;
 
   // États pour les modales et la recherche
   const [modalVehiculeVisible, setModalVehiculeVisible] = useState(false);
@@ -225,7 +225,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
     } else {
       const filtered = vehicules.filter(vehicule =>
         vehicule.immatriculation.toLowerCase().includes(rechercheVehiculeTexte.toLowerCase()) ||
-        vehicule.(modele && modele.toLowerCase)().includes(rechercheVehiculeTexte.toLowerCase())
+        (vehicule.modele && vehicule.modele.toLowerCase)().includes(rechercheVehiculeTexte.toLowerCase())
       );
       setVehiculesFiltres(filtered);
     }
@@ -246,7 +246,7 @@ export default function PersonnelAdminScreen({ navigation, route }) {
     } else {
       const filtered = sites.filter(site =>
         site.nom.toLowerCase().includes(rechercheSiteTexte.toLowerCase()) ||
-        site.(adresse && adresse.toLowerCase)().includes(rechercheSiteTexte.toLowerCase())
+        (site.adresse && site.adresse.toLowerCase)().includes(rechercheSiteTexte.toLowerCase())
       );
       setSitesFiltres(filtered);
     }
