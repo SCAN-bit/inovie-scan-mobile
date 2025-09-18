@@ -305,7 +305,7 @@ class AppUpdateService {
       // Lire depuis app.json pour la version et le versionCode
       const appJson = require('../app.json');
       const version = appJson.expo.version;
-      const buildNumber = appJson.(expo.android && expo.android.versionCode) || 55; // Fallback vers 55 si pas défini
+      const buildNumber = (appJson.expo.android && appJson.expo.android.versionCode) || 55; // Fallback vers 55 si pas défini
       const fullVersion = `${version}.${buildNumber}`;
       
       // console.log('📱 [AppUpdateService] Version actuelle:', fullVersion);
@@ -324,7 +324,7 @@ class AppUpdateService {
       // Lire depuis app.json pour la version et le versionCode
       const appJson = require('../app.json');
       const version = appJson.expo.version;
-      const buildNumber = appJson.(expo.android && expo.android.versionCode) || 55; // Fallback vers 55 si pas défini
+      const buildNumber = (appJson.expo.android && appJson.expo.android.versionCode) || 55; // Fallback vers 55 si pas défini
       const fullVersion = `${version}.${buildNumber}`;
       
       // console.log('📱 [AppUpdateService] Version actuelle (statique):', fullVersion);
