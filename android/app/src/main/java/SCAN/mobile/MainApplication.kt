@@ -9,7 +9,7 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
-import expo.modules.PackageList
+// import expo.modules.PackageList  // Removed - using manual package list
 // Expo modules removed - using standard React Native
 
 // Expo modules removed - using standard React Native
@@ -18,8 +18,8 @@ class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
     override fun getPackages(): List<ReactPackage> {
-      val packages = expo.modules.PackageList(this).packages
-      // Packages that cannot be autolinked yet can be added manually here, for example:
+      val packages = mutableListOf<ReactPackage>()
+      // Add packages manually since we're not using Expo PackageList
       // packages.add(new MyReactNativePackage());
       return packages
     }
