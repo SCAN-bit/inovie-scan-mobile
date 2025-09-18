@@ -135,9 +135,9 @@ jobs:
           echo "Checking expo-modules-core version..."
           npm list expo-modules-core
           echo "Installing expo-modules-core compatible with SDK 51..."
-          npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps
+          npm install expo-modules-core@~1.12.26 --save --legacy-peer-deps
           # Force exact version in package.json
-          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~2.2.3"/g' package.json
+          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~1.12.26"/g' package.json
           
           # Fix dependencies but exclude expo-camera (AFTER downgrade)
           echo "Fixing Expo dependencies..."
@@ -147,9 +147,9 @@ jobs:
           
           # Re-install expo-modules-core compatible version after expo install --fix
           echo "Re-installing expo-modules-core compatible version after expo install --fix..."
-          npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps
+          npm install expo-modules-core@~1.12.26 --save --legacy-peer-deps
           # Force exact version in package.json again
-          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~2.2.3"/g' package.json
+          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~1.12.26"/g' package.json
           
           # Verify final package list
           echo "Final package verification..."
@@ -158,11 +158,11 @@ jobs:
           echo "Final expo-modules-core verification..."
           npm list expo-modules-core
           # Verify the version is correct
-          if npm list expo-modules-core | grep -q "2.2"; then
-            echo "✅ expo-modules-core@~2.2.3 correctly installed"
+          if npm list expo-modules-core | grep -q "1.12"; then
+            echo "✅ expo-modules-core@~1.12.26 correctly installed"
           else
             echo "❌ expo-modules-core version incorrect, forcing reinstall..."
-            npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps --force
+            npm install expo-modules-core@~1.12.26 --save --legacy-peer-deps --force
           fi
           
           # Force Android's built-in JavaScript engine (single configuration)
