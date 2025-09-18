@@ -13,6 +13,9 @@ import expo.modules.PackageList
 import expo.modules.ReactNativeHostWrapper
 import expo.modules.ApplicationLifecycleDispatcher
 
+// DataWedge import (manually added since it's not in Expo PackageList)
+import com.darryncampbell.rndatawedgeintents.RNDataWedgeIntentsPackage
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
@@ -20,8 +23,8 @@ class MainApplication : Application(), ReactApplication {
     object : DefaultReactNativeHost(this) {
       override fun getPackages(): List<ReactPackage> {
         val packages = PackageList(this).packages
-        // Packages that cannot be autolinked yet can be added manually here, for example:
-        // packages.add(new MyReactNativePackage());
+        // Add DataWedge manually since it's not in Expo PackageList
+        packages.add(RNDataWedgeIntentsPackage())
         return packages
       }
 
