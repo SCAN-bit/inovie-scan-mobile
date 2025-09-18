@@ -67,7 +67,7 @@ async function fixVehicleSelas() {
       console.log(`\n🎯 Assignation de la SELAS de l'utilisateur: ${userSelas.nom} (${userSelasId})`);
     } else {
       // Option 2: Utiliser la première SELAS disponible
-      selasIdToAssign = selasList[0]?.id;
+      selasIdToAssign = (selasList[0] && selasList[0].id) || null;
       if (selasIdToAssign) {
         const firstSelas = selasList[0];
         console.log(`\n🎯 Assignation de la première SELAS disponible: ${firstSelas.nom} (${selasIdToAssign})`);
