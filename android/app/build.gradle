@@ -82,7 +82,7 @@ android {
         applicationId 'SCAN.mobile'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 57
+        versionCode 60
         versionName "1.0.8"
     }
     signingConfigs {

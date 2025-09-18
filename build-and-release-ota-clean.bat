@@ -14,7 +14,7 @@ if not exist "node_modules" (
 )
 
 REM Lire la version actuelle depuis app.json
-for /f "tokens=2 delims=:" %%a in ('findstr "version" app.json') do (
+for /f "tokens=2 delims=:" %%a in ('findstr "\"version\":" app.json') do (
     set "current_version=%%a"
     set "current_version=!current_version: =!"
     set "current_version=!current_version:"=!"
@@ -131,12 +131,19 @@ if errorlevel 1 (
 
 REM Clean simple (sans nettoyage agressif du cache)
 echo Nettoyage simple...
-call .\gradlew clean
+call .\gradlew clean --no-daemon
 if errorlevel 1 (
-    echo Erreur lors du nettoyage !
-    cd ..
-    pause
-    exit /b 1
+    echo Erreur lors du nettoyage, arrêt des daemons...
+    call .\gradlew --stop
+    timeout /t 3 /nobreak >nul
+    echo Nouvelle tentative de nettoyage...
+    call .\gradlew clean --no-daemon
+    if errorlevel 1 (
+        echo Erreur lors du nettoyage !
+        cd ..
+        pause
+        exit /b 1
+    )
 )
 
 REM Créer version.js AVANT le build
@@ -185,10 +192,10 @@ echo ========================================
 echo   BUILD APK RELEASE
 echo ========================================
 echo Building APK release avec architecture ARM64 optimisée...
-call .\gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+call .\gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
 if errorlevel 1 (
     echo Erreur lors du build release, tentative avec toutes les architectures...
-    call .\gradlew assembleRelease
+    call .\gradlew assembleRelease --no-daemon
     if errorlevel 1 (
         echo Erreur lors du build release !
         cd ..
@@ -207,7 +214,7 @@ echo   RENOMMAGE APK AVEC VERSION
 echo ========================================
 
 REM Lire directement depuis app.json (méthode fiable avec variables uniques)
-for /f "tokens=2 delims=:" %%a in ('findstr "version" app.json') do (
+for /f "tokens=2 delims=:" %%a in ('findstr "\"version\":" app.json') do (
     set "ota_version_json=%%a"
 )
 set "ota_version_json=%ota_version_json: =%"

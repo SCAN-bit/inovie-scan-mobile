@@ -127,6 +127,10 @@ jobs:
           grep -n "core-splashscreen" android/app/build.gradle || echo "Dépendance splash screen ajoutée"
           grep -n "android-jsc" android/app/build.gradle || echo "Dépendance JSC ajoutée"
           
+          # Corriger le thème splash screen pour AppCompat
+          echo "Correction du thème splash screen..."
+          sed -i 's/parent="Theme.SplashScreen"/parent="Theme.AppCompat.Light.NoActionBar"/g' android/app/src/main/res/values/styles.xml
+          
           # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
           echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
           
