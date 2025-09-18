@@ -131,13 +131,13 @@ jobs:
           npm list react-native-datawedge-intents
           ls -la node_modules/react-native-datawedge-intents/ || echo "DataWedge not found"
           
-          # Check expo-modules-core version and downgrade FIRST to fix nullable error
+          # Check expo-modules-core version and install compatible version for SDK 51
           echo "Checking expo-modules-core version..."
           npm list expo-modules-core
-          echo "Downgrading expo-modules-core to fix nullable error..."
-          npm install expo-modules-core@1.11.0 --save --legacy-peer-deps
-          # Force exact version in package.json (remove ^)
-          sed -i 's/"expo-modules-core": "\^1.11.0"/"expo-modules-core": "1.11.0"/g' package.json
+          echo "Installing expo-modules-core compatible with SDK 51..."
+          npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps
+          # Force exact version in package.json
+          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~2.2.3"/g' package.json
           
           # Fix dependencies but exclude expo-camera (AFTER downgrade)
           echo "Fixing Expo dependencies..."
@@ -145,11 +145,11 @@ jobs:
           # Remove expo-camera if it was installed
           npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
           
-          # Re-downgrade expo-modules-core after expo install --fix
-          echo "Re-downgrading expo-modules-core after expo install --fix..."
-          npm install expo-modules-core@1.11.0 --save --legacy-peer-deps
+          # Re-install expo-modules-core compatible version after expo install --fix
+          echo "Re-installing expo-modules-core compatible version after expo install --fix..."
+          npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps
           # Force exact version in package.json again
-          sed -i 's/"expo-modules-core": "\^1.11.0"/"expo-modules-core": "1.11.0"/g' package.json
+          sed -i 's/"expo-modules-core": ".*"/"expo-modules-core": "~2.2.3"/g' package.json
           
           # Verify final package list
           echo "Final package verification..."
@@ -158,11 +158,11 @@ jobs:
           echo "Final expo-modules-core verification..."
           npm list expo-modules-core
           # Verify the version is correct
-          if npm list expo-modules-core | grep -q "1.11.0"; then
-            echo "✅ expo-modules-core@1.11.0 correctly installed"
+          if npm list expo-modules-core | grep -q "2.2"; then
+            echo "✅ expo-modules-core@~2.2.3 correctly installed"
           else
             echo "❌ expo-modules-core version incorrect, forcing reinstall..."
-            npm install expo-modules-core@1.11.0 --save --legacy-peer-deps --force
+            npm install expo-modules-core@~2.2.3 --save --legacy-peer-deps --force
           fi
           
           # Force Android's built-in JavaScript engine (single configuration)
@@ -250,7 +250,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          # Build with relaxed Kotlin compiler options
+          # Build with relaxed Kotlin compiler options and continue on errors
           ./gradlew assembleRelease -Pkotlin.compiler.suppressWarnings=true -Pkotlin.compiler.allowUnsafe=true --continue
           
           # Renommer l'APK avec version et build number
