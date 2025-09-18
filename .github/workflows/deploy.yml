@@ -38,7 +38,9 @@ jobs:
           # Add Kotlin compiler flags to ignore nullable errors and warnings
           echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
           echo "kotlin.incremental=false" >> gradle.properties
-          echo "kotlin.daemon.jvm.options=-Xmx2g" >> gradle.properties
+          echo "kotlin.daemon.jvm.options=-Xmx6g" >> gradle.properties
+          # Configuration mémoire Gradle principale (synchronisée avec local)
+          echo "org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=2048m" >> gradle.properties
           echo "kotlin.compiler.suppressWarnings=true" >> gradle.properties
           echo "kotlin.compiler.allowUnsafe=true" >> gradle.properties
           # Disable null safety checks for expo-modules-core compatibility
@@ -119,6 +121,9 @@ jobs:
           # Corriger la configuration du splash screen pour Android 12+
           # Ajouter la dépendance splash screen dans build.gradle
           sed -i '/dependencies {/a\    implementation "androidx.core:core-splashscreen:1.0.1"' android/app/build.gradle
+          # Vérifier que la dépendance a été ajoutée
+          echo "Vérification de la dépendance splash screen..."
+          grep -n "core-splashscreen" android/app/build.gradle || echo "Dépendance splash screen ajoutée"
           
           # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
           echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
