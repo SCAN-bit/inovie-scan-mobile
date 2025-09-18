@@ -109,11 +109,7 @@ jobs:
           echo "Vérification de la version installée..."
           npm list expo
           
-          # Install DataWedge package explicitly
-          echo "Installing DataWedge package..."
-          npm install react-native-datawedge-intents --legacy-peer-deps
-          
-          # Verify DataWedge installation
+          # Verify DataWedge installation (should be installed from package.json)
           echo "Verifying DataWedge installation..."
           npm list react-native-datawedge-intents
           ls -la node_modules/react-native-datawedge-intents/ || echo "DataWedge not found"
