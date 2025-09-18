@@ -9,18 +9,75 @@ import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
-// import expo.modules.PackageList  // Removed - using manual package list
-// Expo modules removed - using standard React Native
 
-// Expo modules removed - using standard React Native
+// DataWedge imports
+import com.darryncampbell.rndatawedgeintents.DataWedgeIntentsPackage
+
+// Firebase imports
+import io.invertase.firebase.app.ReactNativeFirebaseAppPackage
+import io.invertase.firebase.auth.ReactNativeFirebaseAuthPackage
+
+// React Native Community imports
+import com.reactnativecommunity.asyncstorage.AsyncStoragePackage
+import com.reactnativecommunity.netinfo.NetInfoPackage
+import com.reactnativecommunity.clipboard.ClipboardPackage
+import com.reactnativecommunity.datetimepicker.DateTimePickerPackage
+import com.reactnativecommunity.picker.PickerPackage
+
+// Gesture Handler imports
+import com.swmansion.gesturehandler.RNGestureHandlerPackage
+
+// Safe Area Context imports
+import com.th3rdwave.safeareacontext.SafeAreaContextPackage
+
+// Screens imports
+import com.swmansion.rnscreens.RNScreensPackage
+
+// File System imports
+import com.rnfs.RNFSPackage
 
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = object : DefaultReactNativeHost(this) {
     override fun getPackages(): List<ReactPackage> {
       val packages = mutableListOf<ReactPackage>()
+      
       // Add packages manually since we're not using Expo PackageList
-      // packages.add(new MyReactNativePackage());
+      
+      // DataWedge for scanning
+      packages.add(DataWedgeIntentsPackage())
+      
+      // Firebase
+      packages.add(ReactNativeFirebaseAppPackage())
+      packages.add(ReactNativeFirebaseAuthPackage())
+      
+      // AsyncStorage
+      packages.add(AsyncStoragePackage())
+      
+      // NetInfo
+      packages.add(NetInfoPackage())
+      
+      // Clipboard
+      packages.add(ClipboardPackage())
+      
+      // DateTimePicker
+      packages.add(DateTimePickerPackage())
+      
+      // Picker
+      packages.add(PickerPackage())
+      
+      // Gesture Handler
+      packages.add(RNGestureHandlerPackage())
+      
+      // Safe Area Context
+      packages.add(SafeAreaContextPackage())
+      
+      // Screens
+      packages.add(RNScreensPackage())
+      
+      // File System
+      packages.add(RNFSPackage())
+      
       return packages
     }
 
