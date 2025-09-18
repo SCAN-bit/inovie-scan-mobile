@@ -92,6 +92,12 @@ if (isWeb) {
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
 
+// Fonction utilitaire pour vérifier l'existence d'un document selon l'environnement
+const docExists = (doc) => {
+  if (!doc) return false;
+  return isWeb ? doc.exists : doc.exists();
+};
+
 // Fonction pour réinitialiser Firebase en cas de problème
 const reinitializeFirebase = () => {
   try {
@@ -2296,14 +2302,15 @@ const FirebaseService = {
         sessionDoc = sessionDocV9;
       }
       
-      if (!tourneeDoc.exists()) {
+      // Vérifier l'existence selon l'environnement
+      if (!docExists(tourneeDoc)) {
         throw new Error('Tournée non trouvée');
       }
       
       const tourneeData = tourneeDoc.data();
       
       // Récupérer les sites visités de la session (une seule fois)
-      const visitedSiteIdentifiers = (sessionDoc && sessionDoc.exists()) 
+      const visitedSiteIdentifiers = docExists(sessionDoc) 
         ? (sessionDoc.data().visitedSiteIdentifiers || [])
         : [];
       
@@ -2343,7 +2350,7 @@ const FirebaseService = {
       // OPTIMISATION 5: Créer un Map pour accès O(1)
       const sitesMap = new Map();
       siteDocs.forEach((siteDoc, index) => {
-        if (siteDoc && siteDoc.exists()) {
+        if (docExists(siteDoc)) {
           sitesMap.set(siteIds[index], siteDoc.data());
         }
       });
