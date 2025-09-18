@@ -1137,17 +1137,10 @@ export default function ScanScreen({ navigation, route }) {
           detectedOperationType = 'sortie';
           addDebugLog(`[handleContenantScan] DÉTECTION SORTIE - ${trimmedCode}`, 'info');
           
-          // Retirer le colis de la liste des colis pris en charge (Firebase)
-          setTakingCarePackages(takingCarePackages.filter(pkg => (pkg.idColis || pkg.code) !== trimmedCode));
+          // CORRECTION: Ne pas faire la mise à jour ici, elle sera faite plus tard
+          // pour éviter la double mise à jour qui cause les conflits
           
-          // Retirer le colis du cycle actuel
-          setCurrentCyclePackages(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(trimmedCode);
-            return newSet;
-          });
-          
-          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} retiré des listes`, 'info');
+          addDebugLog(`[handleContenantScan] Colis ${trimmedCode} détecté comme dépôt`, 'info');
           // Colis détecté comme dépôt
         } else {
           // Le colis n'est pas en prise en charge -> c'est une prise en charge
@@ -1172,8 +1165,8 @@ export default function ScanScreen({ navigation, route }) {
           return;
         }
         
-        // Retirer le colis de la liste des colis pris en charge
-        setTakingCarePackages(takingCarePackages.filter(pkg => (pkg.idColis || pkg.code) !== trimmedCode));
+        // CORRECTION: Ne pas faire la mise à jour ici, elle sera faite plus tard
+        // pour éviter la double mise à jour qui cause les conflits
         
         detectedOperationType = 'sortie';
       }
@@ -1229,6 +1222,16 @@ export default function ScanScreen({ navigation, route }) {
           addDebugLog(`[handleContenantScan] Colis ${trimmedCode} retiré IMMÉDIATEMENT - Restant: ${filteredPackages.length}`, 'info');
           return filteredPackages;
         });
+        
+        // CORRECTION: Retirer aussi du cycle actuel pour le mode unifié
+        if (operationType === 'unified') {
+          setCurrentCyclePackages(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(trimmedCode);
+            addDebugLog(`[handleContenantScan] Colis ${trimmedCode} retiré du cycle actuel`, 'info');
+            return newSet;
+          });
+        }
       }
       
       // PROTECTION: Vérifier que l'état est cohérent avant la mise à jour
