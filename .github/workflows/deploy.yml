@@ -98,7 +98,8 @@ jobs:
           echo "Vérification de la version installée..."
           npm list expo
           
-          npx expo install --fix
+          # npx expo install --fix  # Désactivé car il réinstalle expo-camera automatiquement
+          echo "Skipping expo install --fix to avoid reinstalling expo-camera"
           
           # Force Android's built-in JavaScript engine (single configuration)
           # Configuration déjà présente dans gradle.properties local - pas besoin de la dupliquer
@@ -146,7 +147,8 @@ jobs:
           echo "No JSC Android.mk needed - using Android's built-in JavaScript engine"
           
           # Forcer la génération des modules Expo
-          npx expo install --fix
+          # npx expo install --fix  # Désactivé car il réinstalle expo-camera automatiquement
+          echo "Skipping second expo install --fix to avoid reinstalling expo-camera"
           
           # Créer react-native.config.js pour forcer l'inclusion des bibliothèques natives
           cat > react-native.config.js << 'EOF'
