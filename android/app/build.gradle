@@ -167,9 +167,6 @@ dependencies {
         }
     }
 
-    if (hermesEnabled.toBoolean()) {
-        implementation("com.facebook.react:hermes-android")
-    } else {
-        implementation jscFlavor
-    }
+    // Force use of Android's built-in JavaScript engine
+    // No JSC or Hermes dependencies
 }
