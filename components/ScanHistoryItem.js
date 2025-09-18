@@ -159,8 +159,8 @@ const ScanHistoryItem = ({ item }) => {
            </View>
            
            {/* Type d'opération */}
-           <View style={[styles.badge, { backgroundColor: typeConfig[typeKey]?.color || typeConfig.default.color }]}>
-             <Text style={styles.badgeText}>{typeConfig[typeKey]?.label || typeConfig.default.label}</Text>
+          <View style={[styles.badge, { backgroundColor: (typeConfig[typeKey] && typeConfig[typeKey].color) || typeConfig.default.color }]}>
+            <Text style={styles.badgeText}>{(typeConfig[typeKey] && typeConfig[typeKey].label) || typeConfig.default.label}</Text>
            </View>
 
            {/* Heure du scan */}

@@ -511,8 +511,8 @@ const FirebaseService = {
       let siteDetails = null;
       
       // Récupérer les détails du site (qui contient les infos de pôle) une seule fois
-      const siteId = (sessionData && sessionData.tournee)?.siteDepart || scansArray[0]?.site || scansArray[0]?.siteDepart;
-      if (siteId && !scansArray[0]?.poleId) {
+      const siteId = (sessionData && sessionData.tournee && sessionData.tournee.siteDepart) || (scansArray[0] && scansArray[0].site) || (scansArray[0] && scansArray[0].siteDepart);
+      if (siteId && !(scansArray[0] && scansArray[0].poleId)) {
         try {
           console.log('Récupération des détails du site avec pôle:', siteId);
           siteDetails = await FirebaseService.getSiteWithPole(siteId);
@@ -528,7 +528,7 @@ const FirebaseService = {
       }
       
       // Fallback: Récupérer le pôle depuis la session si disponible
-      if (!poleDetails && (sessionData && sessionData.poleId) && !scansArray[0]?.poleId) {
+      if (!poleDetails && (sessionData && sessionData.poleId) && !(scansArray[0] && scansArray[0].poleId)) {
         try {
           poleDetails = await FirebaseService.getPoleById(sessionData.poleId);
           console.log('Détails du pôle récupérés depuis la session:', (poleDetails && poleDetails.nom));
@@ -581,8 +581,8 @@ const FirebaseService = {
       console.log('[FALLBACK DEBUG] poleDetails final:', poleDetails);
       
       // Récupérer les détails du véhicule une seule fois si nécessaire
-      const vehiculeId = (sessionData && sessionData.vehicule)?.id || scansArray[0]?.vehiculeId;
-      let vehiculeName = (sessionData && sessionData.vehicule)?.immatriculation || scansArray[0]?.vehicule;
+      const vehiculeId = (sessionData && sessionData.vehicule && sessionData.vehicule.id) || (scansArray[0] && scansArray[0].vehiculeId);
+      let vehiculeName = (sessionData && sessionData.vehicule && sessionData.vehicule.immatriculation) || (scansArray[0] && scansArray[0].vehicule);
       
       // AMÉLIORATION : Toujours essayer de récupérer le véhicule si on a un ID
       if (vehiculeId) {
@@ -596,8 +596,8 @@ const FirebaseService = {
       }
       
       // AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
-      const tourneeId = (sessionData && sessionData.tournee)?.id || scansArray[0]?.tourneeId;
-      let tourneeName = (sessionData && sessionData.tournee)?.nom || scansArray[0]?.tournee;
+      const tourneeId = (sessionData && sessionData.tournee)?.id || (scansArray[0] && scansArray[0].tourneeId);
+      let tourneeName = (sessionData && sessionData.tournee)?.nom || (scansArray[0] && scansArray[0].tournee);
       
       if (tourneeId && !tourneeName) {
         try {
@@ -743,7 +743,7 @@ const FirebaseService = {
       
       // Optimisation : grouper les requêtes pour éviter les appels séquentiels
       const idColisList = formattedScans.map(scan => scan.idColis);
-      const selasId = formattedScans[0]?.selasId; // Supposer même SELAS pour tous les scans
+      const selasId = (formattedScans[0] && formattedScans[0].selasId); // Supposer même SELAS pour tous les scans
 
       // Requête groupée pour vérifier les passages existants - traiter par lots de 10
       let existingPassagesMap = new Map();
@@ -1603,7 +1603,7 @@ const FirebaseService = {
         id: doc.id,
         ...doc.data(),
         // Convertir les timestamps en dates lisibles
-        createdAt: (doc.data().createdAt && doc.data().createdAt.toDate)?.() || doc.data().createdAt,
+        createdAt: (doc.data().createdAt && doc.data().createdAt.toDate) ? doc.data().createdAt.toDate() : doc.data().createdAt,
         date: doc.data().date
       }));
       
