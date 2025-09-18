@@ -142,6 +142,8 @@ jobs:
           npm list expo-modules-core
           echo "Downgrading expo-modules-core to fix nullable error..."
           npm install expo-modules-core@1.11.0 --save --legacy-peer-deps
+          # Force exact version in package.json (remove ^)
+          sed -i 's/"expo-modules-core": "\^1.11.0"/"expo-modules-core": "1.11.0"/g' package.json
           
           # Verify final package list
           echo "Final package verification..."
