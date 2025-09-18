@@ -13,6 +13,8 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.defaults.DefaultJSExecutorFactory
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
+import com.facebook.react.ReactInstanceManagerBuilder
+import com.facebook.react.ReactInstanceManager
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
@@ -39,6 +41,31 @@ class MainApplication : Application(), ReactApplication {
           override fun getJSExecutorFactory(): com.facebook.react.jscexecutor.JSCExecutorFactory? {
             // Force use of Android's built-in JavaScript engine instead of JSC
             return null
+          }
+          
+          override fun createReactInstanceManager(): ReactInstanceManager {
+            val builder = ReactInstanceManagerBuilder.newBuilder()
+                .setApplication(application)
+                .setJSMainModuleName(getJSMainModuleName())
+                .setUseDeveloperSupport(getUseDeveloperSupport())
+                .setRedBoxHandler(getRedBoxHandler())
+                .setJavaScriptExecutorFactory(null) // Force Android's built-in JS engine
+                .setUIImplementationProvider(getUIImplementationProvider())
+                .setJSIModulesPackage(getJSIModulesPackage())
+                .setInitialLifecycleState(LifecycleState.BEFORE_CREATE)
+            
+            for (reactPackage in getPackages()) {
+                builder.addPackage(reactPackage)
+            }
+            
+            val jsBundleFile = getJSBundleFile()
+            if (jsBundleFile != null) {
+                builder.setJSBundleFile(jsBundleFile)
+            } else {
+                builder.setBundleAssetName(getBundleAssetName())
+            }
+            
+            return builder.build()
           }
       }
   )
