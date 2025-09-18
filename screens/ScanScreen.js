@@ -378,7 +378,7 @@ export default function ScanScreen({ navigation, route }) {
         
         // Récupérer l'ID de la tournée actuelle
         const currentSession = await firebaseService.getCurrentSession();
-        const currentTourneeId = (currentSession && currentSession.tournee)?.id || (sessionData && sessionData.tournee)?.id || '';
+        const currentTourneeId = (currentSession && currentSession.tournee && currentSession.tournee.id) || (sessionData && sessionData.tournee && sessionData.tournee.id) || '';
         
         // Filtrer l'historique local
         const today = new Date();
@@ -2449,7 +2449,7 @@ export default function ScanScreen({ navigation, route }) {
     const tourneeName = currentTourneeName;
     const tourneeId = currentTourneeId;
     const vehiculeName = currentVehiculeImmat;
-    const vehiculeId = (sessionData.vehicule && sessionData.vehicule.id) || (route.params && route.params.vehicule)?.id || '';
+    const vehiculeId = (sessionData.vehicule && sessionData.vehicule.id) || (route.params && route.params.vehicule && route.params.vehicule.id) || '';
 
     setLoading(true);
 
@@ -2734,15 +2734,19 @@ export default function ScanScreen({ navigation, route }) {
     };
     
     // Écouter les interactions
-    (document && document.addEventListener)?.('click', handleUserInteraction);
-    (document && document.addEventListener)?.('keydown', handleUserInteraction);
+    if (document && document.addEventListener) {
+      document.addEventListener('click', handleUserInteraction);
+      document.addEventListener('keydown', handleUserInteraction);
+    }
     
     return () => {
       if (freezeTimer) {
         clearTimeout(freezeTimer);
       }
-      (document && document.removeEventListener)?.('click', handleUserInteraction);
-      (document && document.removeEventListener)?.('keydown', handleUserInteraction);
+      if (document && document.removeEventListener) {
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
+      }
     };
   }, [siteScanned, scanMode, isProcessingScan, scannedContenants.length, currentCyclePackages.size]);
 

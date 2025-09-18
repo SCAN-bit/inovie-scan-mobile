@@ -1628,12 +1628,12 @@ const FirebaseService = {
         id: vehicleCheckDoc.id,
         ...vehicleCheckData,
         // Convertir les timestamps en dates lisibles
-        createdAt: (vehicleCheckData.createdAt && vehicleCheckData.createdAt.toDate)?.() || vehicleCheckData.createdAt,
-        updatedAt: (vehicleCheckData.updatedAt && vehicleCheckData.updatedAt.toDate)?.() || vehicleCheckData.updatedAt,
+        createdAt: (vehicleCheckData.createdAt && vehicleCheckData.createdAt.toDate) ? vehicleCheckData.createdAt.toDate() : vehicleCheckData.createdAt,
+        updatedAt: (vehicleCheckData.updatedAt && vehicleCheckData.updatedAt.toDate) ? vehicleCheckData.updatedAt.toDate() : vehicleCheckData.updatedAt,
         // Convertir les timestamps dans l'historique
         checkHistory: (vehicleCheckData.checkHistory && vehicleCheckData.checkHistory.map)(check => ({
           ...check,
-          createdAt: (check.createdAt && check.createdAt.toDate)?.() || check.createdAt
+          createdAt: (check.createdAt && check.createdAt.toDate) ? check.createdAt.toDate() : check.createdAt
         })) || []
       };
       
@@ -1705,7 +1705,7 @@ const FirebaseService = {
       return {
         id: checkDoc.id,
         ...checkDoc.data(),
-        createdAt: (checkDoc.data().createdAt && checkDoc.data().createdAt.toDate)?.() || checkDoc.data().createdAt
+        createdAt: (checkDoc.data().createdAt && checkDoc.data().createdAt.toDate) ? checkDoc.data().createdAt.toDate() : checkDoc.data().createdAt
       };
     } catch (error) {
       console.error('Erreur lors de la récupération du check véhicule:', error);
@@ -2315,7 +2315,7 @@ const FirebaseService = {
         : [];
       
       // OPTIMISATION 2: Vérifier s'il y a des sites à traiter
-      if (!(tourneeData && tourneeData.sites)?.length) {
+      if (!(tourneeData && tourneeData.sites && tourneeData.sites.length)) {
         console.log(`⚡ [getTourneeWithSites] Aucun site dans la tournée`);
         return { ...tourneeData, sitesWithStatus: [], sitesCount: 0 };
       }
