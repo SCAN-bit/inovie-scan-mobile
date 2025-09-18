@@ -1613,7 +1613,7 @@ const FirebaseService = {
         vehiculeId: results[0].vehiculeId,
         immatriculation: results[0].immatriculation,
         lastCheckDate: results[0].lastCheckDate,
-        checkHistoryLength: results[0].(checkHistory && checkHistory.length) || 0
+        checkHistoryLength: (results[0].checkHistory && results[0].checkHistory.length) || 0
       } : 'Aucun résultat');
       
       return results;

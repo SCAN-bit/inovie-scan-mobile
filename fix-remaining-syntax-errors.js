@@ -3,7 +3,7 @@ const path = require('path');
 
 // Fonction pour corriger les erreurs de syntaxe restantes
 function fixRemainingSyntaxErrors(content) {
-  // Corriger obj.(prop && prop.subprop) en (obj.prop && obj.prop.subprop)
+  // Corriger (obj.prop && obj.prop.subprop) en (obj.prop && obj.prop.subprop)
   content = content.replace(/(\w+)\.\((\w+) && \2\.(\w+)\)/g, '($1.$2 && $1.$2.$3)');
   
   // Corriger les patterns plus complexes
