@@ -91,21 +91,18 @@ jobs:
           # Utiliser nos fichiers Kotlin modifiés au lieu de créer des fichiers Java
           echo "Utilisation des fichiers Kotlin modifiés avec Android JS engine"
           
-          # Synchroniser avec le local (SDK 52 + RN 0.76.9)
-          echo "Synchronisation avec le local (SDK 52 + RN 0.76.9)..."
-          npm install expo@~52.0.47 --save
-          npm install react-native@0.76.9 --save
+          # Synchroniser avec le local (SDK 51 + RN 0.74.5)
+          echo "Synchronisation avec le local (SDK 51 + RN 0.74.5)..."
+          npm install expo@~51.0.0 --save
+          npm install react-native@0.74.5 --save
           echo "Vérification de la version installée..."
           npm list expo
           
           npx expo install --fix
           
           # Force Android's built-in JavaScript engine (single configuration)
-          echo "hermesEnabled=false" >> android/gradle.properties
-          echo "android.enableHermes=false" >> android/gradle.properties
-          echo "android.enableJSC=false" >> android/gradle.properties
-          echo "android.enableDefaultJSExecutor=true" >> android/gradle.properties
-          echo "expo.jsEngine=default" >> android/gradle.properties
+          # Configuration déjà présente dans gradle.properties local - pas besoin de la dupliquer
+          echo "Configuration JavaScript engine déjà présente dans gradle.properties local"
           
           # No external JS engine dependencies needed
           echo "Using Android's built-in JavaScript engine - no external dependencies"
