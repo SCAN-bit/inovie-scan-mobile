@@ -8,6 +8,7 @@ import * as KeepAwake from 'expo-keep-awake';
 import { AppState } from 'react-native';
 import FirebaseService from './services/firebaseService';
 import AppUpdateService from './services/AppUpdateService';
+
 import UpdateAlert from './components/UpdateAlert';
 import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
 
