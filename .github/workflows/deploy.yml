@@ -81,6 +81,11 @@ jobs:
           rm -rf node_modules package-lock.json
           npm install --legacy-peer-deps
           
+      - name: Apply patches
+        run: |
+          # Apply patches to fix expo-modules-core null safety issue
+          npx patch-package
+          
       - name: Pre-build setup
         run: |
           # Créer les dossiers nécessaires
