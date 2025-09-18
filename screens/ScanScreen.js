@@ -2266,8 +2266,16 @@ export default function ScanScreen({ navigation, route }) {
         console.error('[updateTourneeProgress] Erreur lors de la récupération des informations de session:', sessionErr);
       }
 
-      // Rafraîchir l'historique des scans sans réinitialiser le site scanné
-      await loadHistoricalData();
+      // CORRECTION: Ne pas recharger automatiquement les colis pour éviter les conflits
+      // avec les mises à jour locales après transmission
+      const promises = [
+        loadHistoricalScans(),
+        loadFirestoreScans()
+        // loadTakingCarePackages(false) // Désactivé pour éviter les conflits
+      ];
+      
+      await Promise.all(promises);
+      addDebugLog(`[updateTourneeProgress] Chargement historique sans rechargement des colis`, 'info');
       
       // Mettre à jour le composant TourneeProgress sans réinitialiser les sites visités
       if (currentTourneeId && tourneeProgressRef.current) {
@@ -3556,22 +3564,28 @@ export default function ScanScreen({ navigation, route }) {
               style={styles.debugLogsReloadButton}
               onPress={() => {
                 addDebugLog('[BOUTON MANUEL] Rechargement des colis demandé', 'info');
-                loadTakingCarePackages(true); // Force reload
-                setToast({ message: 'Rechargement des colis en cours...', type: 'info' });
+                // CORRECTION: Désactiver le rechargement manuel pour éviter les conflits
+                // avec les mises à jour automatiques
+                addDebugLog('[BOUTON MANUEL] Rechargement manuel désactivé pour éviter les conflits', 'warning');
+                setToast({ message: 'Rechargement manuel désactivé - Les colis se mettent à jour automatiquement', type: 'warning' });
+                // loadTakingCarePackages(true); // Désactivé pour éviter les conflits
               }}
             >
-              <Text style={styles.debugLogsReloadButtonText}>Recharger colis</Text>
+              <Text style={styles.debugLogsReloadButtonText}>Recharger colis (désactivé)</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.debugLogsHistoryButton}
               onPress={() => {
                 addDebugLog('[BOUTON MANUEL] Chargement historique demandé', 'info');
-                loadHistoricalData();
-                setToast({ message: 'Chargement historique en cours...', type: 'info' });
+                // CORRECTION: Désactiver le chargement historique manuel pour éviter les conflits
+                // avec les mises à jour automatiques des colis
+                addDebugLog('[BOUTON MANUEL] Chargement historique manuel désactivé pour éviter les conflits', 'warning');
+                setToast({ message: 'Chargement historique manuel désactivé - Les données se chargent automatiquement', type: 'warning' });
+                // loadHistoricalData(); // Désactivé pour éviter les conflits avec les colis
               }}
             >
-              <Text style={styles.debugLogsHistoryButtonText}>Charger historique</Text>
+              <Text style={styles.debugLogsHistoryButtonText}>Charger historique (désactivé)</Text>
             </TouchableOpacity>
               
               <TouchableOpacity 

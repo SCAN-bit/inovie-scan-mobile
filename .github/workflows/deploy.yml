@@ -120,9 +120,14 @@ jobs:
           
           # Fix dependencies but exclude expo-camera
           echo "Fixing Expo dependencies..."
-          npx expo install --fix --legacy-peer-deps
+          npx expo install --fix --legacy-peer-deps || echo "Expo install --fix failed, continuing..."
           # Remove expo-camera if it was installed
           npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
+          
+          # Verify final package list
+          echo "Final package verification..."
+          npm list expo
+          npm list react-native-datawedge-intents
           
           # Force Android's built-in JavaScript engine (single configuration)
           # Configuration déjà présente dans gradle.properties local - pas besoin de la dupliquer
@@ -171,9 +176,14 @@ jobs:
           
           # Forcer la génération des modules Expo
           echo "Generating Expo modules..."
-          npx expo install --fix --legacy-peer-deps
+          npx expo install --fix --legacy-peer-deps || echo "Second expo install --fix failed, continuing..."
           # Remove expo-camera if it was installed again
           npm uninstall expo-camera --legacy-peer-deps || echo "expo-camera not installed"
+          
+          # Final verification before build
+          echo "Pre-build verification..."
+          npm list expo
+          npm list react-native-datawedge-intents
           
           # Créer react-native.config.js pour forcer l'inclusion des bibliothèques natives
           cat > react-native.config.js << 'EOF'
