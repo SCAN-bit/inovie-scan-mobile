@@ -85,49 +85,8 @@ jobs:
           # Conserver nos fichiers Kotlin modifiés - ne pas les supprimer
           echo "Conservation des fichiers Kotlin modifiés pour utiliser Android JS engine"
           
-          # Créer MainActivity.java avec Java + JSC
-          cat > android/app/src/main/java/SCAN/mobile/MainActivity.java << 'EOF'
-          package SCAN.mobile;
-          
-          import android.os.Build;
-          import android.os.Bundle;
-          
-          import com.facebook.react.ReactActivity;
-          import com.facebook.react.ReactActivityDelegate;
-          import com.facebook.react.defaults.DefaultReactActivityDelegate;
-          
-          public class MainActivity extends ReactActivity {
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
-            }
-          
-            @Override
-            protected String getMainComponentName() {
-              return "main";
-            }
-          
-            @Override
-            protected ReactActivityDelegate createReactActivityDelegate() {
-              return new DefaultReactActivityDelegate(
-                  this,
-                  getMainComponentName(),
-                  false // isNewArchitectureEnabled
-              );
-            }
-          
-            @Override
-            public void invokeDefaultOnBackPressed() {
-                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) {
-                    if (!moveTaskToBack(false)) {
-                        super.invokeDefaultOnBackPressed();
-                    }
-                    return;
-                }
-                super.invokeDefaultOnBackPressed();
-            }
-          }
-          EOF
+          # MainActivity.java creation removed - using our Kotlin files with Android JS engine
+          echo "Using our Kotlin MainActivity.kt with Android JS engine - no Java file needed"
           
           # Utiliser nos fichiers Kotlin modifiés au lieu de créer des fichiers Java
           echo "Utilisation des fichiers Kotlin modifiés avec Android JS engine"
@@ -141,21 +100,15 @@ jobs:
           
           npx expo install --fix
           
-          # Utiliser le moteur JavaScript par défaut (pas de libs natives)
+          # Force Android's built-in JavaScript engine (single configuration)
           echo "hermesEnabled=false" >> android/gradle.properties
           echo "android.enableHermes=false" >> android/gradle.properties
           echo "android.enableJSC=false" >> android/gradle.properties
           echo "android.enableDefaultJSExecutor=true" >> android/gradle.properties
+          echo "expo.jsEngine=default" >> android/gradle.properties
           
-          # Forcer l'inclusion de Hermes avec toutes les architectures
-          sed -i '/dependencies {/a\    implementation "com.facebook.react:hermes-android"' android/app/build.gradle
-          sed -i '/dependencies {/a\    implementation "com.facebook.react:react-android"' android/app/build.gradle
-          
-          # Forcer l'inclusion des bibliothèques natives
-          echo "android.enableJSC=true" >> android/gradle.properties
-          echo "android.enableHermes=false" >> android/gradle.properties
-          echo "hermesEnabled=false" >> android/gradle.properties
-          echo "android.enableDefaultJSExecutor=false" >> android/gradle.properties
+          # No external JS engine dependencies needed
+          echo "Using Android's built-in JavaScript engine - no external dependencies"
           
           # Forcer l'inclusion des bibliothèques natives dans build.gradle
           # JSC packaging options removed - using Android's built-in JavaScript engine
@@ -165,66 +118,23 @@ jobs:
           # JSC sourceSets removed - using Android's built-in JavaScript engine
           echo "No JSC sourceSets needed - using Android's built-in JavaScript engine"
           
-          # Forcer l'inclusion des bibliothèques natives via Gradle
-          sed -i '/android {/a\    splits {\n        abi {\n            enable true\n            reset()\n            include "arm64-v8a", "x86", "x86_64"\n            universalApk true\n        }\n    }' android/app/build.gradle
+          # Native library configurations removed - using Android's built-in JavaScript engine
+          echo "No native library configurations needed - using Android's built-in JavaScript engine"
           
-          # Forcer l'inclusion des bibliothèques natives via NDK
-          sed -i '/android {/a\    ndkVersion "26.1.10909125"' android/app/build.gradle
+          # Debug symbols and external native build removed - using Android's built-in JavaScript engine
+          echo "No debug symbols or external native build needed - using Android's built-in JavaScript engine"
           
-          # Ajouter ndk abiFilters dans defaultConfig
-          sed -i '/defaultConfig {/a\        ndk {\n            abiFilters "arm64-v8a", "x86", "x86_64"\n        }' android/app/build.gradle
+          # Native library build configurations removed - using Android's built-in JavaScript engine
+          echo "No native library build configurations needed - using Android's built-in JavaScript engine"
           
-          # Ajouter debugSymbolLevel pour les symboles natifs
-          sed -i '/buildTypes {/a\        release {\n            ndk {\n                debugSymbolLevel "SYMBOL_TABLE"\n            }\n        }' android/app/build.gradle
+          # All native library operations removed - using Android's built-in JavaScript engine
+          echo "No native library operations needed - using Android's built-in JavaScript engine"
           
-          # Forcer l'inclusion des bibliothèques natives via externalNativeBuild
-          sed -i '/android {/a\    externalNativeBuild {\n        ndkBuild {\n            path "src/main/jni/Android.mk"\n        }\n    }' android/app/build.gradle
+          # JSC Android.mk copy removed - using Android's built-in JavaScript engine
+          echo "No JSC Android.mk copy needed - using Android's built-in JavaScript engine"
           
-          # Forcer l'inclusion des bibliothèques natives via build.gradle directement
-          # Conflit avec splits abi - suppression de ndk abiFilters
-          echo "Conflit résolu: suppression de ndk abiFilters car splits abi est déjà configuré"
-          
-          # Forcer l'inclusion explicite de libjscexecutor.so
-          mkdir -p android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p android/app/src/main/jniLibs/x86
-          mkdir -p android/app/src/main/jniLibs/x86_64
-          
-          # Créer le fichier Android.mk pour forcer l'inclusion
-          mkdir -p android/app/src/main/jni
-          cat > android/app/src/main/jni/Android.mk << 'EOF'
-          LOCAL_PATH := $(call my-dir)
-          include $(CLEAR_VARS)
-          LOCAL_MODULE := jsc
-          LOCAL_SRC_FILES := ../../../../node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk
-          include $(BUILD_SHARED_LIBRARY)
-          EOF
-          
-          # JSC libraries removed - using Android's built-in JavaScript engine
-          echo "Using Android's built-in JavaScript engine - no JSC libraries needed"
-          
-          # Forcer l'inclusion dans l'APK après build
-          echo "Forcer l'inclusion des bibliothèques dans l'APK..."
-          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-            # Extraire l'APK
-            unzip -q app/build/outputs/apk/release/app-release.apk -d temp_apk/
-            # Copier les libs dans l'APK
-            cp -r android/app/src/main/jniLibs/* temp_apk/lib/ 2>/dev/null || true
-            # Reconstruire l'APK
-            cd temp_apk && zip -r ../app/build/outputs/apk/release/app-release.apk . && cd ..
-            rm -rf temp_apk/
-            echo "APK reconstruit avec les bibliothèques natives"
-          fi
-          
-          # Copier depuis React Native
-          echo "Copie des bibliothèques React Native..."
-          find node_modules/react-native -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
-          
-          # Copier manuellement depuis les sources React Native
-          echo "Copie manuelle des bibliothèques React Native..."
-          cp node_modules/react-native/ReactAndroid/src/main/jni/third-party/jsc/Android.mk android/app/src/main/jniLibs/ 2>/dev/null || echo "JSC libs not found in node_modules"
-          
-          # Copier les bibliothèques depuis les sources
-          find node_modules/react-native/ReactAndroid -name "*.so" -exec cp {} android/app/src/main/jniLibs/arm64-v8a/ \; 2>/dev/null || true
+          # Native library copying from sources removed - using Android's built-in JavaScript engine
+          echo "No native library copying needed - using Android's built-in JavaScript engine"
           
           # Intégration directe dans le code React Native
           echo "Intégration directe des bibliothèques dans le code..."
@@ -232,9 +142,8 @@ jobs:
           # NativeLibraryLoader.java removed - using Android's built-in JavaScript engine
           echo "No native library loading needed - using Android's built-in JavaScript engine"
           
-          # Vérifier ce qui a été copié
-          echo "Bibliothèques copiées:"
-          ls -la android/app/src/main/jniLibs/arm64-v8a/ || echo "Aucune bibliothèque trouvée"
+          # Native library verification removed - using Android's built-in JavaScript engine
+          echo "No native library verification needed - using Android's built-in JavaScript engine"
           
           # JSC Android.mk removed - using Android's built-in JavaScript engine
           echo "No JSC Android.mk needed - using Android's built-in JavaScript engine"
@@ -310,11 +219,8 @@ jobs:
           echo "APK généré: ${NEW_NAME}"
           echo "Taille APK: $(ls -lh app/build/outputs/apk/release/${NEW_NAME} | awk '{print $5}')"
           echo ""
-          echo "Architectures incluses dans l'APK:"
-          unzip -l app/build/outputs/apk/release/${NEW_NAME} | grep "lib/" | head -20
-          echo ""
-          echo "Détail des bibliothèques natives:"
-          unzip -l app/build/outputs/apk/release/${NEW_NAME} | grep "lib/.*\.so" | sort
+          echo "APK généré avec Android's built-in JavaScript engine"
+          echo "Pas de bibliothèques natives externes nécessaires"
           echo ""
           echo "=== FIN ANALYSE ==="
           
