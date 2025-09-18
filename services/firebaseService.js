@@ -596,8 +596,8 @@ const FirebaseService = {
       }
       
       // AMÉLIORATION : Récupérer les détails de la tournée si nécessaire
-      const tourneeId = (sessionData && sessionData.tournee)?.id || (scansArray[0] && scansArray[0].tourneeId);
-      let tourneeName = (sessionData && sessionData.tournee)?.nom || (scansArray[0] && scansArray[0].tournee);
+      const tourneeId = (sessionData && sessionData.tournee && sessionData.tournee.id) || (scansArray[0] && scansArray[0].tourneeId);
+      let tourneeName = (sessionData && sessionData.tournee && sessionData.tournee.nom) || (scansArray[0] && scansArray[0].tournee);
       
       if (tourneeId && !tourneeName) {
         try {
