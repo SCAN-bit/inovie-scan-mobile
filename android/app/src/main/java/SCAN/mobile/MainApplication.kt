@@ -29,7 +29,7 @@ class MainApplication : Application(), ReactApplication {
     override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
 
     override val isNewArchEnabled: Boolean = false
-    override val isHermesEnabled: Boolean = true
+    override val isHermesEnabled: Boolean = false
     
     // Using Android's built-in JavaScript engine - no custom JS executor needed
   }
