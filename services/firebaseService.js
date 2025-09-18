@@ -45,18 +45,52 @@ const firebaseConfig = {
 };
 
 // Initialiser Firebase
-const app = initializeApp(firebaseConfig);
-// Initialiser également firebase compat pour les anciennes API
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
+let app, auth, db, storage;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+  
+  // Initialiser également firebase compat pour les anciennes API
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+} catch (error) {
+  console.error('❌ Erreur initialisation Firebase:', error);
+  // Fallback avec Firebase compat uniquement
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  app = firebase.app();
+  auth = firebase.auth();
+  db = firebase.firestore();
+  storage = firebase.storage();
 }
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
 
 // Clé pour le stockage local du token
 const AUTH_TOKEN_KEY = 'auth_token';
 const USER_DATA_KEY = 'user_data';
+
+// Fonction pour réinitialiser Firebase en cas de problème
+const reinitializeFirebase = () => {
+  try {
+    console.log('🔄 Réinitialisation Firebase...');
+    
+    // Réinitialiser avec Firebase v9
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+    
+    console.log('✅ Firebase réinitialisé avec succès');
+    return true;
+  } catch (error) {
+    console.error('❌ Erreur réinitialisation Firebase:', error);
+    return false;
+  }
+};
 
 const FirebaseService = {
   // Authentification
@@ -2198,6 +2232,15 @@ const FirebaseService = {
   getTourneeWithSites: async (tourneeId, sessionId) => {
     try {
       console.log(`🚀 [getTourneeWithSites] Chargement optimisé tournée ${tourneeId}`);
+      
+      // Vérifier que db est initialisé
+      if (!db) {
+        console.log('⚠️ Firebase non initialisé, tentative de réinitialisation...');
+        if (!reinitializeFirebase()) {
+          throw new Error('Firebase Firestore non initialisé');
+        }
+      }
+      
       const startTime = Date.now();
       
       // OPTIMISATION 1: Requêtes parallèles pour tournée et session
@@ -2313,6 +2356,15 @@ const FirebaseService = {
       
     } catch (error) {
       console.error('❌ [getTourneeWithSites] Erreur chargement:', error.message);
+      
+      // Si l'erreur est liée à Firebase, essayer de réinitialiser
+      if (error.message.includes('_document') || error.message.includes('Firebase')) {
+        console.log('🔄 Tentative de réinitialisation Firebase...');
+        if (reinitializeFirebase()) {
+          console.log('✅ Firebase réinitialisé, retry possible');
+        }
+      }
+      
       throw error;
     }
   },
