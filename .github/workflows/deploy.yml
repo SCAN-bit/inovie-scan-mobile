@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: false
       
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -341,7 +343,7 @@ jobs:
           echo "version=${VERSION_NAME}-build${VERSION_CODE}" >> $GITHUB_OUTPUT
         
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: "Version ${{ steps.version.outputs.version }}"
