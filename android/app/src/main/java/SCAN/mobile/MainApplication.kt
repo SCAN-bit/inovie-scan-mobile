@@ -9,6 +9,7 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.facebook.react.defaults.DefaultJSExecutorFactory
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
 
@@ -31,7 +32,10 @@ class MainApplication : Application(), ReactApplication {
     override val isNewArchEnabled: Boolean = false
     override val isHermesEnabled: Boolean = false
     
-    // Using Android's built-in JavaScript engine - no custom JS executor needed
+    // Force Android's built-in JavaScript engine
+    override fun getJSExecutorFactory(): com.facebook.react.jscexecutor.JSCExecutorFactory? {
+      return null // Use Android's built-in JS engine instead of JSC
+    }
   }
 
   override fun onCreate() {
