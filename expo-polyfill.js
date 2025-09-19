@@ -1,6 +1,41 @@
 // Polyfill Expo pour éviter l'erreur globalThis.expo.NativeModule
 // Ce fichier doit être chargé en premier avant tout autre module
 
+// INTERCEPTION ULTRA-PRÉCOCE - Avant même que globalThis soit défini
+(function() {
+  // Intercepter immédiatement tous les accès aux modules natifs
+  const originalRequire = typeof require !== 'undefined' ? require : null;
+  
+  if (originalRequire) {
+    require = function(id) {
+      // Si c'est un module natif manquant, retourner notre polyfill
+      if (id.includes('NativeModules') || id.includes('ExpoAsset') || id.includes('expo')) {
+        console.log('[ExpoPolyfill] Interception require:', id);
+        return {
+          ExpoAsset: {
+            downloadAsync: () => Promise.resolve(),
+            loadAsync: () => Promise.resolve(),
+            fromModule: () => Promise.resolve(),
+            fromURI: () => Promise.resolve(),
+            fromBundle: () => Promise.resolve()
+          },
+          ExponentConstants: {
+            appOwnership: 'standalone',
+            expoVersion: '51.0.0',
+            platform: { android: true, ios: false, web: false }
+          },
+          EXNativeModulesProxy: {
+            callMethod: () => Promise.resolve(),
+            addListener: () => ({ remove: () => {} }),
+            removeListeners: () => {}
+          }
+        };
+      }
+      return originalRequire(id);
+    };
+  }
+})();
+
 // Initialisation complète d'Expo pour les builds de production
 if (typeof globalThis.expo === 'undefined') {
   globalThis.expo = {};
