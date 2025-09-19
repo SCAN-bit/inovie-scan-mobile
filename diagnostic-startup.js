@@ -20,9 +20,21 @@ console.log('3. React Native:');
 console.log('- ReactNative:', typeof ReactNative);
 console.log('- AppRegistry:', typeof AppRegistry);
 
-// 4. Intercepter TOUTES les erreurs sans crasher
+// 4. Intercepter TOUTES les erreurs sans crasher (éviter les boucles infinies)
 const originalErrorHandler = globalThis.Error;
+let errorCount = 0;
+const MAX_ERRORS = 10; // Limiter le nombre d'erreurs affichées
+
 globalThis.Error = function(message) {
+  // Éviter les boucles infinies avec des erreurs répétitives
+  if (typeof message === 'string' && message.includes('react-stack-top-frame')) {
+    errorCount++;
+    if (errorCount > MAX_ERRORS) {
+      console.log('[DIAGNOSTIC ERROR]: Trop d\'erreurs react-stack-top-frame, arrêt de l\'affichage');
+      return originalErrorHandler.call(this, message);
+    }
+  }
+  
   console.log('[DIAGNOSTIC ERROR]:', message);
   console.trace('[DIAGNOSTIC ERROR STACK]');
   return originalErrorHandler.call(this, message);
