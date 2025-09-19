@@ -24,7 +24,7 @@
     "@types/react": "~18.2.79",
     "appwrite": "^18.2.0",
     "css-loader": "^7.1.2",
-    "expo": "~51.0.0",
+    "expo": "~50.0.17",
     "expo-asset": "~10.0.10",
     "expo-auth-session": "~5.5.2",
     "expo-build-properties": "~0.12.5",
@@ -65,9 +65,6 @@
     "@babel/core": "^7.20.0",
     "@react-native-community/cli": "^18.0.0",
     "patch-package": "^8.0.0"
-  },
-  "overrides": {
-    "expo-modules-core": "~1.12.26"
   },
   "private": true,
   "name": "inovie-scan-mobile",
