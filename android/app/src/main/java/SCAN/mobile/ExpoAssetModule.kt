@@ -6,10 +6,16 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.bridge.Arguments
+import android.util.Log
 
 class ExpoAssetModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
+    init {
+        Log.d("ExpoAssetModule", "ExpoAssetModule créé avec succès !")
+    }
+
     override fun getName(): String {
+        Log.d("ExpoAssetModule", "getName() appelé - retourne: ExpoAsset")
         return "ExpoAsset"
     }
 

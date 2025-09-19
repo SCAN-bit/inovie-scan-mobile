@@ -17,6 +17,7 @@ class MainApplication : Application(), ReactApplication {
       val packages = mutableListOf<ReactPackage>()
       
       // Ajouter notre module ExpoAsset personnalisé
+      android.util.Log.d("MainApplication", "Ajout d'ExpoAssetPackage à la liste des packages")
       packages.add(ExpoAssetPackage())
       
       // Let React Native auto-linking handle all packages including DataWedge
