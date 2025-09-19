@@ -4,7 +4,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, Platform, ScrollView } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './navigation/AppNavigator';
-import * as KeepAwake from 'expo-keep-awake';
+// Import conditionnel de KeepAwake pour éviter les erreurs de build
+let KeepAwake = null;
+try {
+  KeepAwake = require('expo-keep-awake');
+} catch (e) {
+  console.log('KeepAwake non disponible:', e.message);
+}
 import { AppState } from 'react-native';
 import FirebaseService from './services/firebaseService';
 import AppUpdateService from './services/AppUpdateService';
@@ -13,7 +19,7 @@ import UpdateAlert from './components/UpdateAlert';
 import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
 
 // Solution pour l'erreur activateKeepAwake - Version web compatible
-if (Platform.OS !== 'web' && KeepAwake.activateKeepAwake) {
+if (Platform.OS !== 'web' && KeepAwake && KeepAwake.activateKeepAwake) {
   try {
     const originalActivate = KeepAwake.activateKeepAwake;
     KeepAwake.activateKeepAwake = function() {
