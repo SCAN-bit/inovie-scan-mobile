@@ -4,11 +4,8 @@ const { getDefaultConfig } = require('expo/metro-config');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Forcer l'utilisation du moteur par défaut au lieu de Hermes pour éviter _interopRequireDefault
-config.transformer = {
-  ...config.transformer,
-  unstable_transformProfile: 'default',
-};
+// Configuration transformer (sans forcer le profil par défaut qui casse le web)
+// config.transformer reste par défaut pour éviter les conflits web
 
 // Configuration pour inclure le polyfill Expo en premier
 config.resolver = {
@@ -16,16 +13,7 @@ config.resolver = {
   platforms: ['native', 'android', 'ios', 'web'],
 };
 
-// Forcer l'inclusion du polyfill au début du bundle
-config.serializer = {
-  ...config.serializer,
-  processModuleFilter: (module) => {
-    // Inclure toujours notre polyfill
-    if (module.path.includes('expo-polyfill.js')) {
-      return true;
-    }
-    return config.serializer.processModuleFilter ? config.serializer.processModuleFilter(module) : true;
-  },
-};
+// Serializer simplifié pour éviter les conflits web
+// Le polyfill est déjà chargé via index.js, pas besoin de forcer l'inclusion
 
 module.exports = config;
