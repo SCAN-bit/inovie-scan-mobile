@@ -57,22 +57,7 @@
   console.log('[ExpoPolyfill] Modules natifs créés immédiatement');
 })();
 
-// INTERCEPTION D'ERREUR GLOBALE - Capturer les erreurs de modules natifs
-(function() {
-  const originalConsoleError = console.error;
-  console.error = function(...args) {
-    const message = args.join(' ');
-    
-    // Si c'est l'erreur ExpoAsset, la remplacer par un message informatif
-    if (message.includes("Cannot find native module 'ExpoAsset'")) {
-      console.log('[ExpoPolyfill] Erreur ExpoAsset interceptée et ignorée - Module exclu du bundle');
-      return; // Ne pas afficher l'erreur
-    }
-    
-    // Pour toutes les autres erreurs, utiliser le comportement normal
-    originalConsoleError.apply(console, args);
-  };
-})();
+// ExpoAsset est maintenant un vrai module natif - plus d'interception nécessaire
 
 // Initialisation complète d'Expo pour les builds de production
 if (typeof globalThis.expo === 'undefined') {
