@@ -1,4 +1,7 @@
-// Charger le polyfill Expo en premier, avant tout autre import
+// Charger le diagnostic complet en premier
+import './diagnostic-startup';
+
+// Charger le polyfill Expo en deuxième
 import './expo-polyfill';
 
 import { registerRootComponent } from 'expo';

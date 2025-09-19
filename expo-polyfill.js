@@ -95,4 +95,100 @@ globalThis.NativeModules.EXNativeModulesProxy = {
   removeListeners: () => {}
 };
 
+// Polyfill "catch-all" pour TOUS les modules natifs manquants
+const createModulePolyfill = (moduleName) => {
+  console.log(`[ExpoPolyfill] Création polyfill pour module manquant: ${moduleName}`);
+  return {
+    // Méthodes communes pour tous les modules
+    callMethod: () => Promise.resolve(),
+    addListener: () => ({ remove: () => {} }),
+    removeListeners: () => {},
+    invoke: () => Promise.resolve(),
+    call: () => Promise.resolve(),
+    emit: () => {},
+    getConstants: () => ({}),
+    getConfig: () => ({}),
+    // Méthodes spécifiques Expo
+    downloadAsync: () => Promise.resolve(),
+    loadAsync: () => Promise.resolve(),
+    fromModule: () => Promise.resolve(),
+    fromURI: () => Promise.resolve(),
+    fromBundle: () => Promise.resolve(),
+    hideAsync: () => Promise.resolve(),
+    preventAutoHideAsync: () => Promise.resolve(),
+    checkForUpdateAsync: () => Promise.resolve({ isAvailable: false }),
+    fetchUpdateAsync: () => Promise.resolve({}),
+    reloadAsync: () => Promise.resolve()
+  };
+};
+
+// Intercepter les accès aux modules natifs manquants
+const originalNativeModules = globalThis.NativeModules;
+globalThis.NativeModules = new Proxy(originalNativeModules, {
+  get(target, prop) {
+    if (prop in target) {
+      return target[prop];
+    }
+    
+    // Si le module n'existe pas, créer un polyfill
+    console.log(`[ExpoPolyfill] Module natif manquant détecté: ${prop}`);
+    target[prop] = createModulePolyfill(prop);
+    return target[prop];
+  }
+});
+
+// Intercepter les require de modules natifs
+if (typeof globalThis.require === 'function') {
+  const originalRequire = globalThis.require;
+  globalThis.require = function(id) {
+    // Log tous les require pour identifier les modules manquants
+    console.log(`[ExpoPolyfill] Require appelé: ${id}`);
+    
+    try {
+      return originalRequire(id);
+    } catch (error) {
+      console.log(`[ExpoPolyfill] Require échoué: ${id}`, error.message);
+      
+      // Si c'est un module natif, retourner notre polyfill
+      if (id.includes('NativeModules') || id.includes('expo') || id.includes('Expo')) {
+        return globalThis.NativeModules;
+      }
+      
+      throw error;
+    }
+  };
+}
+
 console.log('[ExpoPolyfill] Expo polyfill initialisé:', globalThis.expo);
+
+// Activer tous les logs de débogage au démarrage
+console.log('[ExpoPolyfill] Activation des logs de débogage...');
+
+// Intercepter toutes les erreurs pour les afficher sans crasher
+const originalConsoleError = console.error;
+console.error = function(...args) {
+  console.log('[ERROR INTERCEPTED]:', ...args);
+  originalConsoleError.apply(console, args);
+};
+
+// Intercepter les erreurs globales
+window.addEventListener('error', function(event) {
+  console.log('[GLOBAL ERROR]:', event.error);
+});
+
+// Intercepter les promesses rejetées
+window.addEventListener('unhandledrejection', function(event) {
+  console.log('[UNHANDLED PROMISE REJECTION]:', event.reason);
+});
+
+// Activer les logs React Native
+if (typeof globalThis.__DEV__ === 'undefined') {
+  globalThis.__DEV__ = true;
+}
+
+// Activer les logs Expo
+if (typeof globalThis.expo !== 'undefined' && globalThis.expo.Constants) {
+  globalThis.expo.Constants.debugMode = true;
+}
+
+console.log('[ExpoPolyfill] Logs de débogage activés');
