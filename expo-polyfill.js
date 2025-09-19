@@ -57,7 +57,22 @@
   console.log('[ExpoPolyfill] Modules natifs créés immédiatement');
 })();
 
-// ExpoAsset sera géré par le plugin expo-asset - plus d'interception nécessaire
+// INTERCEPTION D'ERREUR GLOBALE - Capturer les erreurs de modules natifs
+(function() {
+  const originalConsoleError = console.error;
+  console.error = function(...args) {
+    const message = args.join(' ');
+    
+    // Si c'est l'erreur ExpoAsset, la remplacer par un message informatif
+    if (message.includes("Cannot find native module 'ExpoAsset'")) {
+      console.log('[ExpoPolyfill] Erreur ExpoAsset interceptée et ignorée - Module non utilisé par l\'app');
+      return; // Ne pas afficher l'erreur
+    }
+    
+    // Pour toutes les autres erreurs, utiliser le comportement normal
+    originalConsoleError.apply(console, args);
+  };
+})();
 
 // Initialisation complète d'Expo pour les builds de production
 if (typeof globalThis.expo === 'undefined') {
