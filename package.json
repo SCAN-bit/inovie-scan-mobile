@@ -1,6 +1,6 @@
 {
   "license": "0BSD",
-  "main": "App.entry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
