@@ -72,6 +72,17 @@
     // Pour toutes les autres erreurs, utiliser le comportement normal
     originalConsoleError.apply(console, args);
   };
+  
+  // Intercepter aussi les erreurs globales
+  const originalError = globalThis.Error;
+  globalThis.Error = function(...args) {
+    const message = args.join(' ');
+    if (message.includes("Cannot find native module 'ExpoAsset'")) {
+      console.log('[ExpoPolyfill] Erreur globale ExpoAsset interceptée');
+      return;
+    }
+    return originalError.apply(this, args);
+  };
 })();
 
 // Initialisation complète d'Expo pour les builds de production

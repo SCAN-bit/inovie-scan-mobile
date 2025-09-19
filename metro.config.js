@@ -11,10 +11,6 @@ const config = getDefaultConfig(__dirname);
 config.resolver = {
   ...config.resolver,
   platforms: ['native', 'android', 'ios', 'web'],
-  // Exclure complètement expo-asset du bundle
-  blockList: [
-    /.*\/node_modules\/expo-asset\/.*/
-  ],
 };
 
 // Serializer simplifié pour éviter les conflits web
