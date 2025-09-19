@@ -16,4 +16,16 @@ config.resolver = {
   platforms: ['native', 'android', 'ios', 'web'],
 };
 
+// Forcer l'inclusion du polyfill au début du bundle
+config.serializer = {
+  ...config.serializer,
+  processModuleFilter: (module) => {
+    // Inclure toujours notre polyfill
+    if (module.path.includes('expo-polyfill.js')) {
+      return true;
+    }
+    return config.serializer.processModuleFilter ? config.serializer.processModuleFilter(module) : true;
+  },
+};
+
 module.exports = config;

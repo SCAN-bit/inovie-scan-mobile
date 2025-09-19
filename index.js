@@ -1,11 +1,10 @@
-// Charger le polyfill Expo en premier
+// FORCER le chargement du polyfill AVANT tout le reste
 import './expo-polyfill';
 
-import { registerRootComponent } from 'expo';
-
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+// Attendre que le polyfill soit complètement chargé
+setTimeout(() => {
+  import('./App').then(({ default: App }) => {
+    const { registerRootComponent } = require('expo');
+    registerRootComponent(App);
+  });
+}, 0);
