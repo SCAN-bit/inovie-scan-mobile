@@ -1,14 +1,9 @@
+// Charger le polyfill Expo en premier, avant tout autre import
+import './expo-polyfill';
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';
-
-// Initialisation d'Expo pour éviter l'erreur globalThis.expo.NativeModule
-if (typeof globalThis.expo === 'undefined') {
-  globalThis.expo = {
-    NativeModule: {},
-    modules: {}
-  };
-}
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);
 // It also ensures that whether you load the app in Expo Go or in a native build,

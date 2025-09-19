@@ -10,4 +10,10 @@ config.transformer = {
   unstable_transformProfile: 'default',
 };
 
+// Configuration pour inclure le polyfill Expo en premier
+config.resolver = {
+  ...config.resolver,
+  platforms: ['native', 'android', 'ios', 'web'],
+};
+
 module.exports = config;
