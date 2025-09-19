@@ -25,19 +25,11 @@
     "appwrite": "^18.2.0",
     "css-loader": "^7.1.2",
     "expo": "~51.0.0",
-    "expo-auth-session": "~5.5.2",
     "expo-build-properties": "~0.12.5",
-
-    "expo-constants": "~16.0.2",
-    "expo-device": "~6.0.2",
     "expo-image-picker": "~15.1.0",
     "expo-keep-awake": "~13.0.2",
-    "expo-linking": "~6.3.1",
     "expo-modules-core": "~1.12.26",
-    "expo-splash-screen": "~0.27.7",
     "expo-status-bar": "~1.12.1",
-    "expo-updates": "~0.25.28",
-    "expo-web-browser": "~13.0.3",
     "firebase": "^10.14.1",
     "firebase-admin": "^13.4.0",
     "node-fetch": "^2.7.0",
@@ -63,9 +55,7 @@
     "@react-native-community/cli": "^18.0.0",
     "patch-package": "^8.0.0"
   },
-  "overrides": {
-    "expo-modules-core": "~1.12.26"
-  },
+  "overrides": {},
   "private": true,
   "name": "inovie-scan-mobile",
   "version": "1.0.0"
