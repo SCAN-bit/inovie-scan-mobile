@@ -9,16 +9,9 @@
   if (originalRequire) {
     require = function(id) {
       // Si c'est un module natif manquant, retourner notre polyfill
-      if (id.includes('NativeModules') || id.includes('ExpoAsset') || id.includes('expo')) {
+      if (id.includes('NativeModules') || id.includes('expo')) {
         console.log('[ExpoPolyfill] Interception require:', id);
         return {
-          ExpoAsset: {
-            downloadAsync: () => Promise.resolve(),
-            loadAsync: () => Promise.resolve(),
-            fromModule: () => Promise.resolve(),
-            fromURI: () => Promise.resolve(),
-            fromBundle: () => Promise.resolve()
-          },
           ExponentConstants: {
             appOwnership: 'standalone',
             expoVersion: '51.0.0',
@@ -40,14 +33,7 @@
     globalThis.NativeModules = {};
   }
   
-  // Créer immédiatement les modules manquants
-  globalThis.NativeModules.ExpoAsset = {
-    downloadAsync: () => Promise.resolve(),
-    loadAsync: () => Promise.resolve(),
-    fromModule: () => Promise.resolve(),
-    fromURI: () => Promise.resolve(),
-    fromBundle: () => Promise.resolve()
-  };
+  // Créer immédiatement les modules manquants (sans ExpoAsset)
   
   globalThis.NativeModules.ExponentConstants = {
     appOwnership: 'standalone',
@@ -79,7 +65,7 @@
     
     // Si c'est l'erreur ExpoAsset, la remplacer par un message informatif
     if (message.includes("Cannot find native module 'ExpoAsset'")) {
-      console.log('[ExpoPolyfill] Erreur ExpoAsset interceptée et ignorée - Polyfill activé');
+      console.log('[ExpoPolyfill] Erreur ExpoAsset interceptée et ignorée - Module exclu du bundle');
       return; // Ne pas afficher l'erreur
     }
     
@@ -152,14 +138,7 @@ if (typeof globalThis.NativeModules === 'undefined') {
   globalThis.NativeModules = {};
 }
 
-// Ajouter ExpoAsset au NativeModules
-globalThis.NativeModules.ExpoAsset = {
-  downloadAsync: () => Promise.resolve(),
-  loadAsync: () => Promise.resolve(),
-  fromModule: () => Promise.resolve(),
-  fromURI: () => Promise.resolve(),
-  fromBundle: () => Promise.resolve()
-};
+// ExpoAsset exclu du bundle - plus nécessaire
 
 // Ajouter ExponentConstants au NativeModules
 globalThis.NativeModules.ExponentConstants = {
@@ -213,7 +192,7 @@ const createModulePolyfill = (moduleName) => {
 const originalNativeModules = globalThis.NativeModules;
 
 // Créer immédiatement les polyfills pour les modules connus
-const knownModules = ['ExpoAsset', 'ExponentConstants', 'EXNativeModulesProxy', 'ExpoSplashScreen', 'ExpoUpdates'];
+const knownModules = ['ExponentConstants', 'EXNativeModulesProxy', 'ExpoSplashScreen', 'ExpoUpdates'];
 knownModules.forEach(moduleName => {
   if (!originalNativeModules[moduleName]) {
     console.log(`[ExpoPolyfill] Création préventive du polyfill pour: ${moduleName}`);

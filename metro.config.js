@@ -14,6 +14,10 @@ config.transformer = {
 config.resolver = {
   ...config.resolver,
   platforms: ['native', 'android', 'ios', 'web'],
+  // Exclure complètement expo-asset du bundle
+  blockList: [
+    /.*\/node_modules\/expo-asset\/.*/
+  ],
 };
 
 // Forcer l'inclusion du polyfill au début du bundle
