@@ -1,5 +1,6 @@
-// Charger le polyfill Expo en premier
+// Charger les polyfills Expo en premier
 import './expo-polyfill';
+import './expo-modules-core-polyfill';
 
 import { registerRootComponent } from 'expo';
 import App from './App';
