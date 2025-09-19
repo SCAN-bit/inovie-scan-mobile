@@ -31,7 +31,7 @@
     "expo-dev-client": "~4.0.29",
     "expo-device": "~6.0.2",
     "expo-file-system": "~17.0.1",
-    "expo-font": "~12.0.10",
+    "expo-font": "^14.0.8",
     "expo-image-picker": "~15.1.0",
     "expo-intent-launcher": "~11.0.1",
     "expo-keep-awake": "~13.0.2",
