@@ -16,6 +16,9 @@ class MainApplication : Application(), ReactApplication {
     override fun getPackages(): List<ReactPackage> {
       val packages = mutableListOf<ReactPackage>()
       
+      // Ajouter notre module ExpoAsset personnalisé
+      packages.add(ExpoAssetPackage())
+      
       // Let React Native auto-linking handle all packages including DataWedge
       // DataWedge should be auto-linked from package.json
       
