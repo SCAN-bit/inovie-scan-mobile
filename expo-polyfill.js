@@ -49,4 +49,50 @@ if (typeof globalThis.expo.SplashScreen === 'undefined') {
   };
 }
 
+// Polyfill pour Asset
+if (typeof globalThis.expo.Asset === 'undefined') {
+  globalThis.expo.Asset = {
+    loadAsync: () => Promise.resolve(),
+    downloadAsync: () => Promise.resolve(),
+    fromModule: () => Promise.resolve(),
+    fromURI: () => Promise.resolve(),
+    fromBundle: () => Promise.resolve()
+  };
+}
+
+// Polyfill pour les modules natifs React Native manquants
+if (typeof globalThis.NativeModules === 'undefined') {
+  globalThis.NativeModules = {};
+}
+
+// Ajouter ExpoAsset au NativeModules
+globalThis.NativeModules.ExpoAsset = {
+  downloadAsync: () => Promise.resolve(),
+  loadAsync: () => Promise.resolve(),
+  fromModule: () => Promise.resolve(),
+  fromURI: () => Promise.resolve(),
+  fromBundle: () => Promise.resolve()
+};
+
+// Ajouter ExponentConstants au NativeModules
+globalThis.NativeModules.ExponentConstants = {
+  appOwnership: 'standalone',
+  expoVersion: '51.0.0',
+  platform: { android: true, ios: false, web: false },
+  getConstants: function() {
+    return {
+      appOwnership: 'standalone',
+      expoVersion: '51.0.0',
+      platform: { android: true, ios: false, web: false }
+    };
+  }
+};
+
+// Ajouter EXNativeModulesProxy au NativeModules
+globalThis.NativeModules.EXNativeModulesProxy = {
+  callMethod: () => Promise.resolve(),
+  addListener: () => ({ remove: () => {} }),
+  removeListeners: () => {}
+};
+
 console.log('[ExpoPolyfill] Expo polyfill initialisé:', globalThis.expo);
