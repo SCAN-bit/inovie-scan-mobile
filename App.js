@@ -17,6 +17,7 @@ import AppUpdateService from './services/AppUpdateService';
 
 import UpdateAlert from './components/UpdateAlert';
 import './scripts/auto-start-keep-alive'; // Keep-alive Supabase automatique
+import testExpoAsset from './test-expo-asset'; // Test du module ExpoAsset
 
 // Solution pour l'erreur activateKeepAwake - Version web compatible
 if (Platform.OS !== 'web' && KeepAwake && KeepAwake.activateKeepAwake) {
@@ -48,6 +49,9 @@ export default function App() {
   // Initialisation des services de mise à jour
   useEffect(() => {
     // Initialisation des systèmes de mise à jour
+    
+    // Tester le module ExpoAsset au démarrage
+    testExpoAsset();
     
     // Vérifier les mises à jour GitHub au démarrage
     setTimeout(async () => {
