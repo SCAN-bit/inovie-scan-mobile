@@ -27,14 +27,21 @@ if (typeof globalThis.NativeModules === 'undefined') {
   globalThis.NativeModules = {};
 }
 
-// Polyfill ExpoAsset
-globalThis.NativeModules.ExpoAsset = {
-  downloadAsync: () => Promise.resolve(),
-  loadAsync: () => Promise.resolve(),
-  fromModule: () => Promise.resolve(),
-  fromURI: () => Promise.resolve(),
-  fromBundle: () => Promise.resolve()
-};
+// Polyfill ExpoAsset uniquement sur web (laisser le module natif sur Android)
+if (typeof window !== 'undefined') {
+  // Mode web - créer le polyfill
+  globalThis.NativeModules.ExpoAsset = {
+    downloadAsync: () => Promise.resolve(),
+    loadAsync: () => Promise.resolve(),
+    fromModule: () => Promise.resolve(),
+    fromURI: () => Promise.resolve(),
+    fromBundle: () => Promise.resolve()
+  };
+  console.log('[ExpoPolyfill] ExpoAsset polyfill créé pour web');
+} else {
+  // Mode Android - laisser le module natif répondre
+  console.log('[ExpoPolyfill] ExpoAsset natif attendu sur Android');
+}
 
 // Polyfill ExponentConstants
 globalThis.NativeModules.ExponentConstants = {
