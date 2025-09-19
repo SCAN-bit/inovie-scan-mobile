@@ -1,6 +1,6 @@
 {
   "license": "0BSD",
-  "main": "index.js",
+  "main": "App.entry.js",
   "scripts": {
     "start": "expo start --dev-client",
     "android": "expo run:android",
@@ -25,18 +25,18 @@
     "appwrite": "^18.2.0",
     "css-loader": "^7.1.2",
     "expo": "~51.0.0",
+    "expo-asset": "~10.0.10",
     "expo-auth-session": "~5.5.2",
     "expo-build-properties": "~0.12.5",
     "expo-constants": "~16.0.2",
     "expo-dev-client": "~4.0.29",
     "expo-device": "~6.0.2",
     "expo-file-system": "~17.0.1",
-    "expo-font": "^14.0.8",
+    "expo-font": "~12.0.5",
     "expo-image-picker": "~15.1.0",
     "expo-intent-launcher": "~11.0.1",
     "expo-keep-awake": "~13.0.2",
     "expo-linking": "~6.3.1",
-    "expo-modules-core": "~1.12.26",
     "expo-splash-screen": "~0.27.7",
     "expo-status-bar": "~1.12.1",
     "expo-updates": "~0.25.28",
@@ -56,7 +56,7 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.19.13",
     "readline-sync": "^1.4.10",
-    "sharp-cli": "^5.1.0",
+    "sharp-cli": "^2.1.1",
     "style-loader": "^4.0.0",
     "typescript": "~5.3.3",
     "uuid": "^9.0.1"
@@ -67,7 +67,7 @@
     "patch-package": "^8.0.0"
   },
   "overrides": {
-    "expo-modules-core": "~1.12.26"
+    "expo-modules-core": "~1.12.0"
   },
   "private": true,
   "name": "inovie-scan-mobile",

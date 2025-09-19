@@ -54,7 +54,7 @@ const CustomPicker = ({
         onPress={() => enabled && setIsVisible(true)}
         disabled={!enabled}
       >
-        {icon && <Ionicons name={icon} size={20} color="#7f8c8d" style={styles.icon} />}
+        {icon && <Ionicons name={icon === "business-outline" ? "business" : icon} size={20} color="#7f8c8d" style={styles.icon} />}
         
         <Text style={[
           styles.selectedText,

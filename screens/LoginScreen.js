@@ -290,7 +290,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
                 ...selasList.map(selas => ({ label: selas.nom, value: selas.id }))
               ]}
               placeholder="-- Sélectionnez votre SELAS --"
-              icon="business-outline"
+              icon="business"
               enabled={!selasLoading && selasList.length > 0}
             />
 
@@ -327,7 +327,7 @@ export default function LoginScreen({ navigation, route }) { // Added route
                 activeOpacity={0.7}
               >
                 <Ionicons 
-                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                  name={showPassword ? "eye-off" : "eye"} 
                   size={20} 
                   color="#7f8c8d" 
                 />

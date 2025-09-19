@@ -80,7 +80,7 @@ const LoginForm = ({ onLogin, loading }) => {
           onPress={() => setShowPassword(!showPassword)}
         >
           <Ionicons 
-            name={showPassword ? "eye-off-outline" : "eye-outline"} 
+            name={showPassword ? "eye-off" : "eye"} 
             size={20} 
             color="#7f8c8d" 
           />
