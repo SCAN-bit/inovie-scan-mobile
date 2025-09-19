@@ -1,13 +1,7 @@
 diff --git a/node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt b/node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
-index 0000000..1111111 100644
 --- a/node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
 +++ b/node_modules/expo-modules-core/android/src/main/java/expo/modules/adapters/react/permissions/PermissionsService.kt
-@@ -155,15 +155,15 @@ class PermissionsService(
-   private fun requestPermissions(
-     permissionsList: Array<String>
-   ) {
-     if (permissionsList.isEmpty()) {
-       return
+@@ -163,7 +163,7 @@ class PermissionsService(
      }
  
      val permissions = permissionsList
