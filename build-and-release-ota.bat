@@ -6,11 +6,40 @@ echo   BUILD APK + RELEASE OTA GITHUB
 echo ========================================
 echo.
 
+echo [DEBUG] Script demarre dans: %CD%
+echo [DEBUG] Verification des fichiers necessaires...
+if not exist "package.json" (
+    echo ERREUR: package.json introuvable dans %CD%
+    echo Vous devez etre dans le dossier inovie-scan-mobile
+    pause
+    exit /b 1
+)
+if not exist "app.json" (
+    echo ERREUR: app.json introuvable dans %CD%
+    pause
+    exit /b 1
+)
+if not exist "android" (
+    echo ERREUR: Dossier android introuvable dans %CD%
+    pause
+    exit /b 1
+)
+echo [DEBUG] Tous les fichiers necessaires trouves ✓
+echo.
+
 REM Verifier si node_modules existe
 if not exist "node_modules" (
-    echo Installation des dependances...
+    echo [DEBUG] Installation des dependances...
     npm install
+    if errorlevel 1 (
+        echo ERREUR: npm install a echoue !
+        pause
+        exit /b 1
+    )
+    echo [DEBUG] npm install reussi ✓
     echo.
+) else (
+    echo [DEBUG] node_modules existe deja ✓
 )
 
 REM Lire la version actuelle depuis app.json
@@ -121,18 +150,27 @@ if exist "android\gradle\wrapper\gradle-wrapper.properties" (
     )
 )
 
-REM Nettoyer le cache Gradle corrompu
+REM Nettoyer le cache Gradle corrompu (méthode robocopy pour chemins longs Windows)
 echo Nettoyage du cache Gradle corrompu...
-if exist "%USERPROFILE%\.gradle\caches" (
-    echo Suppression du cache Gradle...
-    rmdir /s /q "%USERPROFILE%\.gradle\caches" 2>nul
-    echo Cache Gradle supprimé ✓
+if exist "%USERPROFILE%\.gradle" (
+    echo Création dossier temporaire vide pour robocopy...
+    if not exist "%TEMP%\gradle-empty" mkdir "%TEMP%\gradle-empty"
+    echo Suppression cache Gradle avec robocopy (compatible chemins longs)...
+    robocopy "%TEMP%\gradle-empty" "%USERPROFILE%\.gradle" /MIR /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
+    rmdir /q "%TEMP%\gradle-empty" 2>nul
+    echo Cache Gradle supprimé ✓ (robocopy)
 )
 
 REM Supprimer le dossier .gradle local corrompu
 if exist "android\.gradle" (
     echo Suppression du dossier .gradle local...
     rmdir /s /q "android\.gradle" 2>nul
+    if exist "android\.gradle" (
+        echo Nettoyage .gradle local avec robocopy...
+        if not exist "%TEMP%\gradle-local-empty" mkdir "%TEMP%\gradle-local-empty"
+        robocopy "%TEMP%\gradle-local-empty" "android\.gradle" /MIR /NFL /NDL /NJH /NJS /NC /NS /NP >nul 2>&1
+        rmdir /q "%TEMP%\gradle-local-empty" 2>nul
+    )
     echo Dossier .gradle local supprimé ✓
 )
 
@@ -176,7 +214,7 @@ powershell -Command "(Get-Content 'gradle.properties') -replace 'android.suppres
 echo kotlin.version=1.9.25 >> gradle.properties
 echo android.suppressKotlinVersionCompatibilityCheck=true >> gradle.properties
 echo systemProp.kotlin.version=1.9.25 >> gradle.properties
-echo org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m >> gradle.properties
+echo org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=2048m -XX:+UseG1GC -XX:+UseStringDeduplication >> gradle.properties
 
 REM Lire la version et le build number depuis android/app/build.gradle
 for /f "tokens=2 delims= " %%a in ('findstr "versionName" android\app\build.gradle') do (
