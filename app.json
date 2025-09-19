@@ -1,17 +1,18 @@
 ﻿{
     "expo":  {
-                 "plugins":  [
-                                 [
-                                     "expo-build-properties",
-                                     {
-                                         "android":  {
-                                                         "gradleVersion":  "8.7",
-                                                         "agpVersion":  "8.5.0"
-                                                     }
-                                     }
-                                 ],
-                                 "./plugins/withDataWedgeReceiver.js"
-                             ],
+                "plugins":  [
+                                [
+                                    "expo-build-properties",
+                                    {
+                                        "android":  {
+                                                        "gradleVersion":  "8.7",
+                                                        "agpVersion":  "8.5.0"
+                                                    }
+                                    }
+                                ],
+                                "expo-asset",
+                                "./plugins/withDataWedgeReceiver.js"
+                            ],
                  "name":  "SCAN",
                  "slug":  "snack-2c79588e-2732-4f6a-a4f4-5ed4e39cd83b",
                  "version":  "1.0.8",
