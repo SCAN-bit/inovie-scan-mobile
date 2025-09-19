@@ -122,8 +122,18 @@ const createModulePolyfill = (moduleName) => {
   };
 };
 
-// Intercepter les accès aux modules natifs manquants
+// Intercepter les accès aux modules natifs manquants AVANT qu'ils soient demandés
 const originalNativeModules = globalThis.NativeModules;
+
+// Créer immédiatement les polyfills pour les modules connus
+const knownModules = ['ExpoAsset', 'ExponentConstants', 'EXNativeModulesProxy', 'ExpoSplashScreen', 'ExpoUpdates'];
+knownModules.forEach(moduleName => {
+  if (!originalNativeModules[moduleName]) {
+    console.log(`[ExpoPolyfill] Création préventive du polyfill pour: ${moduleName}`);
+    originalNativeModules[moduleName] = createModulePolyfill(moduleName);
+  }
+});
+
 globalThis.NativeModules = new Proxy(originalNativeModules, {
   get(target, prop) {
     if (prop in target) {
