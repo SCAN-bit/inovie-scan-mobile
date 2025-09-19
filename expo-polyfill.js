@@ -149,7 +149,24 @@ if (typeof globalThis.NativeModules === 'undefined') {
   globalThis.NativeModules = {};
 }
 
-// ExpoAsset sera géré par le plugin expo-asset
+// Créer ExpoAsset sur web uniquement (le module natif existe sur Android)
+if (typeof globalThis.Platform === 'undefined') {
+  // Polyfill Platform pour détecter la plateforme
+  globalThis.Platform = {
+    OS: typeof window !== 'undefined' ? 'web' : 'android'
+  };
+}
+
+if (globalThis.Platform.OS === 'web') {
+  globalThis.NativeModules.ExpoAsset = {
+    downloadAsync: () => Promise.resolve(),
+    loadAsync: () => Promise.resolve(),
+    fromModule: () => Promise.resolve(),
+    fromURI: () => Promise.resolve(),
+    fromBundle: () => Promise.resolve()
+  };
+  console.log('[ExpoPolyfill] ExpoAsset créé pour le mode web');
+}
 
 // Ajouter ExponentConstants au NativeModules
 globalThis.NativeModules.ExponentConstants = {
