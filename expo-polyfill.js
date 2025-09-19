@@ -28,7 +28,10 @@ if (typeof globalThis.NativeModules === 'undefined') {
 }
 
 // Polyfill ExpoAsset uniquement sur web (laisser le module natif sur Android)
-if (typeof window !== 'undefined') {
+// Détection fiable de la plateforme
+const isWeb = typeof document !== 'undefined' && typeof window !== 'undefined' && typeof navigator !== 'undefined';
+
+if (isWeb) {
   // Mode web - créer le polyfill
   globalThis.NativeModules.ExpoAsset = {
     downloadAsync: () => Promise.resolve(),
