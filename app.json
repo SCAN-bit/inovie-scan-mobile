@@ -38,7 +38,7 @@
         "foregroundImage": "./assets/icon-SCAN.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "SCAN.mobile",
+      "package": "com.micka1031.inoviescanmobile",
       "runtimeVersion": "1.0.0"
     },
     "web": {
