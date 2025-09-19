@@ -161,46 +161,9 @@ if (typeof globalThis.require === 'function') {
 
 console.log('[ExpoPolyfill] Expo polyfill initialisé:', globalThis.expo);
 
-// Activer tous les logs de débogage au démarrage
-console.log('[ExpoPolyfill] Activation des logs de débogage...');
-
-// Intercepter toutes les erreurs pour les afficher sans crasher (éviter les boucles)
-const originalConsoleError = console.error;
-let consoleErrorCount = 0;
-const MAX_CONSOLE_ERRORS = 5;
-
-console.error = function(...args) {
-  // Éviter les boucles infinies avec des erreurs répétitives
-  const errorMessage = args.join(' ');
-  if (errorMessage.includes('react-stack-top-frame') || errorMessage.includes('DIAGNOSTIC')) {
-    consoleErrorCount++;
-    if (consoleErrorCount > MAX_CONSOLE_ERRORS) {
-      return; // Arrêter d'afficher les erreurs répétitives
-    }
-  }
-  
-  console.log('[ERROR INTERCEPTED]:', ...args);
-  originalConsoleError.apply(console, args);
-};
-
-// Intercepter les erreurs globales
-window.addEventListener('error', function(event) {
-  console.log('[GLOBAL ERROR]:', event.error);
-});
-
-// Intercepter les promesses rejetées
-window.addEventListener('unhandledrejection', function(event) {
-  console.log('[UNHANDLED PROMISE REJECTION]:', event.reason);
-});
-
-// Activer les logs React Native
+// Activer le mode debug simple
 if (typeof globalThis.__DEV__ === 'undefined') {
   globalThis.__DEV__ = true;
 }
 
-// Activer les logs Expo
-if (typeof globalThis.expo !== 'undefined' && globalThis.expo.Constants) {
-  globalThis.expo.Constants.debugMode = true;
-}
-
-console.log('[ExpoPolyfill] Logs de débogage activés');
+console.log('[ExpoPolyfill] Mode debug activé');
