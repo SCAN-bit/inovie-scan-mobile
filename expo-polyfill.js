@@ -31,19 +31,20 @@ if (typeof globalThis.NativeModules === 'undefined') {
 // Détection fiable de la plateforme
 const isWeb = typeof document !== 'undefined' && typeof window !== 'undefined' && typeof navigator !== 'undefined';
 
+// Créer le polyfill ExpoAsset sur toutes les plateformes
+// Car le module natif ne semble pas être reconnu
+globalThis.NativeModules.ExpoAsset = {
+  downloadAsync: () => Promise.resolve(),
+  loadAsync: () => Promise.resolve(),
+  fromModule: () => Promise.resolve(),
+  fromURI: () => Promise.resolve(),
+  fromBundle: () => Promise.resolve()
+};
+
 if (isWeb) {
-  // Mode web - créer le polyfill
-  globalThis.NativeModules.ExpoAsset = {
-    downloadAsync: () => Promise.resolve(),
-    loadAsync: () => Promise.resolve(),
-    fromModule: () => Promise.resolve(),
-    fromURI: () => Promise.resolve(),
-    fromBundle: () => Promise.resolve()
-  };
   console.log('[ExpoPolyfill] ExpoAsset polyfill créé pour web');
 } else {
-  // Mode Android - laisser le module natif répondre
-  console.log('[ExpoPolyfill] ExpoAsset natif attendu sur Android');
+  console.log('[ExpoPolyfill] ExpoAsset polyfill créé pour Android (module natif non trouvé)');
 }
 
 // Polyfill ExponentConstants
