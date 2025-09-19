@@ -10,7 +10,8 @@ config.resolver = {
   ...config.resolver,
   platforms: ['native', 'android', 'ios', 'web'],
   alias: {
-    'expo-asset': path.resolve(__dirname, 'expo-asset-polyfill.js')
+    'expo-asset': path.resolve(__dirname, 'expo-asset-polyfill.js'),
+    'expo-modules-core/build/web': path.resolve(__dirname, 'node_modules/expo-modules-core/build/web/index.js')
   }
 };
 
