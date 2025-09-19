@@ -10,6 +10,7 @@
                                                      }
                                      }
                                  ],
+                                 "expo-asset",
                                  "./plugins/withDataWedgeReceiver.js"
                              ],
                  "name":  "SCAN",

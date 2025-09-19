@@ -57,7 +57,7 @@
   console.log('[ExpoPolyfill] Modules natifs créés immédiatement');
 })();
 
-// ExpoAsset est maintenant un vrai module natif - plus d'interception nécessaire
+// ExpoAsset sera géré par le plugin expo-asset - plus d'interception nécessaire
 
 // Initialisation complète d'Expo pour les builds de production
 if (typeof globalThis.expo === 'undefined') {
@@ -123,7 +123,7 @@ if (typeof globalThis.NativeModules === 'undefined') {
   globalThis.NativeModules = {};
 }
 
-// ExpoAsset exclu du bundle - plus nécessaire
+// ExpoAsset sera géré par le plugin expo-asset
 
 // Ajouter ExponentConstants au NativeModules
 globalThis.NativeModules.ExponentConstants = {
